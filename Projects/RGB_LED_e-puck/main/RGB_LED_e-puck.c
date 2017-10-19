@@ -1,11 +1,13 @@
-/* Ledc fade example
+/*
 
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
+File    : RGB_LED_e-pcuk.c
+Author  : Eliot Ferragni
+Date    : 18 october 2017
+REV 1.0
 
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
+Fuctions to control the RGB LEDs connected of the ESP32 of the e-puck 2
 */
+
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -14,138 +16,86 @@
 #include "driver/ledc.h"
 #include "esp_attr.h"   
 #include "esp_err.h"
+#include "RGB_LED_e-puck.h"
 
-/*
- * About this example
- * 1. init LEDC module:
- *    a. You need to set the timer of LEDC first, this decide the frequency and resolution of PWM.
- *    b. You need to set the LEDC channel you want to use, and bind with one of the timers.
- *
- * 2. You can install a default fade function, then you can use fade APIs.
- *
- * 3. You can also set a target duty directly without fading.
- *
- * 4. This example use GPIO18/19/4/5 as LEDC ouput, and it will change the duty repeatedly.
- *
- * 5. GPIO18/19 are from high speed channel group. GPIO4/5 are from low speed channel group.
- *
- */
+void init_led(void){
+  //configure timer for high speed channels
+  led_timer.speed_mode = LEDC_HIGH_SPEED_MODE;
+  ledc_timer_config(&led_timer);
 
-#define LEDC_HS_TIMER          LEDC_TIMER_0
-#define LEDC_HS_MODE           LEDC_HIGH_SPEED_MODE
-#define LEDC_HS_CH0_GPIO       (32)
-#define LEDC_HS_CH0_CHANNEL    LEDC_CHANNEL_0
-#define LEDC_HS_CH1_GPIO       (14)
-#define LEDC_HS_CH1_CHANNEL    LEDC_CHANNEL_1
+  //configure timer for low speed channels
+  led_timer.speed_mode = LEDC_LOW_SPEED_MODE;
+  ledc_timer_config(&led_timer);
 
-#define LEDC_LS_TIMER          LEDC_TIMER_0
-#define LEDC_LS_MODE           LEDC_HIGH_SPEED_MODE
-#define LEDC_LS_CH2_GPIO       (13)
-#define LEDC_LS_CH2_CHANNEL    LEDC_CHANNEL_2
-#define LEDC_LS_CH3_GPIO       (15)
-#define LEDC_LS_CH3_CHANNEL    LEDC_CHANNEL_3
+  uint8_t rgb_led = 0;
+  uint8_t led = 0;
+  for(rgb_led = 0 ; rgb_led < NUM_RGB_LED ; rgb_led++){
+    for(led = 0 ; led < NUM_LED ; led++){
 
-#define LEDC_TEST_CH_NUM       (4)
-typedef struct {
-    int channel;
-    int io;
-    int mode;
-    int timer_idx;
-} ledc_info_t;
+      //set the configuration
+      ledc_channel_config(&led_config[rgb_led][led]);
+    }
+  }
+  //enable the isr
+  ledc_fade_func_install(0);
+}
+
+void set_led_intensity(rgb_led_name_t rgb_led, led_name_t led, uint8_t intensity, uint16_t time_ms){
+
+  if(intensity > MAX_INTENSITY){
+    intensity = MAX_INTENSITY;
+  }
+  uint16_t value = (100 - intensity) * MAX_DUTY / 100; 
+  ledc_set_fade_with_time(led_config[rgb_led][led].speed_mode, 
+                          led_config[rgb_led][led].channel, value, time_ms);
+  ledc_fade_start(led_config[rgb_led][led].speed_mode, 
+                  led_config[rgb_led][led].channel, LEDC_FADE_NO_WAIT);
+}
+
+void set_led_color( rgb_led_name_t rgb_led, uint8_t intensity, rgb_color_t* color_value , uint16_t time_ms){
+
+  if(intensity > MAX_INTENSITY){
+    intensity = MAX_INTENSITY;
+  }
+
+  if(intensity == 0){
+    intensity = 1;
+  }
+
+  uint16_t value_color[NUM_LED];
+  value_color[RED_LED]    = MAX_DUTY - (((((( (color_value->red) * 100 ) / MAX_COLOR_VALUE ) * intensity ) / 100 ) * MAX_DUTY) / 100 ); 
+  value_color[GREEN_LED]  = MAX_DUTY - (((((( (color_value->green) * 100 ) / MAX_COLOR_VALUE ) * intensity ) / 100 ) * MAX_DUTY) / 100 );
+  value_color[BLUE_LED]   = MAX_DUTY - (((((( (color_value->blue) * 100 ) / MAX_COLOR_VALUE ) * intensity ) / 100 ) * MAX_DUTY) / 100 );
+
+  uint8_t led = 0;
+  for(led = 0 ; led < NUM_LED ; led++ ){
+
+    ledc_set_fade_with_time(led_config[rgb_led][led].speed_mode, 
+                          led_config[rgb_led][led].channel, value_color[led], time_ms);
+    ledc_fade_start(led_config[rgb_led][led].speed_mode, 
+                    led_config[rgb_led][led].channel, LEDC_FADE_NO_WAIT);
+  }
+
+}
 
 void app_main()
 {
-    int ch;
-    ledc_info_t ledc_ch[LEDC_TEST_CH_NUM] = {
-        {
-            .channel   = LEDC_HS_CH0_CHANNEL,
-            .io        = LEDC_HS_CH0_GPIO,
-            .mode      = LEDC_HS_MODE,
-            .timer_idx = LEDC_HS_TIMER
-        },
-        {
-            .channel   = LEDC_HS_CH1_CHANNEL,
-            .io        = LEDC_HS_CH1_GPIO,
-            .mode      = LEDC_HS_MODE,
-            .timer_idx = LEDC_HS_TIMER
-        },
-        {
-            .channel   = LEDC_LS_CH2_CHANNEL,
-            .io        = LEDC_LS_CH2_GPIO,
-            .mode      = LEDC_LS_MODE,
-            .timer_idx = LEDC_LS_TIMER
-        },
-        {
-            .channel   = LEDC_LS_CH3_CHANNEL,
-            .io        = LEDC_LS_CH3_GPIO,
-            .mode      = LEDC_LS_MODE,
-            .timer_idx = LEDC_LS_TIMER
-        }
-    };
 
-    ledc_timer_config_t ledc_timer = {
-        .bit_num = LEDC_TIMER_13_BIT, //set timer counter bit number
-        .freq_hz = 5000,              //set frequency of pwm
-        .speed_mode = LEDC_HS_MODE,   //timer mode,
-        .timer_num = LEDC_HS_TIMER    //timer index
-    };
-    //configure timer0 for high speed channels
-    ledc_timer_config(&ledc_timer);
+  init_led();
 
-    //configure timer1 for low speed channels
-    // ledc_timer.speed_mode = LEDC_LS_MODE;
-    // ledc_timer.timer_num = LEDC_LS_TIMER;
-    // ledc_timer_config(&ledc_timer);
+  rgb_color_t color_value;
+  uint8_t intensity = 100;
 
-    for (ch = 0; ch < LEDC_TEST_CH_NUM; ch++) {
-        ledc_channel_config_t ledc_channel = {
-            //set LEDC channel 0
-            .channel = ledc_ch[ch].channel,
-            //set the duty for initialization.(duty range is 0 ~ ((2**bit_num)-1)
-            .duty = 0,
-            //GPIO number
-            .gpio_num = ledc_ch[ch].io,
-            //GPIO INTR TYPE, as an example, we enable fade_end interrupt here.
-            .intr_type = LEDC_INTR_FADE_END,
-            //set LEDC mode, from ledc_mode_t
-            .speed_mode = ledc_ch[ch].mode,
-            //set LEDC timer source, if different channel use one timer,
-            //the frequency and bit_num of these channels should be the same
-            .timer_sel = ledc_ch[ch].timer_idx,
-        };
-        //set the configuration
-        ledc_channel_config(&ledc_channel);
+  uint8_t color_nb = 0;
+  uint8_t rgb_led = 0;
+  while(1){
+
+    for(color_nb = 0 ; color_nb < NUM_COLORS ; color_nb++){
+      color_value = color[color_nb];
+      for(rgb_led = 0 ; rgb_led < NUM_RGB_LED ; rgb_led++){
+        set_led_color(rgb_led, intensity, &color_value, 5);
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+      }
     }
-
-    //initialize fade service.
-    ledc_fade_func_install(0);
-    while (1) {
-        printf("LEDC fade up\n");
-        for (ch = 0; ch < LEDC_TEST_CH_NUM; ch++) {
-            ledc_set_fade_with_time(ledc_ch[ch].mode, ledc_ch[ch].channel, 8191, 2000);
-            ledc_fade_start(ledc_ch[ch].mode, ledc_ch[ch].channel, LEDC_FADE_NO_WAIT);
-        }
-        vTaskDelay(3000 / portTICK_PERIOD_MS);
-
-        printf("LEDC fade down\n");
-        for (ch = 0; ch < LEDC_TEST_CH_NUM; ch++) {
-            ledc_set_fade_with_time(ledc_ch[ch].mode, ledc_ch[ch].channel, 0, 2000);
-            ledc_fade_start(ledc_ch[ch].mode, ledc_ch[ch].channel, LEDC_FADE_NO_WAIT);
-        }
-        vTaskDelay(3000 / portTICK_PERIOD_MS);
-
-        printf("LEDC set duty 16 777 215\n");
-        for (ch = 0; ch < LEDC_TEST_CH_NUM; ch++) {
-            ledc_set_duty(ledc_ch[ch].mode, ledc_ch[ch].channel, 8191);
-            ledc_update_duty(ledc_ch[ch].mode, ledc_ch[ch].channel);
-        }
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-
-        printf("LEDC set duty 0\n");
-        for (ch = 0; ch < LEDC_TEST_CH_NUM; ch++) {
-            ledc_set_duty(ledc_ch[ch].mode, ledc_ch[ch].channel, 0);
-            ledc_update_duty(ledc_ch[ch].mode, ledc_ch[ch].channel);
-        }
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-    }
+  }
 }
