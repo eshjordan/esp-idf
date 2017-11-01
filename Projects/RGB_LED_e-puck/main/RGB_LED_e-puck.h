@@ -134,7 +134,7 @@ ledc_channel_config_t led_config[NUM_RGB_LED][NUM_LED] = {
 		},
 		//GREEN_LED
 		{
-			.gpio_num		= 34,
+			.gpio_num		= 21,
 			.speed_mode 	= LEDC_HIGH_SPEED_MODE,
 			.duty 			= MAX_DUTY,
 			.channel 		= LEDC_CHANNEL_7, 
@@ -164,7 +164,7 @@ ledc_channel_config_t led_config[NUM_RGB_LED][NUM_LED] = {
 		},
 		//GREEN_LED
 		{
-			.gpio_num		= 35,
+			.gpio_num		= 17,
 			.speed_mode 	= LEDC_LOW_SPEED_MODE,
 			.duty 			= MAX_DUTY,
 			.channel 		= LEDC_CHANNEL_2, 
