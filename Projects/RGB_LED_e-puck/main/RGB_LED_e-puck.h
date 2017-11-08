@@ -16,6 +16,8 @@ Fuctions to control the RGB LEDs connected of the ESP32 of the e-puck 2
 #define MAX_INTENSITY		100	//percentage
 #define MAX_COLOR_VALUE		255	//RGB value
 
+#define BUF_SIZE (1024)
+
 //List of the RGB LEDs present on the e-puck 2
 typedef enum {
 	LED2,
@@ -164,7 +166,7 @@ ledc_channel_config_t led_config[NUM_RGB_LED][NUM_LED] = {
 		},
 		//GREEN_LED
 		{
-			.gpio_num		= 17,
+			.gpio_num		= 16,
 			.speed_mode 	= LEDC_LOW_SPEED_MODE,
 			.duty 			= MAX_DUTY,
 			.channel 		= LEDC_CHANNEL_2, 
