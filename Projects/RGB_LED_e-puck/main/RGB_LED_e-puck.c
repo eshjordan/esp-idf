@@ -80,7 +80,7 @@ void set_led_color( rgb_led_name_t rgb_led, uint8_t intensity, rgb_color_t* colo
 
 }
 
-// Echo from UART2 to UART0 without flow control.
+// Echo from UART2 to UART0/UART2 without flow control.
 static void echo_task()
 {
     uart_config_t uart_config = {
@@ -108,8 +108,9 @@ static void echo_task()
         //Read data from UART2
 		len = uart_read_bytes(UART_NUM_2, data, 1, 20 / portTICK_RATE_MS);
 		if(len > 0) {
-			//Write data back to UART0
+			//Write data back to UART0 and UART2
 			uart_write_bytes(UART_NUM_0, (const char*) data, len);
+			uart_write_bytes(UART_NUM_2, (const char*) data, len);
 		}
     }
 }
