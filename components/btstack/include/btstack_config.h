@@ -5,6 +5,8 @@
 #ifndef __BTSTACK_CONFIG
 #define __BTSTACK_CONFIG
 
+#define HAVE_FREERTOS_TASK_NOTIFICATIONS
+
 // Port related features
 #define HAVE_EMBEDDED_TIME_MS
 #define HAVE_MALLOC

@@ -8,6 +8,8 @@ REV 1.0
 Firmware to be run on the ESP32 of the E-Puck 2
 */
 
+#define __BTSTACK_FILE__ "ESP32_E-Puck_2.c"
+
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -17,10 +19,9 @@ Firmware to be run on the ESP32 of the E-Puck 2
 #include "esp_err.h"
 #include "RGB_LED_E-Puck.h"
 
+extern int btstack_main(void);
 
-void app_main()
-{
-
+void main_task(void *pvParameter){
   init_led();
 
   rgb_color_t color_value;
@@ -38,4 +39,10 @@ void app_main()
       }
     }
   }
+}
+
+void app_main(void)
+{ 
+  xTaskCreate(&main_task, "main_task", 10240, NULL, 5, NULL);
+  btstack_main();
 }

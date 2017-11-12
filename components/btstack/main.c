@@ -347,10 +347,10 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
     }
 }
 
-extern int btstack_main(int argc, const char * argv[]);
+extern int btstack_setup(int argc, const char * argv[]);
 
 // main
-int app_main(void){
+int btstack_main(void){
 
     printf("BTstack: setup\n");
 
@@ -378,7 +378,7 @@ int app_main(void){
     hci_event_callback_registration.callback = &packet_handler;
     hci_add_event_handler(&hci_event_callback_registration);
 
-    btstack_main(0, NULL);
+    btstack_setup(0, NULL);
 
     printf("BTstack: execute run loop\n");
     btstack_run_loop_execute();
