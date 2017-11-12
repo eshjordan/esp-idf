@@ -1,6 +1,6 @@
 /*
 
-File    : RGB_LED_e-puck.c
+File    : RGB_LED_E-Puck.c
 Author  : Eliot Ferragni
 Date    : 18 october 2017
 REV 1.0
@@ -13,6 +13,182 @@ Functions to control the RGB LEDs connected of the ESP32 of the E-Puck 2
 #include "esp_attr.h"   
 #include "esp_err.h"
 #include "RGB_LED_E-Puck.h"
+
+//Timer configuration for the LED PWM module
+ledc_timer_config_t led_timer = {
+    .bit_num = LEDC_TIMER_13_BIT,     //set timer counter bit number
+    .freq_hz = PWM_FREQ,                //set frequency of pwm
+    .timer_num = LEDC_TIMER_0       //timer index
+};
+
+//LED configurations
+ledc_channel_config_t led_config[NUM_RGB_LED][NUM_LED] = {
+  //LED2
+  { 
+    //RED_LED
+    { 
+      .gpio_num     = LED2_RED_GPIO,
+      .speed_mode   = LEDC_HIGH_SPEED_MODE,
+      .duty         = MAX_DUTY,
+      .channel      = LEDC_CHANNEL_0, 
+      .intr_type    = LEDC_INTR_FADE_END,
+      .timer_sel    = LEDC_TIMER_0, 
+    },
+    //GREEN_LED
+    { 
+      .gpio_num     = LED2_GREEN_GPIO,
+      .speed_mode   = LEDC_HIGH_SPEED_MODE,
+      .duty         = MAX_DUTY,
+      .channel      = LEDC_CHANNEL_1, 
+      .intr_type    = LEDC_INTR_FADE_END,
+      .timer_sel    = LEDC_TIMER_0, 
+    },
+    //BLUE_LED
+    { .gpio_num     = LED2_BLUE_GPIO,
+      .speed_mode   = LEDC_HIGH_SPEED_MODE,
+      .duty         = MAX_DUTY,
+      .channel      = LEDC_CHANNEL_2, 
+      .intr_type    = LEDC_INTR_FADE_END,
+      .timer_sel    = LEDC_TIMER_0, 
+    },
+  },
+  //LED4
+  {
+    //RED_LED
+    { 
+      .gpio_num     = LED4_RED_GPIO,
+      .speed_mode   = LEDC_HIGH_SPEED_MODE,
+      .duty         = MAX_DUTY,
+      .channel      = LEDC_CHANNEL_3, 
+      .intr_type    = LEDC_INTR_FADE_END,
+      .timer_sel    = LEDC_TIMER_0, 
+    },
+    //GREEN_LED
+    { 
+      .gpio_num     = LED4_GREEN_GPIO,
+      .speed_mode   = LEDC_HIGH_SPEED_MODE,
+      .duty         = MAX_DUTY,
+      .channel      = LEDC_CHANNEL_4,
+      .intr_type    = LEDC_INTR_FADE_END,
+      .timer_sel    = LEDC_TIMER_0, 
+    },
+    //BLUE_LED
+    { 
+      .gpio_num     = LED4_BLUE_GPIO,
+      .speed_mode   = LEDC_HIGH_SPEED_MODE,
+      .duty         = MAX_DUTY,
+      .channel      = LEDC_CHANNEL_5, 
+      .intr_type    = LEDC_INTR_FADE_END,
+      .timer_sel    = LEDC_TIMER_0, 
+    },
+  },
+  //LED6
+  {
+    //RED_LED
+    {
+      .gpio_num     = LED6_RED_GPIO,
+      .speed_mode   = LEDC_HIGH_SPEED_MODE,
+      .duty         = MAX_DUTY,
+      .channel      = LEDC_CHANNEL_6, 
+      .intr_type    = LEDC_INTR_FADE_END,
+      .timer_sel    = LEDC_TIMER_0, 
+    },
+    //GREEN_LED
+    {
+      .gpio_num     = LED6_GREEN_GPIO,
+      .speed_mode   = LEDC_HIGH_SPEED_MODE,
+      .duty         = MAX_DUTY,
+      .channel      = LEDC_CHANNEL_7, 
+      .intr_type    = LEDC_INTR_FADE_END,
+      .timer_sel    = LEDC_TIMER_0, 
+    },
+    //BLUE_LED
+    {
+      .gpio_num     = LED6_BLUE_GPIO,
+      .speed_mode   = LEDC_LOW_SPEED_MODE,
+      .duty         = MAX_DUTY,
+      .channel      = LEDC_CHANNEL_0, 
+      .intr_type    = LEDC_INTR_FADE_END,
+      .timer_sel    = LEDC_TIMER_0,       
+    },
+  },
+  //LED8
+  {
+    //RED_LED
+    {
+      .gpio_num     = LED8_RED_GPIO,
+      .speed_mode   = LEDC_LOW_SPEED_MODE,
+      .duty         = MAX_DUTY,
+      .channel      = LEDC_CHANNEL_1, 
+      .intr_type    = LEDC_INTR_FADE_END,
+      .timer_sel    = LEDC_TIMER_0,       
+    },
+    //GREEN_LED
+    {
+      .gpio_num     = LED8_GREEN_GPIO,
+      .speed_mode   = LEDC_LOW_SPEED_MODE,
+      .duty         = MAX_DUTY,
+      .channel      = LEDC_CHANNEL_2, 
+      .intr_type    = LEDC_INTR_FADE_END,
+      .timer_sel    = LEDC_TIMER_0,       
+    },
+    //BLUE_LED
+    {
+      .gpio_num     = LED8_BLUE_GPIO,
+      .speed_mode   = LEDC_LOW_SPEED_MODE,
+      .duty         = MAX_DUTY,
+      .channel      = LEDC_CHANNEL_3, 
+      .intr_type    = LEDC_INTR_FADE_END,
+      .timer_sel    = LEDC_TIMER_0,       
+    },
+  },
+};
+
+//Some basic color definitons
+rgb_color_t color[NUM_COLORS] ={
+  //RED
+  {
+    .red  = 255,
+    .green  = 0,
+    .blue   = 0,
+  },
+  //GREEN
+  {
+    .red  = 0,
+    .green  = 255,
+    .blue   = 0,
+  },
+  //BLUE
+  {
+    .red  = 0,
+    .green  = 0,
+    .blue   = 255,
+  },
+  //YELLOW
+  {
+    .red  = 255,
+    .green  = 255,
+    .blue   = 0,
+  },
+  //LIGHT_BLUE
+  {
+    .red  = 0,
+    .green  = 255,
+    .blue   = 255,
+  },
+  //MAGENTA
+  {
+    .red  = 255,
+    .green  = 0,
+    .blue   = 255,
+  },
+  //WHITE
+  {
+    .red  = 255,
+    .green  = 255,
+    .blue   = 255,
+  },
+};
 
 void init_led(void){
   //configure timer for high speed channels
