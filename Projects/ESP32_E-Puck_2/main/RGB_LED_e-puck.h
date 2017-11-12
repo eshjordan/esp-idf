@@ -1,12 +1,15 @@
 /*
 
-File    : RGB_LED_e-pcuk.h
+File    : RGB_LED_e-puck.h
 Author  : Eliot Ferragni
 Date    : 18 october 2017
 REV 1.0
 
-Fuctions to control the RGB LEDs connected of the ESP32 of the e-puck 2
+Functions to control the RGB LEDs connected of the ESP32 of the E-Puck 2
 */
+
+#ifndef RGB_LED_E_PUCK_H
+#define RGB_LED_E_PUCK_H
 
 #include "driver/ledc.h"
 
@@ -263,5 +266,5 @@ void set_led_intensity(rgb_led_name_t rgb_led, led_name_t led, uint8_t intensity
 void set_led_color(rgb_led_name_t led, uint8_t intensity, rgb_color_t* color_value, uint16_t time_ms);
 
 
-
+#endif /* RGB_LED_E_PUCK_H */
 
