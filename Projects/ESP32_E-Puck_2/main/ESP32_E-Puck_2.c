@@ -16,11 +16,12 @@ Firmware to be run on the ESP32 of the E-Puck 2
 #include "esp_attr.h"   
 #include "esp_err.h"
 #include "RGB_LED_E-Puck.h"
+#include "UART_E-Puck_2.h"
 
-
-void app_main()
-{
-
+void app_main(){
+  //A uart read/write example without event queue;
+  xTaskCreate(echo_task, "uart_echo_task", 1024, NULL, 10, NULL);
+  
   init_led();
 
   rgb_color_t color_value;
