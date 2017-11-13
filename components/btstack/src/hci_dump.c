@@ -194,7 +194,7 @@ static void printf_timestamp(void){
 }
 
 void hci_dump_packet(uint8_t packet_type, uint8_t in, uint8_t *packet, uint16_t len) {    
-
+#ifdef ENABLE_HCI_DUMP
     if (dump_file < 0) return; // not activated yet
 
 #ifdef HAVE_POSIX_FILE_IO
@@ -275,6 +275,7 @@ void hci_dump_packet(uint8_t packet_type, uint8_t in, uint8_t *packet, uint16_t 
     printf_packet(packet_type, in, packet, len);
 
 #endif
+#endif /* ENABLE_HCI_DUMP */
 }
 
 static int hci_dump_log_level_active(int log_level){
