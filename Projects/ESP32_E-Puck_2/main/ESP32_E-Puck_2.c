@@ -18,6 +18,7 @@ Firmware to be run on the ESP32 of the E-Puck 2
 #include "esp_attr.h"   
 #include "esp_err.h"
 #include "RGB_LED_E-Puck.h"
+#include "rfcomm_E-Puck_2.h"
 
 extern int btstack_main(void);
 
@@ -41,8 +42,24 @@ void main_task(void *pvParameter){
   }
 }
 
+void test_send(void *pvParameter){
+  uint8_t test_buf[2000];
+  uint16_t i = 0;
+  uint16_t size = 2000;
+  for(i=0;i<size;i++){
+    test_buf[i] = i;
+  }
+  vTaskDelay(2000 / portTICK_PERIOD_MS);
+  while(1){
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+    bluetooth_write(test_buf, size);
+  }
+  
+}
+
 void app_main(void)
 { 
   xTaskCreate(&main_task, "main_task", 10240, NULL, 5, NULL);
+  xTaskCreate(&test_send, "test_send", 5120, NULL, 5, NULL);
   btstack_main();
 }

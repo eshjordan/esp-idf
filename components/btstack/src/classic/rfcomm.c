@@ -2090,6 +2090,15 @@ uint16_t rfcomm_get_max_frame_size(uint16_t rfcomm_cid){
     return channel->max_frame_size;
 }
 
+uint16_t rfcomm_get_outgoing_credits(uint16_t rfcomm_cid){
+    rfcomm_channel_t * channel = rfcomm_channel_for_rfcomm_cid(rfcomm_cid);
+    if (!channel){
+        log_error("rfcomm_get_max_frame_size cid 0x%02x doesn't exist!", rfcomm_cid);
+        return 0;
+    }
+    return channel->credits_outgoing;
+}
+
 int rfcomm_send_prepared(uint16_t rfcomm_cid, uint16_t len){
     rfcomm_channel_t * channel = rfcomm_channel_for_rfcomm_cid(rfcomm_cid);
     if (!channel){

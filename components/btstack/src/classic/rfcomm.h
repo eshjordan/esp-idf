@@ -378,6 +378,8 @@ int rfcomm_query_port_configuration(uint16_t rfcomm_cid);
  */
 uint16_t  rfcomm_get_max_frame_size(uint16_t rfcomm_cid);
 
+uint16_t  rfcomm_get_outgoing_credits(uint16_t rfcomm_cid);
+
 /** 
  * @brief Allow to create RFCOMM packet in outgoing buffer.
  * if (rfcomm_can_send_packet_now(cid)){
