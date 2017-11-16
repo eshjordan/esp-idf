@@ -41,7 +41,6 @@ static uint8_t  blue_rx_buffer[BLUE_RX_BUFFER_SIZE];
 static uint8_t  blue_tx_buffer[BLUE_TX_BUFFER_SIZE];
 static uint8_t* ptr_to_send_blue_tx = blue_tx_buffer;
 static uint8_t* ptr_to_fill_blue_tx = blue_tx_buffer;
-static uint8_t reset_ptr_to_send_blue_tx = 0;
 
 //shared variables between threads
 static uint16_t nb_to_send_blue_tx = 0;
@@ -77,7 +76,7 @@ static void  heartbeat_handler(struct btstack_timer_source *ts){
             rfcomm_request_can_send_now_event(rfcomm_channel_id);
         }
         xSemaphoreGive(xWriteBluetooth);
-        
+
     }else{
         printf("semaphore not free heartbeat\n");
     }
@@ -174,8 +173,9 @@ static void bluetooth_send(uint16_t channel_id, int32_t max_frame_size){
 
     static uint16_t credits = 0;
     static uint16_t size_to_send = 0;
-    //printf("can send now event\n");
-    vTaskDelay(1);  //usefull to avoid a watchdog trigger when the sending is very slow
+    //usefull to avoid a watchdog trigger when the sending is very slow
+    vTaskDelay(1);  
+
     if(xSemaphoreTake(xWriteBluetooth, (TickType_t)1000) == pdTRUE){
         size_to_send = nb_to_send_blue_tx;
         if(nb_to_send_blue_tx > max_frame_size){
@@ -192,27 +192,14 @@ static void bluetooth_send(uint16_t channel_id, int32_t max_frame_size){
         vTaskDelay(100 / portTICK_PERIOD_MS);
         rfcomm_send(channel_id, ptr_to_send_blue_tx, 0);
     }else{
-        // if(reset_ptr_to_send_blue_tx == 1){
-        //     ptr_to_send_blue_tx = blue_tx_buffer;
-        //     reset_ptr_to_send_blue_tx = 0;
-        //     printf("loop send function\n");
-        // }
-        // if((ptr_to_send_blue_tx + size_to_send) >= (blue_tx_buffer + BLUE_TX_BUFFER_SIZE)){
-        //     size_to_send = ( (blue_tx_buffer + BLUE_TX_BUFFER_SIZE) - ptr_to_send_blue_tx );
-        //     reset_ptr_to_send_blue_tx = 1;
-        //     printf("need to loop send function\n");
-        // }
         rfcomm_send(channel_id, ptr_to_send_blue_tx, size_to_send);
 
         if(xSemaphoreTake(xWriteBluetooth, (TickType_t)1000) == pdTRUE){
             nb_to_send_blue_tx -= size_to_send;
-            //remaining_size_blue_tx += size_to_send;
             xSemaphoreGive(xWriteBluetooth);
         }
         ptr_to_send_blue_tx += size_to_send;
         printf(" %d bytes sent, remaining = %d\n",size_to_send, nb_to_send_blue_tx);
-        envoyes += size_to_send;
-        //printf("envoyés = %d\n",envoyes);
     }
 
     if(nb_to_send_blue_tx > 0){
@@ -220,8 +207,11 @@ static void bluetooth_send(uint16_t channel_id, int32_t max_frame_size){
         rfcomm_request_can_send_now_event(channel_id);
     }else{
         //reset the pointers
-        reset_blue_tx();
-        //printf("must not send => reset ptr\n");
+        if(xSemaphoreTake(xWriteBluetooth, (TickType_t)1000) == pdTRUE){
+            reset_blue_tx();
+            xSemaphoreGive(xWriteBluetooth);
+        }
+        printf("must not send => reset ptr\n");
     }
 }
 
@@ -233,7 +223,7 @@ bool bluetooth_write(uint8_t* buffer, uint16_t buffer_len){
         if(xSemaphoreTake(xWriteBluetooth, (TickType_t)1000) == pdTRUE){
             if(remaining_size_blue_tx >= buffer_len){
 
-                //increment counter for the tx buffer
+                //increment counters for the tx buffer
                 nb_to_send_blue_tx += buffer_len;
                 remaining_size_blue_tx -= buffer_len;
 
@@ -241,36 +231,24 @@ bool bluetooth_write(uint8_t* buffer, uint16_t buffer_len){
                 for(i = 0 ; i < buffer_len ; i++){
                     //the pointer is incremented after the copy of the value
                     *ptr_to_fill_blue_tx++ = buffer[i];
-                    //implementation of a circular buffer
-                    // if(ptr_to_fill_blue_tx == (blue_tx_buffer + BLUE_TX_BUFFER_SIZE)){
-                    //     ptr_to_fill_blue_tx = blue_tx_buffer;
-                    //     printf("loop fill function\n");
-                    // }
                 }
                 
                 xSemaphoreGive(xWriteBluetooth);
 
-                printf("remaining size = %d, nb_to_send = %d\n",remaining_size_blue_tx, nb_to_send_blue_tx);
                 printf("wrote %d bytes to send buffer\n", buffer_len);
-                ret = true;
-                //printf("released semaphore\n");
+                printf("remaining size = %d, nb_to_send = %d\n",remaining_size_blue_tx, nb_to_send_blue_tx);
                 
-                //rfcomm_request_can_send_now_event(rfcomm_channel_id);
+                ret = true;
             }else{
                 xSemaphoreGive(xWriteBluetooth);
                 printf("not enough space\n");
                 ret = false;
-                //printf("released semaphore\n");
             }
         }else{
             printf("semaphore not free bluetooth_write\n");
             ret = false;
         }
         
-        // if(nb_to_send_blue_tx > 0){
-        //     printf("must_send\n");
-        //     rfcomm_request_can_send_now_event(rfcomm_channel_id);
-        // }
     }else{
         printf("bluetooth is not connected\n");
         ret = false;
