@@ -49,12 +49,24 @@ void test_send(void *pvParameter){
   for(i=0;i<size;i++){
     test_buf[i] = i;
   }
-  vTaskDelay(2000 / portTICK_PERIOD_MS);
+  //vTaskDelay(2000 / portTICK_PERIOD_MS);
+  // while(1){
+  //   vTaskDelay(10 / portTICK_PERIOD_MS);
+  //   bluetooth_write(test_buf, size);
+  // }
+
   while(1){
     vTaskDelay(10 / portTICK_PERIOD_MS);
-    bluetooth_write(test_buf, size);
+    int16_t rcv = bluetooth_read(test_buf, size);
+    //printf("rcv = %d\n",rcv);
+    if(rcv > 0){
+      // for (i=0;i<rcv;i++){
+      //     putchar(test_buf[i]);
+      // }
+      // printf("\n");
+      //bluetooth_write(test_buf,rcv);
+    }
   }
-  
 }
 
 void app_main(void)

@@ -27,22 +27,42 @@ Functions to comtrol and use the bluetooth stack
 
 #define RFCOMM_SERVER_CHANNEL 1
 #define HEARTBEAT_PERIOD_MS 1
+#define INITIAL_INCOMMING_CREDITS 1
 
+
+//internal functions
+static void spp_service_setup(void);
+static void heartbeat_handler(struct btstack_timer_source *ts);
+static void one_shot_timer_setup(void);
 static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
-static void bluetooth_send(uint16_t channel_id, int32_t max_frame_size);
+static void reset_blue_rx(void);
+static void bluetooth_receive(uint16_t channel_id, uint8_t* buffer, uint16_t buffer_len, int32_t max_frame_size);
 static void reset_blue_tx(void);
+static void bluetooth_send(uint16_t channel_id, int32_t max_frame_size);
+
+
+//internal variables
+static btstack_timer_source_t heartbeat;
 
 static uint16_t rfcomm_channel_id;
 static uint8_t  spp_service_buffer[150];
 static btstack_packet_callback_registration_t hci_event_callback_registration;
 
 static uint8_t  blue_rx_buffer[BLUE_RX_BUFFER_SIZE];
+static uint8_t* ptr_to_receive_blue_rx = blue_rx_buffer;
+static uint8_t* ptr_to_read_blue_rx = blue_rx_buffer;
+static uint8_t  incomming_credits = INITIAL_INCOMMING_CREDITS;
 
 static uint8_t  blue_tx_buffer[BLUE_TX_BUFFER_SIZE];
 static uint8_t* ptr_to_send_blue_tx = blue_tx_buffer;
 static uint8_t* ptr_to_fill_blue_tx = blue_tx_buffer;
 
 //shared variables between threads
+static uint16_t nb_to_read_blue_rx = 0;
+static uint16_t remaining_size_blue_rx = BLUE_RX_BUFFER_SIZE;
+static uint8_t  grant_incomming_credit = 0;
+static SemaphoreHandle_t xReadBluetooth = NULL;
+
 static uint16_t nb_to_send_blue_tx = 0;
 static uint16_t remaining_size_blue_tx = BLUE_TX_BUFFER_SIZE;
 static SemaphoreHandle_t xWriteBluetooth = NULL;
@@ -56,7 +76,7 @@ static void spp_service_setup(void){
     l2cap_init();
 
     rfcomm_init();
-    rfcomm_register_service_with_initial_credits(packet_handler, RFCOMM_SERVER_CHANNEL, 0xffff,1);  // reserved channel, mtu limited by l2cap
+    rfcomm_register_service_with_initial_credits(packet_handler, RFCOMM_SERVER_CHANNEL, 0xffff,INITIAL_INCOMMING_CREDITS);  // reserved channel, mtu limited by l2cap
 
     // init SDP, create record for SPP and register with SDP
     sdp_init();
@@ -66,8 +86,7 @@ static void spp_service_setup(void){
     printf("SDP service record size: %u\n", de_get_len(spp_service_buffer));
 }
 
-static btstack_timer_source_t heartbeat;
-static void  heartbeat_handler(struct btstack_timer_source *ts){
+static void heartbeat_handler(struct btstack_timer_source *ts){
 
     if(xSemaphoreTake(xWriteBluetooth, (TickType_t)10) == pdTRUE){
 
@@ -79,6 +98,15 @@ static void  heartbeat_handler(struct btstack_timer_source *ts){
 
     }else{
         printf("semaphore not free heartbeat\n");
+    }
+
+    if(xSemaphoreTake(xReadBluetooth, (TickType_t)10) == pdTRUE){
+        if(grant_incomming_credit && !incomming_credits){
+            grant_incomming_credit = 0;
+            incomming_credits++;
+            rfcomm_grant_credits(rfcomm_channel_id, 1);
+        }
+        xSemaphoreGive(xReadBluetooth);
     }
 
     btstack_run_loop_set_timer(ts, HEARTBEAT_PERIOD_MS);
@@ -152,12 +180,95 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
             vTaskDelay(1);
             printf("<==================RCV: %d characters =====================>",size);
             printf("'\n");
-            rfcomm_grant_credits(rfcomm_channel_id, 1);
+            
+            bluetooth_receive(rfcomm_channel_id, packet, size, mtu);
             
             break;
 
         default:
             break;
+    }
+}
+
+static void reset_blue_rx(void){
+    ptr_to_receive_blue_rx = blue_rx_buffer;
+    ptr_to_read_blue_rx = blue_rx_buffer;
+    remaining_size_blue_rx = BLUE_RX_BUFFER_SIZE;
+    nb_to_read_blue_rx = 0;
+}
+
+static void bluetooth_receive(uint16_t channel_id, uint8_t* buffer, uint16_t buffer_len, int32_t max_frame_size){
+
+    static uint16_t i = 0;
+
+    printf("incomming_credits = %d\n",incomming_credits);
+
+    if(xSemaphoreTake(xReadBluetooth, (TickType_t)1000) == pdTRUE){
+        printf("received %d characters \n",buffer_len);
+        remaining_size_blue_rx -= buffer_len;
+        nb_to_read_blue_rx += buffer_len;
+        incomming_credits--;
+
+        for(i = 0 ; i < buffer_len ; i++){
+            //the pointer is incremented after the copy of the value
+            *ptr_to_receive_blue_rx++ = buffer[i];
+        }
+        printf("remaining size = %d\n",remaining_size_blue_rx);
+        if((remaining_size_blue_rx - max_frame_size) > 0){
+            printf("grant 1 credit bluetooth_receive\n");
+            grant_incomming_credit = 1;
+        }
+        xSemaphoreGive(xReadBluetooth);
+    }
+}
+
+int16_t bluetooth_read(uint8_t* buffer, uint16_t buffer_len){
+
+    static uint16_t i = 0;
+    static uint16_t size_to_read = 0;
+
+    if(rfcomm_channel_id){
+        if(xSemaphoreTake(xReadBluetooth, (TickType_t)1000) == pdTRUE){
+            if(nb_to_read_blue_rx){
+
+                size_to_read = nb_to_read_blue_rx;
+                if(nb_to_read_blue_rx > buffer_len){
+                    size_to_read = buffer_len;
+                }
+
+                printf("read %d characters\n",nb_to_read_blue_rx);
+                nb_to_read_blue_rx -= size_to_read;
+                remaining_size_blue_rx += size_to_read;
+
+                for(i = 0 ; i < size_to_read ; i++){
+                    //the pointer is incremented after the copy of the value
+                    buffer[i] = *ptr_to_read_blue_rx++;
+                }
+
+                printf("remaining size = %d, nb to read = %d\n",remaining_size_blue_rx, nb_to_read_blue_rx);
+
+                if(!nb_to_read_blue_rx){
+                    if(!grant_incomming_credit){
+                        grant_incomming_credit = 1;
+                        printf("grant credit bluetooth_read\n");
+                    }
+                    printf("no more to read => reset ptr\n");
+                    reset_blue_rx();
+                }
+                xSemaphoreGive(xReadBluetooth);
+                return size_to_read;
+            }else{
+                xSemaphoreGive(xReadBluetooth);
+                printf("nothing received\n");
+                return 0;
+            }
+        }else{
+            printf("semaphore not free bluetooth_read\n");
+            return -1;
+        }
+    }else{
+        printf("bluetooth is not connected\n");
+        return -1;
     }
 }
 
@@ -169,7 +280,6 @@ static void reset_blue_tx(void){
 }
 
 static void bluetooth_send(uint16_t channel_id, int32_t max_frame_size){
-    static uint32_t envoyes = 0;
 
     static uint16_t credits = 0;
     static uint16_t size_to_send = 0;
@@ -216,7 +326,6 @@ static void bluetooth_send(uint16_t channel_id, int32_t max_frame_size){
 }
 
 bool bluetooth_write(uint8_t* buffer, uint16_t buffer_len){
-    static bool ret = true;
     static uint16_t i = 0;
 
     if(rfcomm_channel_id){
@@ -238,30 +347,28 @@ bool bluetooth_write(uint8_t* buffer, uint16_t buffer_len){
                 printf("wrote %d bytes to send buffer\n", buffer_len);
                 printf("remaining size = %d, nb_to_send = %d\n",remaining_size_blue_tx, nb_to_send_blue_tx);
                 
-                ret = true;
+                return true;
             }else{
                 xSemaphoreGive(xWriteBluetooth);
                 printf("not enough space\n");
-                ret = false;
+                return false;
             }
         }else{
             printf("semaphore not free bluetooth_write\n");
-            ret = false;
+            return false;
         }
         
     }else{
         printf("bluetooth is not connected\n");
-        ret = false;
+        return false;
     }
-
-    return ret;
 }
 
-uint16_t bluetooth_read(uint8_t* buffer, uint16_t buffer_len){
-    return 4;
-}
-
+//called by btstack_main located in /components/btstack/main.c
 int btstack_setup(int argc, const char * argv[]){
+
+    xReadBluetooth = xSemaphoreCreateBinary();
+    xSemaphoreGive(xReadBluetooth);
 
     xWriteBluetooth = xSemaphoreCreateBinary();
     xSemaphoreGive(xWriteBluetooth);
