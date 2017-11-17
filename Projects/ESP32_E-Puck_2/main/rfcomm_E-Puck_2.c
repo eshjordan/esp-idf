@@ -2,10 +2,10 @@
 
 File    : rfcomm_E-Puck_2.c
 Author  : Eliot Ferragni
-Date    : 12 november 2017
-REV 1.1
+Date    : 17 november 2017
+REV 1.2
 
-Functions to comtrol and use the bluetooth stack
+Functions to control and use the bluetooth stack
 */
 
 #define __BTSTACK_FILE__ "rfcomm_E-Puck_2.c"
@@ -86,8 +86,14 @@ static void spp_service_setup(void){
     printf("SDP service record size: %u\n", de_get_len(spp_service_buffer));
 }
 
+/* 
+ * Handler called peridically by the main of btstack
+ * by doing specific stuff here, we make sure it will be sync with
+ * the thread of btstack. Unpredictable behaviors appear with 
+ * rfcomm_request_can_send_now_event() and rfcomm_grant_credits()
+ * when called from another thread
+*/
 static void heartbeat_handler(struct btstack_timer_source *ts){
-
     if(xSemaphoreTake(xWriteBluetooth, (TickType_t)10) == pdTRUE){
 
         if(nb_to_send_blue_tx){
@@ -113,6 +119,9 @@ static void heartbeat_handler(struct btstack_timer_source *ts){
     btstack_run_loop_add_timer(ts);
 } 
 
+/* 
+ * Configure the heartbeat handler
+*/
 static void one_shot_timer_setup(void){
     // set one-shot timer
     heartbeat.process = &heartbeat_handler;
@@ -120,6 +129,9 @@ static void one_shot_timer_setup(void){
     btstack_run_loop_add_timer(&heartbeat);
 }
 
+/* 
+ * Function to handle the events related with the bluetooth communication
+*/
 static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size){
     UNUSED(channel);
 
@@ -189,7 +201,9 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
             break;
     }
 }
-
+/* 
+ * Reset the pointers and counters of the blue_rx_buffer
+*/
 static void reset_blue_rx(void){
     ptr_to_receive_blue_rx = blue_rx_buffer;
     ptr_to_read_blue_rx = blue_rx_buffer;
@@ -197,6 +211,9 @@ static void reset_blue_rx(void){
     nb_to_read_blue_rx = 0;
 }
 
+/* 
+ * Function triggered by a receive bluetooth event which copy the received datas into the blue_rx_buffer
+*/
 static void bluetooth_receive(uint16_t channel_id, uint8_t* buffer, uint16_t buffer_len, int32_t max_frame_size){
 
     static uint16_t i = 0;
@@ -264,14 +281,17 @@ int16_t bluetooth_read(uint8_t* buffer, uint16_t buffer_len){
             }
         }else{
             printf("semaphore not free bluetooth_read\n");
-            return -1;
+            return TASK_COLLIISION;
         }
     }else{
         printf("bluetooth is not connected\n");
-        return -1;
+        return BLUETOOTH_NOT_CONNECTED;
     }
 }
 
+/* 
+ * Reset the pointers and counters of the blue_tx_buffer
+*/
 static void reset_blue_tx(void){
     ptr_to_send_blue_tx = blue_tx_buffer;
     ptr_to_fill_blue_tx = blue_tx_buffer;
@@ -279,6 +299,9 @@ static void reset_blue_tx(void){
     nb_to_send_blue_tx = 0;
 }
 
+/* 
+ * Function triggered by a send bluetooth event which send the datas over bluetooth
+*/
 static void bluetooth_send(uint16_t channel_id, int32_t max_frame_size){
 
     static uint16_t credits = 0;
@@ -325,7 +348,7 @@ static void bluetooth_send(uint16_t channel_id, int32_t max_frame_size){
     }
 }
 
-bool bluetooth_write(uint8_t* buffer, uint16_t buffer_len){
+int8_t bluetooth_write(uint8_t* buffer, uint16_t buffer_len){
     static uint16_t i = 0;
 
     if(rfcomm_channel_id){
@@ -347,24 +370,27 @@ bool bluetooth_write(uint8_t* buffer, uint16_t buffer_len){
                 printf("wrote %d bytes to send buffer\n", buffer_len);
                 printf("remaining size = %d, nb_to_send = %d\n",remaining_size_blue_tx, nb_to_send_blue_tx);
                 
-                return true;
+                return DATAS_WRITTEN;
             }else{
                 xSemaphoreGive(xWriteBluetooth);
                 printf("not enough space\n");
-                return false;
+                return BUFFER_FULL;
             }
         }else{
             printf("semaphore not free bluetooth_write\n");
-            return false;
+            return TASK_COLLIISION;
         }
         
     }else{
         printf("bluetooth is not connected\n");
-        return false;
+        return BLUETOOTH_NOT_CONNECTED;
     }
 }
 
-//called by btstack_main located in /components/btstack/main.c
+/* 
+ * Function to configure and initiate the bluetooth communication
+ * called by btstack_main located in /components/btstack/main.c
+*/
 int btstack_setup(int argc, const char * argv[]){
 
     xReadBluetooth = xSemaphoreCreateBinary();

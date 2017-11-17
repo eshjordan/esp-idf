@@ -2,8 +2,8 @@
 
 File    : rfcomm_E-Puck_2.c
 Author  : Eliot Ferragni
-Date    : 14 november 2017
-REV 1.0
+Date    : 17 november 2017
+REV 1.2
 
 Functions to comtrol and use the bluetooth stack
 */
@@ -14,6 +14,13 @@ Functions to comtrol and use the bluetooth stack
 
 #define BLUE_RX_BUFFER_SIZE		2000	
 #define BLUE_TX_BUFFER_SIZE		2000
+
+#define DATAS_WRITTEN			0
+
+#define BUFFER_FULL				-1
+#define TASK_COLLIISION			-2
+#define BLUETOOTH_NOT_CONNECTED	-3
+
 
 
 /**
@@ -27,7 +34,7 @@ Functions to comtrol and use the bluetooth stack
  * @return	true if the datas has been taken and false if the buffer is already full
  * 			or the bluetooth not available.
  */
-bool bluetooth_write(uint8_t* buffer, uint16_t buffer_len);
+int8_t bluetooth_write(uint8_t* buffer, uint16_t buffer_len);
 
 /**
  * @brief Read datas from the bluetooth
