@@ -42,29 +42,15 @@ void main_task(void *pvParameter){
   }
 }
 
-void test_send(void *pvParameter){
+void example_echo_bluetooth(void *pvParameter){
   uint8_t test_buf[2000];
-  uint16_t i = 0;
   uint16_t size = 2000;
-  for(i=0;i<size;i++){
-    test_buf[i] = i;
-  }
-  //vTaskDelay(2000 / portTICK_PERIOD_MS);
-  // while(1){
-  //   vTaskDelay(10 / portTICK_PERIOD_MS);
-  //   bluetooth_write(test_buf, size);
-  // }
 
   while(1){
     vTaskDelay(10 / portTICK_PERIOD_MS);
     int16_t rcv = bluetooth_read(test_buf, size);
-    //printf("rcv = %d\n",rcv);
     if(rcv > 0){
-      // for (i=0;i<rcv;i++){
-      //     putchar(test_buf[i]);
-      // }
-      // printf("\n");
-      //bluetooth_write(test_buf,rcv);
+      bluetooth_write(test_buf,rcv);
     }
   }
 }
@@ -72,6 +58,6 @@ void test_send(void *pvParameter){
 void app_main(void)
 { 
   xTaskCreate(&main_task, "main_task", 10240, NULL, 5, NULL);
-  xTaskCreate(&test_send, "test_send", 5120, NULL, 5, NULL);
+  xTaskCreate(&example_echo_bluetooth, "example_echo_bluetooth", 5120, NULL, 5, NULL);
   btstack_main();
 }
