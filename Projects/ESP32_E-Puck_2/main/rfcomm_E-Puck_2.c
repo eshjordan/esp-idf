@@ -108,7 +108,7 @@ static void heartbeat_handler(struct btstack_timer_source *ts){
     }
 
     if(xSemaphoreTake(xReadBluetooth, (TickType_t)10) == pdTRUE){
-        if(grant_incomming_credit && !incomming_credits){
+        if(grant_incomming_credit){
             grant_incomming_credit = 0;
             incomming_credits += nb_incomming_credit_to_grant;
             rfcomm_grant_credits(rfcomm_channel_id, nb_incomming_credit_to_grant);
@@ -173,6 +173,7 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                         rfcomm_channel_id = rfcomm_event_channel_opened_get_rfcomm_cid(packet);
                         mtu = rfcomm_event_channel_opened_get_max_frame_size(packet);
                         nb_incomming_credit_to_grant = (BLUE_RX_BUFFER_SIZE / mtu);
+                        incomming_credits = INITIAL_INCOMMING_CREDITS;
                         printf("RFCOMM channel open succeeded. New RFCOMM Channel ID %u, max frame size %u\n", rfcomm_channel_id, mtu);
                     }
                     break;
@@ -263,7 +264,7 @@ int16_t bluetooth_read(uint8_t* buffer, uint16_t buffer_len){
                 printf("remaining size = %d, nb to read = %d\n",remaining_size_blue_rx, nb_to_read_blue_rx);
 
                 if(!nb_to_read_blue_rx){
-                    if(!grant_incomming_credit){
+                    if(!grant_incomming_credit && !incomming_credits){
                         grant_incomming_credit = 1;
                         printf("grant credit bluetooth_read\n");
                     }
