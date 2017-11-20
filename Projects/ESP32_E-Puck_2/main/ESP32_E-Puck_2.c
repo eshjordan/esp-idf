@@ -50,7 +50,9 @@ void example_echo_bluetooth(void *pvParameter){
     vTaskDelay(10 / portTICK_PERIOD_MS);
     int16_t rcv = bluetooth_read(test_buf, size);
     if(rcv > 0){
-      bluetooth_write(test_buf,rcv);
+      while(bluetooth_write(test_buf,rcv) != DATAS_WRITTEN){
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+      }
     }
   }
 }
