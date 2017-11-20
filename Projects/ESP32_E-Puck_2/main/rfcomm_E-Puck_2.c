@@ -61,6 +61,7 @@ static uint8_t* ptr_to_fill_blue_tx = blue_tx_buffer;
 static uint16_t nb_to_read_blue_rx = 0;
 static uint16_t remaining_size_blue_rx = BLUE_RX_BUFFER_SIZE;
 static uint8_t  grant_incomming_credit = 0;
+static uint8_t  nb_incomming_credit_to_grant = 0;
 static SemaphoreHandle_t xReadBluetooth = NULL;
 
 static uint16_t nb_to_send_blue_tx = 0;
@@ -109,8 +110,8 @@ static void heartbeat_handler(struct btstack_timer_source *ts){
     if(xSemaphoreTake(xReadBluetooth, (TickType_t)10) == pdTRUE){
         if(grant_incomming_credit && !incomming_credits){
             grant_incomming_credit = 0;
-            incomming_credits++;
-            rfcomm_grant_credits(rfcomm_channel_id, 1);
+            incomming_credits += nb_incomming_credit_to_grant;
+            rfcomm_grant_credits(rfcomm_channel_id, nb_incomming_credit_to_grant);
         }
         xSemaphoreGive(xReadBluetooth);
     }
@@ -171,6 +172,7 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                     } else {
                         rfcomm_channel_id = rfcomm_event_channel_opened_get_rfcomm_cid(packet);
                         mtu = rfcomm_event_channel_opened_get_max_frame_size(packet);
+                        nb_incomming_credit_to_grant = (BLUE_RX_BUFFER_SIZE / mtu);
                         printf("RFCOMM channel open succeeded. New RFCOMM Channel ID %u, max frame size %u\n", rfcomm_channel_id, mtu);
                     }
                     break;
@@ -231,10 +233,6 @@ static void bluetooth_receive(uint16_t channel_id, uint8_t* buffer, uint16_t buf
             *ptr_to_receive_blue_rx++ = buffer[i];
         }
         printf("remaining size = %d\n",remaining_size_blue_rx);
-        if((remaining_size_blue_rx - max_frame_size) > 0){
-            printf("grant 1 credit bluetooth_receive\n");
-            grant_incomming_credit = 1;
-        }
         xSemaphoreGive(xReadBluetooth);
     }
 }
