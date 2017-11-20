@@ -103,8 +103,6 @@ static void heartbeat_handler(struct btstack_timer_source *ts){
         }
         xSemaphoreGive(xWriteBluetooth);
 
-    }else{
-        printf("semaphore not free heartbeat\n");
     }
 
     if(xSemaphoreTake(xReadBluetooth, (TickType_t)10) == pdTRUE){
@@ -193,8 +191,8 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
 
         case RFCOMM_DATA_PACKET:
             vTaskDelay(1);
-            printf("<==================RCV: %d characters =====================>",size);
-            printf("'\n");
+            log_rfcomm("<==================RCV: %d characters =====================>",size);
+            log_rfcomm("'\n");
             
             bluetooth_receive(rfcomm_channel_id, packet, size, mtu);
             
@@ -221,10 +219,10 @@ static void bluetooth_receive(uint16_t channel_id, uint8_t* buffer, uint16_t buf
 
     static uint16_t i = 0;
 
-    printf("incomming_credits = %d\n",incomming_credits);
+    log_rfcomm("incomming_credits = %d\n",incomming_credits);
 
     if(xSemaphoreTake(xReadBluetooth, (TickType_t)1000) == pdTRUE){
-        printf("received %d characters \n",buffer_len);
+        log_rfcomm("received %d characters \n",buffer_len);
         remaining_size_blue_rx -= buffer_len;
         nb_to_read_blue_rx += buffer_len;
         incomming_credits--;
@@ -233,7 +231,7 @@ static void bluetooth_receive(uint16_t channel_id, uint8_t* buffer, uint16_t buf
             //the pointer is incremented after the copy of the value
             *ptr_to_receive_blue_rx++ = buffer[i];
         }
-        printf("remaining size = %d\n",remaining_size_blue_rx);
+        log_rfcomm("remaining size = %d\n",remaining_size_blue_rx);
         xSemaphoreGive(xReadBluetooth);
     }
 }
@@ -252,7 +250,7 @@ int16_t bluetooth_read(uint8_t* buffer, uint16_t buffer_len){
                     size_to_read = buffer_len;
                 }
 
-                printf("read %d characters\n",nb_to_read_blue_rx);
+                log_rfcomm("read %d characters\n",nb_to_read_blue_rx);
                 nb_to_read_blue_rx -= size_to_read;
                 remaining_size_blue_rx += size_to_read;
 
@@ -261,29 +259,29 @@ int16_t bluetooth_read(uint8_t* buffer, uint16_t buffer_len){
                     buffer[i] = *ptr_to_read_blue_rx++;
                 }
 
-                printf("remaining size = %d, nb to read = %d\n",remaining_size_blue_rx, nb_to_read_blue_rx);
+                log_rfcomm("remaining size = %d, nb to read = %d\n",remaining_size_blue_rx, nb_to_read_blue_rx);
 
                 if(!nb_to_read_blue_rx){
                     if(!grant_incomming_credit && !incomming_credits){
                         grant_incomming_credit = 1;
-                        printf("grant credit bluetooth_read\n");
+                        log_rfcomm("grant credit bluetooth_read\n");
                     }
-                    printf("no more to read => reset ptr\n");
+                    log_rfcomm("no more to read => reset ptr\n");
                     reset_blue_rx();
                 }
                 xSemaphoreGive(xReadBluetooth);
                 return size_to_read;
             }else{
                 xSemaphoreGive(xReadBluetooth);
-                printf("nothing received\n");
+                log_rfcomm("nothing received\n");
                 return 0;
             }
         }else{
-            printf("semaphore not free bluetooth_read\n");
+            log_rfcomm("semaphore not free bluetooth_read\n");
             return TASK_COLLIISION;
         }
     }else{
-        printf("bluetooth is not connected\n");
+        log_rfcomm("bluetooth is not connected\n");
         return BLUETOOTH_NOT_CONNECTED;
     }
 }
@@ -316,7 +314,7 @@ static void bluetooth_send(uint16_t channel_id, int32_t max_frame_size){
         xSemaphoreGive(xWriteBluetooth);
     }
     credits = rfcomm_get_outgoing_credits(channel_id);
-    printf("credits restants = %d\n",credits);
+    log_rfcomm("outgoing credits = %d\n",credits);
     if(credits <= 2){
         //stop the sending during 100ms in order to let the computer digest the datas and 
         //free new credits for us => continue the sending only if we have more than 2 credits
@@ -331,11 +329,11 @@ static void bluetooth_send(uint16_t channel_id, int32_t max_frame_size){
             xSemaphoreGive(xWriteBluetooth);
         }
         ptr_to_send_blue_tx += size_to_send;
-        printf(" %d bytes sent, remaining = %d\n",size_to_send, nb_to_send_blue_tx);
+        log_rfcomm(" %d bytes sent, remaining = %d\n",size_to_send, nb_to_send_blue_tx);
     }
 
     if(nb_to_send_blue_tx > 0){
-        printf("must send another\n");
+        log_rfcomm("must send another\n");
         rfcomm_request_can_send_now_event(channel_id);
     }else{
         //reset the pointers
@@ -343,7 +341,7 @@ static void bluetooth_send(uint16_t channel_id, int32_t max_frame_size){
             reset_blue_tx();
             xSemaphoreGive(xWriteBluetooth);
         }
-        printf("must not send => reset ptr\n");
+        log_rfcomm("must not send => reset ptr\n");
     }
 }
 
@@ -366,22 +364,22 @@ int8_t bluetooth_write(uint8_t* buffer, uint16_t buffer_len){
                 
                 xSemaphoreGive(xWriteBluetooth);
 
-                printf("wrote %d bytes to send buffer\n", buffer_len);
-                printf("remaining size = %d, nb_to_send = %d\n",remaining_size_blue_tx, nb_to_send_blue_tx);
+                log_rfcomm("wrote %d bytes to send buffer\n", buffer_len);
+                log_rfcomm("remaining size = %d, nb_to_send = %d\n",remaining_size_blue_tx, nb_to_send_blue_tx);
                 
                 return DATAS_WRITTEN;
             }else{
                 xSemaphoreGive(xWriteBluetooth);
-                printf("not enough space\n");
+                log_rfcomm("not enough space\n");
                 return BUFFER_FULL;
             }
         }else{
-            printf("semaphore not free bluetooth_write\n");
+            log_rfcomm("semaphore not free bluetooth_write\n");
             return TASK_COLLIISION;
         }
         
     }else{
-        printf("bluetooth is not connected\n");
+        log_rfcomm("bluetooth is not connected\n");
         return BLUETOOTH_NOT_CONNECTED;
     }
 }

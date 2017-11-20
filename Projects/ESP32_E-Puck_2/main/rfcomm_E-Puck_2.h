@@ -12,6 +12,8 @@ Functions to comtrol and use the bluetooth stack
 #ifndef RFCOMM_E_PUCK2_H
 #define RFCOMM_E_PUCK2_H
 
+//#define ENABLE_LOG_RFCOMM
+
 #define BLUE_RX_BUFFER_SIZE		2000	
 #define BLUE_TX_BUFFER_SIZE		2000
 
@@ -21,7 +23,11 @@ Functions to comtrol and use the bluetooth stack
 #define TASK_COLLIISION			-2
 #define BLUETOOTH_NOT_CONNECTED	-3
 
-
+#ifdef ENABLE_LOG_RFCOMM
+#define log_rfcomm(format, ...)  printf(format,  ## __VA_ARGS__)
+#else
+#define log_rfcomm(...) __log_unused(__VA_ARGS__)
+#endif
 
 /**
  * @brief Write datas to the bluetooth
