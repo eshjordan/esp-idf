@@ -95,6 +95,8 @@ static void spp_service_setup(void){
  * when called from another thread
 */
 static void heartbeat_handler(struct btstack_timer_source *ts){
+
+    //check if a send event is required
     if(xSemaphoreTake(xWriteBluetooth, (TickType_t)10) == pdTRUE){
 
         if(nb_to_send_blue_tx){
@@ -104,7 +106,7 @@ static void heartbeat_handler(struct btstack_timer_source *ts){
         xSemaphoreGive(xWriteBluetooth);
 
     }
-
+    //check if incomming credits should be given
     if(xSemaphoreTake(xReadBluetooth, (TickType_t)10) == pdTRUE){
         if(grant_incomming_credit){
             grant_incomming_credit = 0;
@@ -114,6 +116,7 @@ static void heartbeat_handler(struct btstack_timer_source *ts){
         xSemaphoreGive(xReadBluetooth);
     }
 
+    //reset the one shot timer to call this handler.
     btstack_run_loop_set_timer(ts, HEARTBEAT_PERIOD_MS);
     btstack_run_loop_add_timer(ts);
 } 
@@ -190,7 +193,6 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
             break;
 
         case RFCOMM_DATA_PACKET:
-            vTaskDelay(1);
             log_rfcomm("<==================RCV: %d characters =====================>",size);
             log_rfcomm("'\n");
             
@@ -303,8 +305,6 @@ static void bluetooth_send(uint16_t channel_id, int32_t max_frame_size){
 
     static uint16_t credits = 0;
     static uint16_t size_to_send = 0;
-    //usefull to avoid a watchdog trigger when the sending is very slow
-    vTaskDelay(1);  
 
     if(xSemaphoreTake(xWriteBluetooth, (TickType_t)1000) == pdTRUE){
         size_to_send = nb_to_send_blue_tx;
@@ -382,6 +382,18 @@ int8_t bluetooth_write(uint8_t* buffer, uint16_t buffer_len){
         log_rfcomm("bluetooth is not connected\n");
         return BLUETOOTH_NOT_CONNECTED;
     }
+}
+
+void bluetooth_power_control(HCI_POWER_MODE power_mode){
+    hci_power_control(power_mode);
+}
+
+void bluetooth_discoverable_control(CONTROL_STATE state){
+    gap_discoverable_control(state);
+}
+
+void bluetooth_connectable_control(CONTROL_STATE state){
+    gap_connectable_control(state);
 }
 
 /* 
