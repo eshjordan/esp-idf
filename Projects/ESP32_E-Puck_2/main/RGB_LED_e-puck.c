@@ -217,7 +217,7 @@ void set_led_intensity(rgb_led_name_t rgb_led, led_name_t led, uint8_t intensity
   if(intensity > MAX_INTENSITY){
     intensity = MAX_INTENSITY;
   }
-  uint16_t value = (100 - intensity) * MAX_DUTY / 100; 
+  uint32_t value = (100 - intensity) * MAX_DUTY / 100; 
   ledc_set_fade_with_time(led_config[rgb_led][led].speed_mode, 
                           led_config[rgb_led][led].channel, value, time_ms);
   ledc_fade_start(led_config[rgb_led][led].speed_mode, 
@@ -230,11 +230,7 @@ void set_led_color( rgb_led_name_t rgb_led, uint8_t intensity, rgb_color_t* colo
     intensity = MAX_INTENSITY;
   }
 
-  if(intensity == 0){
-    intensity = 1;
-  }
-
-  uint16_t value_color[NUM_LED];
+  uint32_t value_color[NUM_LED];
   value_color[RED_LED]    = MAX_DUTY - (((((( (color_value->red) * 100 ) / MAX_COLOR_VALUE ) * intensity ) / 100 ) * MAX_DUTY) / 100 ); 
   value_color[GREEN_LED]  = MAX_DUTY - (((((( (color_value->green) * 100 ) / MAX_COLOR_VALUE ) * intensity ) / 100 ) * MAX_DUTY) / 100 );
   value_color[BLUE_LED]   = MAX_DUTY - (((((( (color_value->blue) * 100 ) / MAX_COLOR_VALUE ) * intensity ) / 100 ) * MAX_DUTY) / 100 );
