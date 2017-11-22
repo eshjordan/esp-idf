@@ -23,7 +23,7 @@ Functions to control and use the bluetooth stack
 #include "freertos/semphr.h"
 #include "btstack.h"
 
-#include "rfcomm_E-Puck_2.h"
+#include "rfcomm_e-puck2.h"
 #include "button_e-puck2.h"
 
 #define SERVICE_RECORD              0x10001 //Service Class ID List + ServiceName

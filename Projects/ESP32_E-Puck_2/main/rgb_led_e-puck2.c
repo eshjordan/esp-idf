@@ -12,7 +12,7 @@ Functions to control the RGB LEDs connected of the ESP32 of the E-Puck 2
 //#include "driver/ledc.h"
 #include "esp_attr.h"   
 #include "esp_err.h"
-#include "RGB_LED_E-Puck.h"
+#include "rgb_led_e-puck2.h"
 
 #define INTR_NO_FLAG  0
 

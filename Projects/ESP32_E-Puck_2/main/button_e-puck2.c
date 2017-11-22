@@ -13,7 +13,7 @@ Functions to configure and use the button through interruption
 #include "freertos/xtensa_api.h"
 #include "freertos/queue.h"
 #include "button_e-puck2.h"
-#include "RGB_LED_e-puck.h"
+#include "rgb_led_e-puck2.h"
 
 
 #define ESP_INTR_FLAG_DEFAULT	0

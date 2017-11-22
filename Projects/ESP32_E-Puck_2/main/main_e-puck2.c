@@ -17,9 +17,9 @@ Firmware to be run on the ESP32 of the E-Puck 2
 #include "freertos/queue.h"
 #include "esp_attr.h"   
 #include "esp_err.h"
-#include "RGB_LED_E-Puck.h"
-#include "UART_E-Puck_2.h"
-#include "rfcomm_E-Puck_2.h"
+#include "rgb_led_e-puck2.h"
+#include "uart_e-puck2.h"
+#include "rfcomm_e-puck2.h"
 #include "button_e-puck2.h"
 
 extern int btstack_main(void);
