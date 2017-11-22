@@ -36,6 +36,18 @@ static void button_isr_cb(void* arg)
   if(time < xTaskGetTickCountFromISR()){
     time = xTaskGetTickCountFromISR() + DEBOUNCE_TIME_MS;
     //do something
+    static uint8_t nb = 0;
+    static rgb_color_t color_value;
+    static uint8_t rgb_led;
+    if(nb == NUM_COLORS){
+      nb=0;
+    }
+
+    color_value=color[nb];
+    for(rgb_led = 0 ; rgb_led < NUM_RGB_LED ; rgb_led++){
+      rgb_set_color(rgb_led, 100, &color_value, 5);
+    }
+    nb++;
   }
 }
 
