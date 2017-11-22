@@ -5,7 +5,7 @@ Author  : Eliot Ferragni
 Date    : 17 november 2017
 REV 1.2
 
-Functions to comtrol and use the bluetooth stack
+Functions to control and use the bluetooth stack
 */
 
 
@@ -24,9 +24,14 @@ Functions to comtrol and use the bluetooth stack
  *  Hardware state of Bluetooth controller 
  */
 typedef enum {
+	DISABLE = 0,
 	ENABLE,
-	DISABLE,
 } CONTROL_STATE;
+
+typedef enum{
+	NO_UPDATE = 0,
+	UPDATE,
+} UPDATE_STATE;
 
 // #ref returns bluetooth functions
 #define DATAS_WRITTEN			0
@@ -85,12 +90,20 @@ void bluetooth_discoverable_control(CONTROL_STATE state);
 
 /**
  * @brief 	Enable or disable the connectivity of the bluetooth 
- * 			If disabled, no connection is possible, even if already paired.
- * 			Usefull to consume less energy (does not disable the power).
+ * 			If disabled, no new connection is possible, even if already paired.
+ * 			Usefull to consume less energy (does not disable the power) or to block a new connection 
+ * 			if a connection is already in use.
  *
  * @param state connectivity state desired. See CONTROL_STATE 	
  */
 void bluetooth_connectable_control(CONTROL_STATE state);
+
+/**
+ * @brief 	Simple example of an echo task over the bluetooth
+ *
+ * @param *pvParameter	parameter from the xCreateTask 	
+ */
+void example_echo_bluetooth_task(void *pvParameter);
 
 
 #endif /* RFCOMM_E_PUCK2_H */

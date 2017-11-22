@@ -24,6 +24,7 @@ Functions to control and use the bluetooth stack
 #include "btstack.h"
 
 #include "rfcomm_E-Puck_2.h"
+#include "button_e-puck2.h"
 
 #define RFCOMM_SERVER_CHANNEL 1
 #define HEARTBEAT_PERIOD_MS 1
@@ -68,6 +69,18 @@ static uint16_t nb_to_send_blue_tx = 0;
 static uint16_t remaining_size_blue_tx = BLUE_TX_BUFFER_SIZE;
 static SemaphoreHandle_t xWriteBluetooth = NULL;
 
+static uint8_t update_power_mode = 0;
+static uint8_t power_mode_bluetooth_state = 0;
+static SemaphoreHandle_t xPowerBluetooth = NULL;
+
+static uint8_t update_discoverable = 0;
+static uint8_t discoverable_bluetooth_state = 0;
+static SemaphoreHandle_t xDiscoverableBluetooth = NULL;
+
+static uint8_t update_connectable = 0;
+static uint8_t connectable_bluetooth_state = 0;
+static SemaphoreHandle_t xConnectableBluetooth = NULL;
+
 static void spp_service_setup(void){
 
     // register for HCI events
@@ -109,13 +122,36 @@ static void heartbeat_handler(struct btstack_timer_source *ts){
     //check if incomming credits should be given
     if(xSemaphoreTake(xReadBluetooth, (TickType_t)10) == pdTRUE){
         if(grant_incomming_credit){
-            grant_incomming_credit = 0;
+            grant_incomming_credit = NO_UPDATE;
             incomming_credits += nb_incomming_credit_to_grant;
             rfcomm_grant_credits(rfcomm_channel_id, nb_incomming_credit_to_grant);
         }
         xSemaphoreGive(xReadBluetooth);
     }
-
+    //check if we need to change the state of the power of the bluetooth
+    if(xSemaphoreTake(xPowerBluetooth, (TickType_t)10) == pdTRUE){
+        if(update_power_mode){
+            update_power_mode = NO_UPDATE;
+            hci_power_control(power_mode_bluetooth_state);
+        }
+        xSemaphoreGive(xPowerBluetooth);
+    }
+    //check if we need to change the state of the discoverability of the bluetooth
+    if(xSemaphoreTake(xDiscoverableBluetooth, (TickType_t)10) == pdTRUE){
+        if(update_discoverable){
+            update_discoverable = NO_UPDATE;
+            gap_discoverable_control(discoverable_bluetooth_state);
+        }
+        xSemaphoreGive(xDiscoverableBluetooth);
+    }
+    //check if we need to change the state of the connectivity of the bluetooth
+    if(xSemaphoreTake(xConnectableBluetooth, (TickType_t)10) == pdTRUE){
+        if(update_connectable){
+            update_connectable = NO_UPDATE;
+            gap_connectable_control(connectable_bluetooth_state);
+        }
+        xSemaphoreGive(xConnectableBluetooth);
+    }
     //reset the one shot timer to call this handler.
     btstack_run_loop_set_timer(ts, HEARTBEAT_PERIOD_MS);
     btstack_run_loop_add_timer(ts);
@@ -176,6 +212,8 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                         nb_incomming_credit_to_grant = (BLUE_RX_BUFFER_SIZE / mtu);
                         incomming_credits = INITIAL_INCOMMING_CREDITS;
                         printf("RFCOMM channel open succeeded. New RFCOMM Channel ID %u, max frame size %u\n", rfcomm_channel_id, mtu);
+                        bluetooth_discoverable_control(DISABLE);
+                        bluetooth_connectable_control(DISABLE);
                     }
                     break;
                 case RFCOMM_EVENT_CAN_SEND_NOW:
@@ -185,6 +223,7 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                 case RFCOMM_EVENT_CHANNEL_CLOSED:
                     printf("RFCOMM channel closed\n");
                     rfcomm_channel_id = 0;
+                    bluetooth_connectable_control(ENABLE);
                     break;
                 
                 default:
@@ -265,7 +304,7 @@ int16_t bluetooth_read(uint8_t* buffer, uint16_t buffer_len){
 
                 if(!nb_to_read_blue_rx){
                     if(!grant_incomming_credit && !incomming_credits){
-                        grant_incomming_credit = 1;
+                        grant_incomming_credit = UPDATE;
                         log_rfcomm("grant credit bluetooth_read\n");
                     }
                     log_rfcomm("no more to read => reset ptr\n");
@@ -385,15 +424,42 @@ int8_t bluetooth_write(uint8_t* buffer, uint16_t buffer_len){
 }
 
 void bluetooth_power_control(HCI_POWER_MODE power_mode){
-    hci_power_control(power_mode);
+    if(xSemaphoreTake(xPowerBluetooth, (TickType_t)10) == pdTRUE){
+        power_mode_bluetooth_state = power_mode;
+        update_power_mode = UPDATE;
+        xSemaphoreGive(xPowerBluetooth);
+    }
 }
 
 void bluetooth_discoverable_control(CONTROL_STATE state){
-    gap_discoverable_control(state);
+    if(xSemaphoreTake(xDiscoverableBluetooth, (TickType_t)10) == pdTRUE){
+        discoverable_bluetooth_state = state;
+        update_discoverable = UPDATE;
+        xSemaphoreGive(xDiscoverableBluetooth);
+    }
 }
 
 void bluetooth_connectable_control(CONTROL_STATE state){
-    gap_connectable_control(state);
+    if(xSemaphoreTake(xConnectableBluetooth, (TickType_t)10) == pdTRUE){
+        connectable_bluetooth_state = state;
+        update_connectable = UPDATE;
+        xSemaphoreGive(xConnectableBluetooth);
+    }
+}
+
+void example_echo_bluetooth_task(void *pvParameter){
+  uint8_t test_buf[2000];
+  uint16_t size = 2000;
+
+  while(1){
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+    int16_t rcv = bluetooth_read(test_buf, size);
+    if(rcv > 0){
+      while(bluetooth_write(test_buf,rcv) != DATAS_WRITTEN){
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+      }
+    }
+  }
 }
 
 /* 
@@ -408,12 +474,25 @@ int btstack_setup(int argc, const char * argv[]){
     xWriteBluetooth = xSemaphoreCreateBinary();
     xSemaphoreGive(xWriteBluetooth);
 
+    xPowerBluetooth = xSemaphoreCreateBinary();
+    xSemaphoreGive(xPowerBluetooth);
+
+    xDiscoverableBluetooth = xSemaphoreCreateBinary();
+    xSemaphoreGive(xDiscoverableBluetooth);
+
+    xConnectableBluetooth = xSemaphoreCreateBinary();
+    xSemaphoreGive(xConnectableBluetooth);
+    
     one_shot_timer_setup();
     spp_service_setup();
 
-    gap_discoverable_control(1);
     gap_ssp_set_io_capability(SSP_IO_CAPABILITY_DISPLAY_ONLY);
     gap_set_local_name("e-puck2 00:00:00:00:00:00");
+
+    //enable the discoverability of the bluetooth if the button is pressed during the startup
+    if(button_is_pressed()){
+        gap_discoverable_control(ENABLE);
+    }
 
     // turn on!
     hci_power_control(HCI_POWER_ON);
