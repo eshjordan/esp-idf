@@ -26,11 +26,15 @@ extern int btstack_main(void);
 
 void app_main(void)
 { 
-  init_led();
+  rgb_init();
   button_init();
 
-  xTaskCreate(&example_echo_bluetooth_task, "example_echo_bluetooth_task", 5120, NULL, 5, NULL);
+  //a bluetooth echo example
+  xTaskCreate(&example_echo_bluetooth_task, "example_echo_bluetooth_task", 
+              EXAMPLE_ECHO_STACK_SIZE, NULL, EXAMPLE_ECHO_PRIO, NULL);
   //A uart read/write example without event queue;
-  xTaskCreate(echo_task, "uart_echo_task", 1024, NULL, 10, NULL);
+  xTaskCreate(echo_task, "uart_echo_task", ECHO_TASK_STACK_SIZE, NULL, ECHO_TASK_PRIO, NULL);
+  //btstack works as a loop called from the main. So every other task should be created befor the call
+  //of this function
   btstack_main();
 }

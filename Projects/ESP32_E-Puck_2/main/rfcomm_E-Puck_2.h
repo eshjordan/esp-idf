@@ -20,6 +20,9 @@ Functions to control and use the bluetooth stack
 #define BLUE_RX_BUFFER_SIZE		2000	
 #define BLUE_TX_BUFFER_SIZE		2000
 
+#define EXAMPLE_ECHO_STACK_SIZE	5120
+#define EXAMPLE_ECHO_PRIO		5
+
 /**
  *  Hardware state of Bluetooth controller 
  */
@@ -36,7 +39,7 @@ typedef enum{
 // #ref returns bluetooth functions
 #define DATAS_WRITTEN			0
 #define BUFFER_FULL				-1
-#define TASK_COLLIISION			-2
+#define TASK_COLLISION			-2
 #define BLUETOOTH_NOT_CONNECTED	-3
 
 #ifdef ENABLE_LOG_RFCOMM

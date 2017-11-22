@@ -13,12 +13,19 @@ Functions to configure and use the button through interruption
 #include "freertos/xtensa_api.h"
 #include "freertos/queue.h"
 #include "button_e-puck2.h"
+#include "RGB_LED_e-puck.h"
 
 
 #define ESP_INTR_FLAG_DEFAULT	0
+#define DEBOUNCE_TIME_MS (200 * portTICK_PERIOD_MS)
 
 static void button_isr_cb(void* arg);
 
+/**
+ * @brief ISR called each time the button is pressed
+ *
+ ** @param arg	arg transmitted to the interruption
+ */
 static void button_isr_cb(void* arg)
 {
   (void) arg;
