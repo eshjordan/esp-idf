@@ -32,7 +32,7 @@ Functions to control the RGB LEDs connected of the ESP32 of the E-Puck 2
 #define RGB_LED6_BLUE_GPIO		13
 
 #define RGB_LED8_RED_GPIO		4
-#define RGB_LED8_GREEN_GPIO		17
+#define RGB_LED8_GREEN_GPIO		16
 #define RGB_LED8_BLUE_GPIO		15
 
 
