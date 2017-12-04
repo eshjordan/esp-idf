@@ -59,6 +59,7 @@ typedef enum{
  *        To achieve best performances, it is best to provide a large amount of datas at the same time
  *        and to wait minimum 10ms between two calls of this function.
  *
+ * @param channel_nb	Channel number to use to write the datas. See CHANNEL_NB
  * @param buffer 		Pointer to a buffer containing the datas to send
  * @param buffer_len	Size of the buffer provided (max BLUE_TX_BUFFER_SIZE)
  *
@@ -71,6 +72,7 @@ int8_t bluetooth_write(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_l
  *        To achieve best performances, it is best to provide a large buffer
  *        in order to read more at the same time and to wait minimum 10ms between two calls of this function
  *
+ * @param channel_nb	Channel number to use to read the datas. See CHANNEL_NB
  * @param buffer 		Pointer to a buffer to feed with the received datas
  * @param buffer_len	Size of the buffer provided
  *

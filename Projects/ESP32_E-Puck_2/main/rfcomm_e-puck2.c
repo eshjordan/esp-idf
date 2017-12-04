@@ -65,6 +65,7 @@ typedef struct {
 //internal functions
 static uint16_t get_index_from_remote_channel(uint16_t channel_remote_id);
 static void init_rf_channels_struct(rfcomm_user_channel_t* channel);
+static void init_semaphores(void);
 static void spp_service_setup(void);
 static void heartbeat_handler(struct btstack_timer_source *ts);
 static void one_shot_timer_setup(void);
@@ -102,7 +103,7 @@ static uint8_t connectable_bluetooth_state = 0;
 static SemaphoreHandle_t xConnectableBluetooth = NULL;
 
 /* 
- * Return the index of the channel to which correcpond the remote channel ID given
+ * Return the index of the channel to which correspond the remote channel ID given
  * Necessary because the id given by the remote (computer) is incremented at each connexion and is
  * independant. We need to find each time which channel is linked with the ID given by the computer
 */
@@ -142,6 +143,28 @@ static void init_rf_channels_struct(rfcomm_user_channel_t* channel){
         channel[i].ptr_to_fill_blue_tx = channel[i].blue_tx_buffer;
         channel[i].xWriteBluetooth = NULL;
    }
+}
+
+/* 
+ * Init the semaphores
+*/
+static void init_semaphores(void){
+
+    for(int i = 0 ; i < NB_RFCOMM_CHANNELS ; i++){
+        rf_channel[i].xReadBluetooth = xSemaphoreCreateBinary();
+        xSemaphoreGive(rf_channel[i].xReadBluetooth);
+        rf_channel[i].xWriteBluetooth = xSemaphoreCreateBinary();
+        xSemaphoreGive(rf_channel[i].xWriteBluetooth);
+    }
+
+    xPowerBluetooth = xSemaphoreCreateBinary();
+    xSemaphoreGive(xPowerBluetooth);
+
+    xDiscoverableBluetooth = xSemaphoreCreateBinary();
+    xSemaphoreGive(xDiscoverableBluetooth);
+
+    xConnectableBluetooth = xSemaphoreCreateBinary();
+    xSemaphoreGive(xConnectableBluetooth);
 }
 
 /* 
@@ -296,13 +319,11 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                     }
                     break;
                 case RFCOMM_EVENT_CAN_SEND_NOW:
-                    printf("channel = %d\n",channel);
                     ch_used = get_index_from_remote_channel(channel);
                     bluetooth_send(&rf_channel[ch_used]);
                     break;
                
                 case RFCOMM_EVENT_CHANNEL_CLOSED:
-                    printf("RFCOMM channel closed\n");
                     ch_used = get_index_from_remote_channel(channel);
                     rf_channel[ch_used].remote_id = 0;
                     bluetooth_connectable_control(ENABLE);
@@ -314,8 +335,7 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
             break;
 
         case RFCOMM_DATA_PACKET:
-            printf("channel = %d\n",channel);
-            uint16_t ch_used = get_index_from_remote_channel(channel);
+            ch_used = get_index_from_remote_channel(channel);
             log_rfcomm("<==================RCV: %d characters =====================>",size);
             log_rfcomm("'\n");
             
@@ -564,28 +584,17 @@ void example_echo_bluetooth_task(void *pvParameter){
 */
 int btstack_setup(int argc, const char * argv[]){
 
+    //init the channels used
     init_rf_channels_struct(rf_channel);
-
-    for(int i = 0 ; i < NB_RFCOMM_CHANNELS ; i++){
-        rf_channel[i].xReadBluetooth = xSemaphoreCreateBinary();
-        xSemaphoreGive(rf_channel[i].xReadBluetooth);
-        rf_channel[i].xWriteBluetooth = xSemaphoreCreateBinary();
-        xSemaphoreGive(rf_channel[i].xWriteBluetooth);
-    }
-
-    xPowerBluetooth = xSemaphoreCreateBinary();
-    xSemaphoreGive(xPowerBluetooth);
-
-    xDiscoverableBluetooth = xSemaphoreCreateBinary();
-    xSemaphoreGive(xDiscoverableBluetooth);
-
-    xConnectableBluetooth = xSemaphoreCreateBinary();
-    xSemaphoreGive(xConnectableBluetooth);
-    
+    //init the semaphores used
+    init_semaphores();
+    //init the timer used by the heartbeat handler
     one_shot_timer_setup();
+    //init the differents software stacks used to provide virtual serial ports over bluetooth
     spp_service_setup();
-
-    gap_ssp_set_io_capability(SSP_IO_CAPABILITY_NO_INPUT_NO_OUTPUT);
+    //set the authentification process
+    gap_ssp_set_io_capability(SSP_IO_CAPABILITY_DISPLAY_ONLY);
+    //set the name of the device as seen by the computer the zeros are replaced by the mac adress
     gap_set_local_name("e-puck2 00:00:00:00:00:00");
 
     //enable the discoverability of the bluetooth if the button is pressed during the startup
@@ -593,7 +602,7 @@ int btstack_setup(int argc, const char * argv[]){
         gap_discoverable_control(ENABLE);
     }
 
-    // turn on!
+    // turn on the state machine
     hci_power_control(HCI_POWER_ON);
 
     return 0;
