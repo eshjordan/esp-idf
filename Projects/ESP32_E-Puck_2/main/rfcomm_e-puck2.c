@@ -26,38 +26,23 @@ Functions to control and use the bluetooth stack
 #include "rfcomm_e-puck2.h"
 #include "button_e-puck2.h"
 
-#define SERVICE_RECORD_1            0x10001   //Service Class ID List + ServiceName
-#define SERVICE_RECORD_2            0x10002   //
-#define RFCOMM_SERVER_CHANNEL_1     1         //channel 1
-#define RFCOMM_SERVER_CHANNEL_2     2         //channel 2
-#define RFCOMM_NAME_1               "11"
-#define RFCOMM_NAME_2               "22"
+#define SERVICE_RECORD              0x10001   //service class id (could be everything)
+#define SERVICE_BUFFER_SIZE         150
 #define HEARTBEAT_PERIOD_MS         1   //call at each loop
 #define INITIAL_INCOMMING_CREDITS   1
 #define OUTGOING_CREDITS_THRESHOLD  2
 #define DELAY_10_TICKS              10
-#define DELAY_1000_TICKS            1000                  
-
-
-//internal functions
-static void spp_service_setup(void);
-static void heartbeat_handler(struct btstack_timer_source *ts);
-static void one_shot_timer_setup(void);
-static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
-static void reset_blue_rx(void);
-static void bluetooth_receive(uint16_t channel_id, uint8_t* buffer, uint16_t buffer_len, int32_t max_frame_size);
-static void reset_blue_tx(void);
-static void bluetooth_send(uint16_t channel_id, int32_t max_frame_size);
+#define DELAY_1000_TICKS            1000     
 
 
 typedef struct {
-    uint16_t remote_id;                //id assigned by the computer
-    uint16_t server_id;         //internal id
-    uint8_t  spp_service_buffer[150];   //buffer to store the service config
-    uint32_t service_record;            //Config
+    uint16_t remote_id;                                 //id assigned by the computer
+    uint16_t server_id;                                 //internal id
+    uint8_t  spp_service_buffer[SERVICE_BUFFER_SIZE];   //buffer to store the service config
+    uint32_t service_record;                            //Config
     int32_t  mtu;
-    uint8_t  blue_rx_buffer[BLUE_RX_BUFFER_SIZE];   //rx buffer
-    uint8_t  blue_tx_buffer[BLUE_TX_BUFFER_SIZE];   //tx buffer
+    uint8_t  blue_rx_buffer[BLUE_RX_BUFFER_SIZE];       //rx buffer
+    uint8_t  blue_tx_buffer[BLUE_TX_BUFFER_SIZE];       //tx buffer
     ///////////////////////////////////////variables shared between threads/////////////////////////////////////////
     //rx variables
     uint16_t nb_to_read_blue_rx;
@@ -74,14 +59,33 @@ typedef struct {
     uint8_t* ptr_to_send_blue_tx;
     uint8_t* ptr_to_fill_blue_tx;
     SemaphoreHandle_t xWriteBluetooth;
-} rfcomm_user_channel_t;
+} rfcomm_user_channel_t;             
+
+
+//internal functions
+static uint16_t get_index_from_remote_channel(uint16_t channel_remote_id);
+static void init_rf_channels_struct(rfcomm_user_channel_t* channel);
+static void spp_service_setup(void);
+static void heartbeat_handler(struct btstack_timer_source *ts);
+static void one_shot_timer_setup(void);
+static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size);
+static void reset_blue_rx(rfcomm_user_channel_t* channel);
+static void bluetooth_receive(rfcomm_user_channel_t* channel, uint8_t* buffer, uint16_t buffer_len);
+static void reset_blue_tx(rfcomm_user_channel_t* channel);
+static void bluetooth_send(rfcomm_user_channel_t* channel);
+
+//names of the channels (virtual serial ports) as seen by the computer
+static const char *channels_names[] = {
+    "1",   //channel 1
+    "2",   //channel 2
+};
 
 ////////////////////////////////////////////internal variables/////////////////////////////////////////////////
 static btstack_timer_source_t heartbeat;
 static btstack_packet_callback_registration_t hci_event_callback_registration;
 
 ///////////////////////////////////////variables shared between threads/////////////////////////////////////////
-rfcomm_user_channel_t rf_channel[2];
+rfcomm_user_channel_t rf_channel[NB_RFCOMM_CHANNELS];
 //power mode variables
 static uint8_t update_power_mode = 0;
 static uint8_t power_mode_bluetooth_state = 0;
@@ -97,10 +101,31 @@ static uint8_t update_connectable = 0;
 static uint8_t connectable_bluetooth_state = 0;
 static SemaphoreHandle_t xConnectableBluetooth = NULL;
 
+/* 
+ * Return the index of the channel to which correcpond the remote channel ID given
+ * Necessary because the id given by the remote (computer) is incremented at each connexion and is
+ * independant. We need to find each time which channel is linked with the ID given by the computer
+*/
+static uint16_t get_index_from_remote_channel(uint16_t channel_remote_id){
+    uint16_t ch_used = 0;
+    uint16_t i = 0;
+    for(i = 0 ; i < NB_RFCOMM_CHANNELS ; i++){
+        if(rf_channel[i].remote_id == channel_remote_id){
+            ch_used = i;
+        }
+    }
+    return ch_used;
+}
+
+/* 
+ * Init the rfcomm channels' structure
+*/
 static void init_rf_channels_struct(rfcomm_user_channel_t* channel){
    uint8_t i = 0;
 
-   for(i = 0 ; i < 2 ; i++){
+   for(i = 0 ; i < NB_RFCOMM_CHANNELS ; i++){
+        channel[i].server_id = (i + 1);                         // must begin at 1
+        channel[i].service_record = (SERVICE_RECORD + i + 1);   //increment the service class ID
         //rx variables
         channel[i].nb_to_read_blue_rx = 0;
         channel[i].remaining_size_blue_rx = BLUE_RX_BUFFER_SIZE;
@@ -117,11 +142,6 @@ static void init_rf_channels_struct(rfcomm_user_channel_t* channel){
         channel[i].ptr_to_fill_blue_tx = channel[i].blue_tx_buffer;
         channel[i].xWriteBluetooth = NULL;
    }
-    channel[0].server_id = RFCOMM_SERVER_CHANNEL_1;
-    channel[0].service_record = SERVICE_RECORD_1;
-
-    channel[1].server_id = RFCOMM_SERVER_CHANNEL_2;
-    channel[1].service_record = SERVICE_RECORD_2;
 }
 
 /* 
@@ -136,20 +156,19 @@ static void spp_service_setup(void){
     l2cap_init();
 
     rfcomm_init();
-    // reserved channel, mtu limited by l2cap
-    rfcomm_register_service_with_initial_credits(packet_handler, rf_channel[0].server_id, 0xffff,INITIAL_INCOMMING_CREDITS);
-    rfcomm_register_service_with_initial_credits(packet_handler, rf_channel[1].server_id, 0xffff,INITIAL_INCOMMING_CREDITS);
 
-    // init SDP, create record for SPP and register with SDP
+    // init SDP
     sdp_init();
-    memset(rf_channel[0].spp_service_buffer, 0, sizeof(rf_channel[0].spp_service_buffer));
-    memset(rf_channel[1].spp_service_buffer, 0, sizeof(rf_channel[1].spp_service_buffer));
-    spp_create_sdp_record(rf_channel[0].spp_service_buffer, rf_channel[0].service_record, rf_channel[0].server_id, RFCOMM_NAME_1);
-    spp_create_sdp_record(rf_channel[1].spp_service_buffer, rf_channel[1].service_record, rf_channel[1].server_id, RFCOMM_NAME_2);
-    sdp_register_service(rf_channel[0].spp_service_buffer);
-    sdp_register_service(rf_channel[1].spp_service_buffer);
-    printf("SDP service record size: %u\n", de_get_len(rf_channel[0].spp_service_buffer));
-    printf("SDP service2 record size: %u\n", de_get_len(rf_channel[1].spp_service_buffer));
+
+    for(int i = 0 ; i < NB_RFCOMM_CHANNELS ; i++){
+        // reserved channel, mtu limited by l2cap
+        rfcomm_register_service_with_initial_credits(packet_handler, rf_channel[i].server_id, 0xffff,INITIAL_INCOMMING_CREDITS);
+        //create record for SPP and register with SDP
+        memset(rf_channel[i].spp_service_buffer, 0, sizeof(rf_channel[i].spp_service_buffer));
+        spp_create_sdp_record(rf_channel[i].spp_service_buffer, rf_channel[i].service_record, rf_channel[i].server_id, channels_names[i]);
+        sdp_register_service(rf_channel[i].spp_service_buffer);
+        printf("SDP service n°%d record size: %u\n", (i + 1), de_get_len(rf_channel[i].spp_service_buffer));
+    }
 }
 
 /* 
@@ -160,24 +179,27 @@ static void spp_service_setup(void){
 */
 static void heartbeat_handler(struct btstack_timer_source *ts){
 
-    //check if a send event is required
-    if(xSemaphoreTake(rf_channel[0].xWriteBluetooth, (TickType_t)DELAY_10_TICKS) == pdTRUE){
+    static uint16_t i = 0;
+    for(i = 0; i < NB_RFCOMM_CHANNELS ; i++){
+        //check if a send event is required
+        if(xSemaphoreTake(rf_channel[i].xWriteBluetooth, (TickType_t)DELAY_10_TICKS) == pdTRUE){
 
-        if(rf_channel[0].nb_to_send_blue_tx){
-            xSemaphoreGive(rf_channel[0].xWriteBluetooth);
-            rfcomm_request_can_send_now_event(rf_channel[0].remote_id);
-        }
-        xSemaphoreGive(rf_channel[0].xWriteBluetooth);
+            if(rf_channel[i].nb_to_send_blue_tx){
+                xSemaphoreGive(rf_channel[i].xWriteBluetooth);
+                rfcomm_request_can_send_now_event(rf_channel[i].remote_id);
+            }
+            xSemaphoreGive(rf_channel[i].xWriteBluetooth);
 
-    }
-    //check if incomming credits should be given
-    if(xSemaphoreTake(rf_channel[0].xReadBluetooth, (TickType_t)DELAY_10_TICKS) == pdTRUE){
-        if(rf_channel[0].grant_incomming_credit){
-            rf_channel[0].grant_incomming_credit = NO_UPDATE;
-            rf_channel[0].incomming_credits += rf_channel[0].nb_incomming_credit_to_grant;
-            rfcomm_grant_credits(rf_channel[0].remote_id, rf_channel[0].nb_incomming_credit_to_grant);
         }
-        xSemaphoreGive(rf_channel[0].xReadBluetooth);
+        //check if incomming credits should be given
+        if(xSemaphoreTake(rf_channel[i].xReadBluetooth, (TickType_t)DELAY_10_TICKS) == pdTRUE){
+            if(rf_channel[i].grant_incomming_credit){
+                rf_channel[i].grant_incomming_credit = NO_UPDATE;
+                rf_channel[i].incomming_credits += rf_channel[i].nb_incomming_credit_to_grant;
+                rfcomm_grant_credits(rf_channel[i].remote_id, rf_channel[i].nb_incomming_credit_to_grant);
+            }
+            xSemaphoreGive(rf_channel[i].xReadBluetooth);
+        }
     }
     //check if we need to change the state of the power of the bluetooth
     if(xSemaphoreTake(xPowerBluetooth, (TickType_t)DELAY_10_TICKS) == pdTRUE){
@@ -222,7 +244,7 @@ static void one_shot_timer_setup(void){
  * Function to handle the events related with the bluetooth communication
 */
 static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *packet, uint16_t size){
-    UNUSED(channel);
+    uint16_t ch_used = 0;
 
     bd_addr_t event_addr;
 
@@ -245,10 +267,10 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                 case RFCOMM_EVENT_INCOMING_CONNECTION:
                     // data: event (8), len(8), address(48), channel (8), rfcomm_cid (16)
                     rfcomm_event_incoming_connection_get_bd_addr(packet, event_addr); 
-                    rf_channel[0].server_id = rfcomm_event_incoming_connection_get_server_channel(packet);
-                    rf_channel[0].remote_id = rfcomm_event_incoming_connection_get_rfcomm_cid(packet);
-                    printf("RFCOMM channel %u requested for %s\n", rf_channel[0].server_id, bd_addr_to_str(event_addr));
-                    rfcomm_accept_connection(rf_channel[0].remote_id);
+                    ch_used = rfcomm_event_incoming_connection_get_server_channel(packet) - 1;
+                    rf_channel[ch_used].remote_id = rfcomm_event_incoming_connection_get_rfcomm_cid(packet);
+                    printf("RFCOMM channel %u requested for %s\n", rf_channel[ch_used].server_id, bd_addr_to_str(event_addr));
+                    rfcomm_accept_connection(rf_channel[ch_used].remote_id);
                     break;
                
                 case RFCOMM_EVENT_CHANNEL_OPENED:
@@ -256,23 +278,33 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                     if (rfcomm_event_channel_opened_get_status(packet)) {
                         printf("RFCOMM channel open failed, status %u\n", rfcomm_event_channel_opened_get_status(packet));
                     } else {
-                        rf_channel[0].remote_id = rfcomm_event_channel_opened_get_rfcomm_cid(packet);
-                        rf_channel[0].mtu = rfcomm_event_channel_opened_get_max_frame_size(packet);
-                        rf_channel[0].nb_incomming_credit_to_grant = (BLUE_RX_BUFFER_SIZE / rf_channel[0].mtu);
-                        rf_channel[0].incomming_credits = INITIAL_INCOMMING_CREDITS;
-                        printf("RFCOMM channel open succeeded. New RFCOMM Channel ID %u, max frame size %u\n", rf_channel[0].remote_id, rf_channel[0].mtu);
+                        //the channels begin at 1 and the index of the structure at 0. That's why we substract 1
+                        ch_used = rfcomm_event_channel_opened_get_server_channel(packet) - 1; 
+                        //we collect the ID given by the computer
+                        rf_channel[ch_used].remote_id = rfcomm_event_channel_opened_get_rfcomm_cid(packet);
+                        //we collect the mtu negociated with the computer
+                        rf_channel[ch_used].mtu = rfcomm_event_channel_opened_get_max_frame_size(packet);
+                        //we compute how many credits we can grant in one time depending on the rx buffer size
+                        rf_channel[ch_used].nb_incomming_credit_to_grant = (BLUE_RX_BUFFER_SIZE / rf_channel[ch_used].mtu);
+                        rf_channel[ch_used].incomming_credits = INITIAL_INCOMMING_CREDITS;
+                        printf("RFCOMM channel open succeeded. New RFCOMM Channel ID %u, max frame size %u\n", rf_channel[ch_used].remote_id, rf_channel[ch_used].mtu);
+                        //once a connection has been established, we disable the discoverability 
+                        //(without effect if it has not bee ativated earlier) and the connectivity
+                        //this means nobody else can establish a connection while we already have one
                         bluetooth_discoverable_control(DISABLE);
                         bluetooth_connectable_control(DISABLE);
                     }
                     break;
                 case RFCOMM_EVENT_CAN_SEND_NOW:
                     printf("channel = %d\n",channel);
-                    bluetooth_send(rf_channel[0].remote_id, rf_channel[0].mtu);
+                    ch_used = get_index_from_remote_channel(channel);
+                    bluetooth_send(&rf_channel[ch_used]);
                     break;
                
                 case RFCOMM_EVENT_CHANNEL_CLOSED:
                     printf("RFCOMM channel closed\n");
-                    rf_channel[0].remote_id = 0;
+                    ch_used = get_index_from_remote_channel(channel);
+                    rf_channel[ch_used].remote_id = 0;
                     bluetooth_connectable_control(ENABLE);
                     break;
                 
@@ -283,10 +315,11 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
 
         case RFCOMM_DATA_PACKET:
             printf("channel = %d\n",channel);
+            uint16_t ch_used = get_index_from_remote_channel(channel);
             log_rfcomm("<==================RCV: %d characters =====================>",size);
             log_rfcomm("'\n");
             
-            bluetooth_receive(rf_channel[0].remote_id, packet, size, rf_channel[0].mtu);
+            bluetooth_receive(&rf_channel[ch_used], packet, size);
             
             break;
 
@@ -297,74 +330,76 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
 /* 
  * Reset the pointers and counters of the blue_rx_buffer
 */
-static void reset_blue_rx(void){
-    rf_channel[0].ptr_to_receive_blue_rx = rf_channel[0].blue_rx_buffer;
-    rf_channel[0].ptr_to_read_blue_rx = rf_channel[0].blue_rx_buffer;
-    rf_channel[0].remaining_size_blue_rx = BLUE_RX_BUFFER_SIZE;
-    rf_channel[0].nb_to_read_blue_rx = 0;
+static void reset_blue_rx(rfcomm_user_channel_t* channel){
+    channel->ptr_to_receive_blue_rx = channel->blue_rx_buffer;
+    channel->ptr_to_read_blue_rx = channel->blue_rx_buffer;
+    channel->remaining_size_blue_rx = BLUE_RX_BUFFER_SIZE;
+    channel->nb_to_read_blue_rx = 0;
 }
 
 /* 
  * Function triggered by a receive bluetooth event which copy the received datas into the blue_rx_buffer
 */
-static void bluetooth_receive(uint16_t channel_id, uint8_t* buffer, uint16_t buffer_len, int32_t max_frame_size){
+static void bluetooth_receive(rfcomm_user_channel_t* channel, uint8_t* buffer, uint16_t buffer_len){
 
     static uint16_t i = 0;
 
-    log_rfcomm("incomming_credits = %d\n",rf_channel[0].incomming_credits);
+    log_rfcomm("incomming_credits = %d\n",channel->incomming_credits);
 
-    if(xSemaphoreTake(rf_channel[0].xReadBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
+    if(xSemaphoreTake(channel->xReadBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
         log_rfcomm("received %d characters \n",buffer_len);
-        rf_channel[0].remaining_size_blue_rx -= buffer_len;
-        rf_channel[0].nb_to_read_blue_rx += buffer_len;
-        rf_channel[0].incomming_credits--;
+        channel->remaining_size_blue_rx -= buffer_len;
+        channel->nb_to_read_blue_rx += buffer_len;
+        channel->incomming_credits--;
 
         for(i = 0 ; i < buffer_len ; i++){
             //the pointer is incremented after the copy of the value
-            *rf_channel[0].ptr_to_receive_blue_rx++ = buffer[i];
+            *channel->ptr_to_receive_blue_rx++ = buffer[i];
         }
-        log_rfcomm("remaining size = %d\n",rf_channel[0].remaining_size_blue_rx);
-        xSemaphoreGive(rf_channel[0].xReadBluetooth);
+        log_rfcomm("remaining size = %d\n",channel->remaining_size_blue_rx);
+        xSemaphoreGive(channel->xReadBluetooth);
     }
 }
 
-int16_t bluetooth_read(uint8_t* buffer, uint16_t buffer_len){
+int16_t bluetooth_read(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_len){
+
+    rfcomm_user_channel_t* channel = &rf_channel[channel_nb];
 
     static uint16_t i = 0;
     static uint16_t size_to_read = 0;
 
-    if(rf_channel[0].remote_id){
-        if(xSemaphoreTake(rf_channel[0].xReadBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
-            if(rf_channel[0].nb_to_read_blue_rx){
+    if(channel->remote_id){
+        if(xSemaphoreTake(channel->xReadBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
+            if(channel->nb_to_read_blue_rx){
 
-                size_to_read = rf_channel[0].nb_to_read_blue_rx;
-                if(rf_channel[0].nb_to_read_blue_rx > buffer_len){
+                size_to_read = channel->nb_to_read_blue_rx;
+                if(channel->nb_to_read_blue_rx > buffer_len){
                     size_to_read = buffer_len;
                 }
 
-                log_rfcomm("read %d characters\n",rf_channel[0].nb_to_read_blue_rx);
-                rf_channel[0].nb_to_read_blue_rx -= size_to_read;
-                rf_channel[0].remaining_size_blue_rx += size_to_read;
+                log_rfcomm("read %d characters\n",channel->nb_to_read_blue_rx);
+                channel->nb_to_read_blue_rx -= size_to_read;
+                channel->remaining_size_blue_rx += size_to_read;
 
                 for(i = 0 ; i < size_to_read ; i++){
                     //the pointer is incremented after the copy of the value
-                    buffer[i] = *rf_channel[0].ptr_to_read_blue_rx++;
+                    buffer[i] = *channel->ptr_to_read_blue_rx++;
                 }
 
-                log_rfcomm("remaining size = %d, nb to read = %d\n",rf_channel[0].remaining_size_blue_rx, rf_channel[0].nb_to_read_blue_rx);
+                log_rfcomm("remaining size = %d, nb to read = %d\n",channel->remaining_size_blue_rx, channel->nb_to_read_blue_rx);
 
-                if(!rf_channel[0].nb_to_read_blue_rx){
-                    if(!rf_channel[0].grant_incomming_credit && !rf_channel[0].incomming_credits){
-                        rf_channel[0].grant_incomming_credit = UPDATE;
+                if(!channel->nb_to_read_blue_rx){
+                    if(!channel->grant_incomming_credit && !channel->incomming_credits){
+                        channel->grant_incomming_credit = UPDATE;
                         log_rfcomm("grant credit bluetooth_read\n");
                     }
                     log_rfcomm("no more to read => reset ptr\n");
-                    reset_blue_rx();
+                    reset_blue_rx(channel);
                 }
-                xSemaphoreGive(rf_channel[0].xReadBluetooth);
+                xSemaphoreGive(channel->xReadBluetooth);
                 return size_to_read;
             }else{
-                xSemaphoreGive(rf_channel[0].xReadBluetooth);
+                xSemaphoreGive(channel->xReadBluetooth);
                 log_rfcomm("nothing received\n");
                 return 0;
             }
@@ -381,85 +416,88 @@ int16_t bluetooth_read(uint8_t* buffer, uint16_t buffer_len){
 /* 
  * Reset the pointers and counters of the blue_tx_buffer
 */
-static void reset_blue_tx(void){
-    rf_channel[0].ptr_to_send_blue_tx = rf_channel[0].blue_tx_buffer;
-    rf_channel[0].ptr_to_fill_blue_tx = rf_channel[0].blue_tx_buffer;
-    rf_channel[0].remaining_size_blue_tx = BLUE_TX_BUFFER_SIZE;
-    rf_channel[0].nb_to_send_blue_tx = 0;
+static void reset_blue_tx(rfcomm_user_channel_t* channel){
+    channel->ptr_to_send_blue_tx = channel->blue_tx_buffer;
+    channel->ptr_to_fill_blue_tx = channel->blue_tx_buffer;
+    channel->remaining_size_blue_tx = BLUE_TX_BUFFER_SIZE;
+    channel->nb_to_send_blue_tx = 0;
 }
 
 /* 
  * Function triggered by a send bluetooth event which send the datas over bluetooth
 */
-static void bluetooth_send(uint16_t channel_id, int32_t max_frame_size){
+static void bluetooth_send(rfcomm_user_channel_t* channel){
 
     static uint16_t credits = 0;
     static uint16_t size_to_send = 0;
 
-    if(xSemaphoreTake(rf_channel[0].xWriteBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
-        size_to_send = rf_channel[0].nb_to_send_blue_tx;
-        if(rf_channel[0].nb_to_send_blue_tx > max_frame_size){
-            size_to_send = max_frame_size;
+    if(xSemaphoreTake(channel->xWriteBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
+        size_to_send = channel->nb_to_send_blue_tx;
+        if(channel->nb_to_send_blue_tx > channel->mtu){
+            size_to_send = channel->mtu;
         }
-        xSemaphoreGive(rf_channel[0].xWriteBluetooth);
+        xSemaphoreGive(channel->xWriteBluetooth);
     }
-    credits = rfcomm_get_outgoing_credits(rf_channel[0].remote_id);
+    credits = rfcomm_get_outgoing_credits(channel->remote_id);
     log_rfcomm("outgoing credits = %d\n",credits);
     if(credits <= OUTGOING_CREDITS_THRESHOLD){
         //stop the sending during 100ms in order to let the computer digest the datas and 
         //free new credits for us => continue the sending only if we have more than 2 credits
         //send an empty packet to tell to the computer to refresh the credits (needed at least for OS X)
         vTaskDelay(100 / portTICK_PERIOD_MS);
-        rfcomm_send(channel_id, rf_channel[0].ptr_to_send_blue_tx, 0);
+        rfcomm_send(channel->remote_id, channel->ptr_to_send_blue_tx, 0);
     }else{
-        rfcomm_send(channel_id, rf_channel[0].ptr_to_send_blue_tx, size_to_send);
+        rfcomm_send(channel->remote_id, channel->ptr_to_send_blue_tx, size_to_send);
 
-        if(xSemaphoreTake(rf_channel[0].xWriteBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
-            rf_channel[0].nb_to_send_blue_tx -= size_to_send;
-            xSemaphoreGive(rf_channel[0].xWriteBluetooth);
+        if(xSemaphoreTake(channel->xWriteBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
+            channel->nb_to_send_blue_tx -= size_to_send;
+            xSemaphoreGive(channel->xWriteBluetooth);
         }
-        rf_channel[0].ptr_to_send_blue_tx += size_to_send;
-        log_rfcomm(" %d bytes sent, remaining = %d\n",size_to_send, rf_channel[0].nb_to_send_blue_tx);
+        channel->ptr_to_send_blue_tx += size_to_send;
+        log_rfcomm(" %d bytes sent, remaining = %d\n",size_to_send, channel->nb_to_send_blue_tx);
     }
 
-    if(rf_channel[0].nb_to_send_blue_tx > 0){
+    if(channel->nb_to_send_blue_tx > 0){
         log_rfcomm("must send another\n");
-        rfcomm_request_can_send_now_event(channel_id);
+        rfcomm_request_can_send_now_event(channel->remote_id);
     }else{
         //reset the pointers
-        if(xSemaphoreTake(rf_channel[0].xWriteBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
-            reset_blue_tx();
-            xSemaphoreGive(rf_channel[0].xWriteBluetooth);
+        if(xSemaphoreTake(channel->xWriteBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
+            reset_blue_tx(channel);
+            xSemaphoreGive(channel->xWriteBluetooth);
         }
         log_rfcomm("must not send => reset ptr\n");
     }
 }
 
-int8_t bluetooth_write(uint8_t* buffer, uint16_t buffer_len){
+int8_t bluetooth_write(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_len){
+
     static uint16_t i = 0;
 
-    if(rf_channel[0].remote_id){
-        if(xSemaphoreTake(rf_channel[0].xWriteBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
-            if(rf_channel[0].remaining_size_blue_tx >= buffer_len){
+    rfcomm_user_channel_t* channel = &rf_channel[channel_nb];
+
+    if(channel->remote_id){
+        if(xSemaphoreTake(channel->xWriteBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
+            if(channel->remaining_size_blue_tx >= buffer_len){
 
                 //increment counters for the tx buffer
-                rf_channel[0].nb_to_send_blue_tx += buffer_len;
-                rf_channel[0].remaining_size_blue_tx -= buffer_len;
+                channel->nb_to_send_blue_tx += buffer_len;
+                channel->remaining_size_blue_tx -= buffer_len;
 
                 //copy datas into the tx buffer
                 for(i = 0 ; i < buffer_len ; i++){
                     //the pointer is incremented after the copy of the value
-                    *rf_channel[0].ptr_to_fill_blue_tx++ = buffer[i];
+                    *channel->ptr_to_fill_blue_tx++ = buffer[i];
                 }
                 
-                xSemaphoreGive(rf_channel[0].xWriteBluetooth);
+                xSemaphoreGive(channel->xWriteBluetooth);
 
                 log_rfcomm("wrote %d bytes to send buffer\n", buffer_len);
-                log_rfcomm("remaining size = %d, nb_to_send = %d\n",rf_channel[0].remaining_size_blue_tx, rf_channel[0].nb_to_send_blue_tx);
+                log_rfcomm("remaining size = %d, nb_to_send = %d\n",channel->remaining_size_blue_tx, channel->nb_to_send_blue_tx);
                 
                 return DATAS_WRITTEN;
             }else{
-                xSemaphoreGive(rf_channel[0].xWriteBluetooth);
+                xSemaphoreGive(channel->xWriteBluetooth);
                 log_rfcomm("not enough space\n");
                 return BUFFER_FULL;
             }
@@ -504,9 +542,16 @@ void example_echo_bluetooth_task(void *pvParameter){
 
   while(1){
     vTaskDelay(10 / portTICK_PERIOD_MS);
-    int16_t rcv = bluetooth_read(test_buf, size);
+    int16_t rcv = bluetooth_read(CHANNEL_1, test_buf, size);
     if(rcv > 0){
-      while(bluetooth_write(test_buf,rcv) != DATAS_WRITTEN){
+      while(bluetooth_write(CHANNEL_1, test_buf,rcv) != DATAS_WRITTEN){
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+      }
+    }
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+    rcv = bluetooth_read(CHANNEL_2, test_buf, size);
+    if(rcv > 0){
+      while(bluetooth_write(CHANNEL_2, test_buf,rcv) != DATAS_WRITTEN){
         vTaskDelay(10 / portTICK_PERIOD_MS);
       }
     }
@@ -521,11 +566,12 @@ int btstack_setup(int argc, const char * argv[]){
 
     init_rf_channels_struct(rf_channel);
 
-    rf_channel[0].xReadBluetooth = xSemaphoreCreateBinary();
-    xSemaphoreGive(rf_channel[0].xReadBluetooth);
-
-    rf_channel[0].xWriteBluetooth = xSemaphoreCreateBinary();
-    xSemaphoreGive(rf_channel[0].xWriteBluetooth);
+    for(int i = 0 ; i < NB_RFCOMM_CHANNELS ; i++){
+        rf_channel[i].xReadBluetooth = xSemaphoreCreateBinary();
+        xSemaphoreGive(rf_channel[i].xReadBluetooth);
+        rf_channel[i].xWriteBluetooth = xSemaphoreCreateBinary();
+        xSemaphoreGive(rf_channel[i].xWriteBluetooth);
+    }
 
     xPowerBluetooth = xSemaphoreCreateBinary();
     xSemaphoreGive(xPowerBluetooth);
@@ -539,7 +585,7 @@ int btstack_setup(int argc, const char * argv[]){
     one_shot_timer_setup();
     spp_service_setup();
 
-    gap_ssp_set_io_capability(SSP_IO_CAPABILITY_DISPLAY_ONLY);
+    gap_ssp_set_io_capability(SSP_IO_CAPABILITY_NO_INPUT_NO_OUTPUT);
     gap_set_local_name("e-puck2 00:00:00:00:00:00");
 
     //enable the discoverability of the bluetooth if the button is pressed during the startup

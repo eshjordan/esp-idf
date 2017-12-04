@@ -36,6 +36,12 @@ typedef enum{
 	UPDATE,
 } UPDATE_STATE;
 
+typedef enum{
+	CHANNEL_1 = 0,
+	CHANNEL_2,
+	NB_RFCOMM_CHANNELS,
+} CHANNEL_NB;
+
 // #ref returns bluetooth functions
 #define DATAS_WRITTEN			0
 #define BUFFER_FULL				-1
@@ -58,7 +64,7 @@ typedef enum{
  *
  * @return		A status code. See #ref return bluetooth functions
  */
-int8_t bluetooth_write(uint8_t* buffer, uint16_t buffer_len);
+int8_t bluetooth_write(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_len);
 
 /**
  * @brief Read datas from the bluetooth
@@ -70,7 +76,7 @@ int8_t bluetooth_write(uint8_t* buffer, uint16_t buffer_len);
  *
  * @return		The amount of datas read or a status code. See #ref returns bluetooth functions
  */
-int16_t bluetooth_read(uint8_t* buffer, uint16_t buffer_len);
+int16_t bluetooth_read(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_len);
 
 /**
  * @brief Enable/disable the power of the bluetooth module
