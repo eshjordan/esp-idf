@@ -106,13 +106,18 @@ static SemaphoreHandle_t xConnectableBluetooth = NULL;
  * Return the index of the channel to which correspond the remote channel ID given
  * Necessary because the id given by the remote (computer) is incremented at each connexion and is
  * independant. We need to find each time which channel is linked with the ID given by the computer
+ * 
+ * returns NB_RFCOMM_CHANNELS if channel not found.
 */
 static uint16_t get_index_from_remote_channel(uint16_t channel_remote_id){
-    uint16_t ch_used = 0;
+    uint16_t ch_used = NB_RFCOMM_CHANNELS;
     uint16_t i = 0;
     for(i = 0 ; i < NB_RFCOMM_CHANNELS ; i++){
-        if(rf_channel[i].remote_id == channel_remote_id){
-            ch_used = i;
+        if(xSemaphoreTake(rf_channel[i].xWriteBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
+            if(rf_channel[i].remote_id == channel_remote_id){
+                ch_used = i;
+            }
+            xSemaphoreGive(rf_channel[i].xWriteBluetooth);
         }
     }
     return ch_used;
@@ -206,13 +211,18 @@ static void heartbeat_handler(struct btstack_timer_source *ts){
     for(i = 0; i < NB_RFCOMM_CHANNELS ; i++){
         //check if a send event is required
         if(xSemaphoreTake(rf_channel[i].xWriteBluetooth, (TickType_t)DELAY_10_TICKS) == pdTRUE){
-
-            if(rf_channel[i].nb_to_send_blue_tx){
+            //we need to test if we are connected, otherwise it floods the stack when not connected
+            //and a new reconnexion is nearly impossible to do
+            if(rf_channel[i].remote_id){
+                if(rf_channel[i].nb_to_send_blue_tx){
+                    xSemaphoreGive(rf_channel[i].xWriteBluetooth);
+                    rfcomm_request_can_send_now_event(rf_channel[i].remote_id);
+                }else{
+                    xSemaphoreGive(rf_channel[i].xWriteBluetooth);
+                }
+            }else{
                 xSemaphoreGive(rf_channel[i].xWriteBluetooth);
-                rfcomm_request_can_send_now_event(rf_channel[i].remote_id);
             }
-            xSemaphoreGive(rf_channel[i].xWriteBluetooth);
-
         }
         //check if incomming credits should be given
         if(xSemaphoreTake(rf_channel[i].xReadBluetooth, (TickType_t)DELAY_10_TICKS) == pdTRUE){
@@ -320,12 +330,23 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                     break;
                 case RFCOMM_EVENT_CAN_SEND_NOW:
                     ch_used = get_index_from_remote_channel(channel);
-                    bluetooth_send(&rf_channel[ch_used]);
+                    if(ch_used < NB_RFCOMM_CHANNELS){
+                        bluetooth_send(&rf_channel[ch_used]);
+                    }
+                    
                     break;
                
                 case RFCOMM_EVENT_CHANNEL_CLOSED:
-                    ch_used = get_index_from_remote_channel(channel);
-                    rf_channel[ch_used].remote_id = 0;
+                    //unfortunately, when we close a port on the computer, it disconnects the 
+                    //device. So we have to tell each channel it has been disconnected, no matter which channel
+                    //generated this event
+                    for(int i = 0 ; i < NB_RFCOMM_CHANNELS ; i++){
+                        if(xSemaphoreTake(rf_channel[i].xWriteBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
+                            rf_channel[i].remote_id = 0;
+                            log_rfcomm("Channel n° %d closed. New remote ID = %d\n",i + 1,rf_channel[i].remote_id);
+                            xSemaphoreGive(rf_channel[i].xWriteBluetooth);
+                        }
+                    }
                     bluetooth_connectable_control(ENABLE);
                     break;
                 
@@ -335,12 +356,13 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
             break;
 
         case RFCOMM_DATA_PACKET:
-            ch_used = get_index_from_remote_channel(channel);
             log_rfcomm("<==================RCV: %d characters =====================>",size);
             log_rfcomm("'\n");
             
-            bluetooth_receive(&rf_channel[ch_used], packet, size);
-            
+            ch_used = get_index_from_remote_channel(channel);
+            if(ch_used < NB_RFCOMM_CHANNELS){
+                bluetooth_receive(&rf_channel[ch_used], packet, size);
+            }
             break;
 
         default:
@@ -349,6 +371,7 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
 }
 /* 
  * Reset the pointers and counters of the blue_rx_buffer
+ * The buffer must be locked with xSemaphoreTake before calling this function
 */
 static void reset_blue_rx(rfcomm_user_channel_t* channel){
     channel->ptr_to_receive_blue_rx = channel->blue_rx_buffer;
@@ -388,8 +411,12 @@ int16_t bluetooth_read(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_l
     static uint16_t i = 0;
     static uint16_t size_to_read = 0;
 
-    if(channel->remote_id){
-        if(xSemaphoreTake(channel->xReadBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
+    if(!channel->xReadBluetooth){
+        return BLUETOOTH_NOT_CONNECTED;
+    }
+
+    if(xSemaphoreTake(channel->xReadBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
+        if(channel->remote_id){
             if(channel->nb_to_read_blue_rx){
 
                 size_to_read = channel->nb_to_read_blue_rx;
@@ -424,17 +451,19 @@ int16_t bluetooth_read(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_l
                 return 0;
             }
         }else{
-            log_rfcomm("semaphore not free bluetooth_read\n");
-            return TASK_COLLISION;
+            xSemaphoreGive(channel->xReadBluetooth);
+            log_rfcomm("bluetooth is not connected\n");
+            return BLUETOOTH_NOT_CONNECTED;
         }
     }else{
-        log_rfcomm("bluetooth is not connected\n");
-        return BLUETOOTH_NOT_CONNECTED;
+        log_rfcomm("semaphore not free bluetooth_read\n");
+        return TASK_COLLISION;
     }
 }
 
 /* 
  * Reset the pointers and counters of the blue_tx_buffer
+ * The buffer must be locked with xSemaphoreTake before calling this function
 */
 static void reset_blue_tx(rfcomm_user_channel_t* channel){
     channel->ptr_to_send_blue_tx = channel->blue_tx_buffer;
@@ -456,38 +485,36 @@ static void bluetooth_send(rfcomm_user_channel_t* channel){
         if(channel->nb_to_send_blue_tx > channel->mtu){
             size_to_send = channel->mtu;
         }
-        xSemaphoreGive(channel->xWriteBluetooth);
-    }
-    credits = rfcomm_get_outgoing_credits(channel->remote_id);
-    log_rfcomm("outgoing credits = %d\n",credits);
-    if(credits <= OUTGOING_CREDITS_THRESHOLD){
-        //stop the sending during 100ms in order to let the computer digest the datas and 
-        //free new credits for us => continue the sending only if we have more than 2 credits
-        //send an empty packet to tell to the computer to refresh the credits (needed at least for OS X)
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-        rfcomm_send(channel->remote_id, channel->ptr_to_send_blue_tx, 0);
-    }else{
-        rfcomm_send(channel->remote_id, channel->ptr_to_send_blue_tx, size_to_send);
 
-        if(xSemaphoreTake(channel->xWriteBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
+        credits = rfcomm_get_outgoing_credits(channel->remote_id);
+        log_rfcomm("outgoing credits = %d\n",credits);
+        if(credits <= OUTGOING_CREDITS_THRESHOLD){
+            //stop the sending during 100ms in order to let the computer digest the datas and 
+            //free new credits for us => continue the sending only if we have more than 2 credits
+            //send an empty packet to tell to the computer to refresh the credits (needed at least for OS X)
+            vTaskDelay(100 / portTICK_PERIOD_MS);
+            rfcomm_send(channel->remote_id, channel->ptr_to_send_blue_tx, 0);
+        }else{
+            rfcomm_send(channel->remote_id, channel->ptr_to_send_blue_tx, size_to_send);
+            
             channel->nb_to_send_blue_tx -= size_to_send;
-            xSemaphoreGive(channel->xWriteBluetooth);
-        }
-        channel->ptr_to_send_blue_tx += size_to_send;
-        log_rfcomm(" %d bytes sent, remaining = %d\n",size_to_send, channel->nb_to_send_blue_tx);
-    }
 
-    if(channel->nb_to_send_blue_tx > 0){
-        log_rfcomm("must send another\n");
-        rfcomm_request_can_send_now_event(channel->remote_id);
-    }else{
-        //reset the pointers
-        if(xSemaphoreTake(channel->xWriteBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
+            channel->ptr_to_send_blue_tx += size_to_send;
+            log_rfcomm(" %d bytes sent, remaining = %d\n",size_to_send, channel->nb_to_send_blue_tx);
+        }
+
+        if(channel->nb_to_send_blue_tx > 0){
+            log_rfcomm("must send another\n");
+            xSemaphoreGive(channel->xWriteBluetooth);
+            rfcomm_request_can_send_now_event(channel->remote_id);
+        }else{
+            //reset the pointers
             reset_blue_tx(channel);
             xSemaphoreGive(channel->xWriteBluetooth);
+            log_rfcomm("must not send => reset ptr\n");
         }
-        log_rfcomm("must not send => reset ptr\n");
     }
+    
 }
 
 int8_t bluetooth_write(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_len){
@@ -496,8 +523,12 @@ int8_t bluetooth_write(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_l
 
     rfcomm_user_channel_t* channel = &rf_channel[channel_nb];
 
-    if(channel->remote_id){
-        if(xSemaphoreTake(channel->xWriteBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
+    if(!channel->xWriteBluetooth){
+        return BLUETOOTH_NOT_CONNECTED;
+    }
+
+    if(xSemaphoreTake(channel->xWriteBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
+        if(channel->remote_id){
             if(channel->remaining_size_blue_tx >= buffer_len){
 
                 //increment counters for the tx buffer
@@ -522,13 +553,14 @@ int8_t bluetooth_write(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_l
                 return BUFFER_FULL;
             }
         }else{
-            log_rfcomm("semaphore not free bluetooth_write\n");
-            return TASK_COLLISION;
+            xSemaphoreGive(channel->xWriteBluetooth);
+            log_rfcomm("bluetooth is not connected\n");
+            return BLUETOOTH_NOT_CONNECTED;
         }
         
     }else{
-        log_rfcomm("bluetooth is not connected\n");
-        return BLUETOOTH_NOT_CONNECTED;
+        log_rfcomm("semaphore not free bluetooth_write\n");
+        return TASK_COLLISION;
     }
 }
 
