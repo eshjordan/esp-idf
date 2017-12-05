@@ -110,11 +110,18 @@ void bluetooth_discoverable_control(CONTROL_STATE state);
 void bluetooth_connectable_control(CONTROL_STATE state);
 
 /**
- * @brief 	Simple example of an echo task over the bluetooth
+ * @brief 	Simple example of a task over the bluetooth channel 2
  *
  * @param *pvParameter	parameter from the xCreateTask 	
  */
-void example_echo_bluetooth_task(void *pvParameter);
+void example_echo_bluetooth_task_channel_1(void *pvParameter);
+
+/**
+ * @brief 	Simple example of a task over the bluetooth channel 2
+ *
+ * @param *pvParameter	parameter from the xCreateTask 	
+ */
+void example_echo_bluetooth_task_channel_2(void *pvParameter);
 
 
 #endif /* RFCOMM_E_PUCK2_H */
