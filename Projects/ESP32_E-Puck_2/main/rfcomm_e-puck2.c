@@ -22,7 +22,7 @@ Functions to control and use the bluetooth stack
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
 #include "btstack.h"
-
+#include "main_e-puck2.h"
 #include "rfcomm_e-puck2.h"
 #include "button_e-puck2.h"
 

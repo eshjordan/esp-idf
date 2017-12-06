@@ -1,11 +1,11 @@
 /*
 
-File    : ESP32_E-Puck_2.c
+File    : main_e-puck2.c
 Author  : Eliot Ferragni
 Date    : 12 november 2017
 REV 1.0
 
-Firmware to be run on the ESP32 of the E-Puck 2
+Firmware to be run on the ESP32 of the e-puck2
 */
 
 #define __BTSTACK_FILE__ "ESP32_E-Puck_2.c"
@@ -17,6 +17,7 @@ Firmware to be run on the ESP32 of the E-Puck 2
 #include "freertos/queue.h"
 #include "esp_attr.h"   
 #include "esp_err.h"
+#include "main_e-puck2.h"
 #include "rgb_led_e-puck2.h"
 #include "uart_e-puck2.h"
 #include "rfcomm_e-puck2.h"

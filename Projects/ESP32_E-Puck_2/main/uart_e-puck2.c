@@ -2,6 +2,7 @@
 #include "driver/uart.h"
 #include "soc/uart_struct.h"
 
+#include "main_e-puck2.h"
 #include "uart_e-puck2.h"
 
 void echo_task()
