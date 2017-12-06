@@ -21,9 +21,9 @@
 #define ENABLE_LE_SECURE_CONNECTIONS
 // ESP32 supports ECDH HCI Commands, but micro-ecc lib is already provided anyway
 #define ENABLE_MICRO_ECC_FOR_LE_SECURE_CONNECTIONS
-#define ENABLE_LOG_ERROR
-#define ENABLE_LOG_INFO
-// #define ENABLE_LOG_DEBUG
+//#define ENABLE_LOG_ERROR
+//#define ENABLE_LOG_INFO
+//#define ENABLE_LOG_DEBUG
 //#define ENABLE_HCI_DUMP
 
 // BTstack configuration. buffers, sizes, ...

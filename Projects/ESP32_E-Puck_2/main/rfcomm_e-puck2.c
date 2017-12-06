@@ -30,9 +30,7 @@ Functions to control and use the bluetooth stack
 #define SERVICE_BUFFER_SIZE         150
 #define HEARTBEAT_PERIOD_MS         1   //call at each loop
 #define INITIAL_INCOMMING_CREDITS   1
-#define OUTGOING_CREDITS_THRESHOLD  1
-#define DELAY_10_TICKS              10
-#define DELAY_1000_TICKS            1000     
+#define OUTGOING_CREDITS_THRESHOLD  1  
 
 
 typedef struct {
@@ -196,7 +194,7 @@ static void spp_service_setup(void){
         memset(rf_channel[i].spp_service_buffer, 0, sizeof(rf_channel[i].spp_service_buffer));
         spp_create_sdp_record(rf_channel[i].spp_service_buffer, rf_channel[i].service_record, rf_channel[i].server_id, channels_names[i]);
         sdp_register_service(rf_channel[i].spp_service_buffer);
-        printf("SDP service n°%d record size: %u\n", (i + 1), de_get_len(rf_channel[i].spp_service_buffer));
+        log_rfcomm("SDP service n°%d record size: %u\n", (i + 1), de_get_len(rf_channel[i].spp_service_buffer));
     }
 }
 
@@ -287,15 +285,15 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
             switch (hci_event_packet_get_type(packet)) {
                 case HCI_EVENT_PIN_CODE_REQUEST:
                     // inform about pin code request
-                    printf("Pin code request - using '0000'\n");
+                    log_rfcomm("Pin code request - using '0000'\n");
                     hci_event_pin_code_request_get_bd_addr(packet, event_addr);
                     gap_pin_code_response(event_addr, "0000");
                     break;
 
                 case HCI_EVENT_USER_CONFIRMATION_REQUEST:
                     // ssp: inform about user confirmation request
-                    printf("SSP User Confirmation Request with numeric value '%06"PRIu32"'\n", little_endian_read_32(packet, 8));
-                    printf("SSP User Confirmation Auto accept\n");
+                    log_rfcomm("SSP User Confirmation Request with numeric value '%06"PRIu32"'\n", little_endian_read_32(packet, 8));
+                    log_rfcomm("SSP User Confirmation Auto accept\n");
                     break;
 
                 case RFCOMM_EVENT_INCOMING_CONNECTION:
@@ -303,14 +301,14 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                     rfcomm_event_incoming_connection_get_bd_addr(packet, event_addr); 
                     ch_used = rfcomm_event_incoming_connection_get_server_channel(packet) - 1;
                     rf_channel[ch_used].remote_id = rfcomm_event_incoming_connection_get_rfcomm_cid(packet);
-                    printf("RFCOMM channel %u requested for %s\n", rf_channel[ch_used].server_id, bd_addr_to_str(event_addr));
+                    log_rfcomm("RFCOMM channel %u requested for %s\n", rf_channel[ch_used].server_id, bd_addr_to_str(event_addr));
                     rfcomm_accept_connection(rf_channel[ch_used].remote_id);
                     break;
                
                 case RFCOMM_EVENT_CHANNEL_OPENED:
                     // data: event(8), len(8), status (8), address (48), server channel(8), rfcomm_cid(16), max frame size(16)
                     if (rfcomm_event_channel_opened_get_status(packet)) {
-                        printf("RFCOMM channel open failed, status %u\n", rfcomm_event_channel_opened_get_status(packet));
+                        log_rfcomm("RFCOMM channel open failed, status %u\n", rfcomm_event_channel_opened_get_status(packet));
                     } else {
                         //the channels begin at 1 and the index of the structure at 0. That's why we substract 1
                         ch_used = rfcomm_event_channel_opened_get_server_channel(packet) - 1; 
@@ -321,7 +319,7 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                         //we compute how many credits we can grant in one time depending on the rx buffer size
                         rf_channel[ch_used].nb_incomming_credit_to_grant = (BLUE_RX_BUFFER_SIZE / rf_channel[ch_used].mtu);
                         rf_channel[ch_used].incomming_credits = INITIAL_INCOMMING_CREDITS;
-                        printf("RFCOMM channel open succeeded. New RFCOMM Channel ID %u, max frame size %u\n", rf_channel[ch_used].remote_id, rf_channel[ch_used].mtu);
+                        log_rfcomm("RFCOMM channel open succeeded. New RFCOMM Channel ID %u, max frame size %u\n", rf_channel[ch_used].remote_id, rf_channel[ch_used].mtu);
                         //once a connection has been established, we disable the discoverability 
                         //(without effect if it has not bee ativated earlier) and the connectivity
                         //this means nobody else can establish a connection while we already have one
