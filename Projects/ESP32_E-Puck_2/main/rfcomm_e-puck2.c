@@ -605,7 +605,7 @@ void example_echo_bluetooth_task_channel_1(void *pvParameter){
             vTaskDelay(10 / portTICK_PERIOD_MS);
         }
     }
-    vTaskDelay(2000 / portTICK_PERIOD_MS);
+    //vTaskDelay(2000 / portTICK_PERIOD_MS);
   }
 }
 void example_echo_bluetooth_task_channel_2(void *pvParameter){
@@ -624,7 +624,7 @@ void example_echo_bluetooth_task_channel_2(void *pvParameter){
             vTaskDelay(10 / portTICK_PERIOD_MS);
         }
     }
-    vTaskDelay(2000 / portTICK_PERIOD_MS);
+    //vTaskDelay(2000 / portTICK_PERIOD_MS);
   }
 }
 void example_echo_bluetooth_task_channel_3(void *pvParameter){
@@ -643,7 +643,7 @@ void example_echo_bluetooth_task_channel_3(void *pvParameter){
             vTaskDelay(10 / portTICK_PERIOD_MS);
         }
     }
-    vTaskDelay(2000 / portTICK_PERIOD_MS);
+    //vTaskDelay(2000 / portTICK_PERIOD_MS);
   }
 }
 
