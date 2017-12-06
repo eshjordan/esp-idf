@@ -12,8 +12,6 @@ Functions to configure and use the button through interruption
 #ifndef BUTTON_E_PUCK2_H
 #define BUTTON_E_PUCK2_H
 
-#define BUTTON_GPIO		GPIO_NUM_35
-
 /**
  * @brief return if the button is pressed or not
  *

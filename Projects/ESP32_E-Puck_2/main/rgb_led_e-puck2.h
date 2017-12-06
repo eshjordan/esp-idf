@@ -19,22 +19,6 @@ Functions to control the RGB LEDs connected of the ESP32 of the E-Puck 2
 #define RGB_MAX_INTENSITY		100	//percentage
 #define RGB_MAX_COLOR_VALUE		255	//RGB value
 
-#define RGB_LED2_RED_GPIO		32
-#define RGB_LED2_GREEN_GPIO		33
-#define RGB_LED2_BLUE_GPIO		25
-
-#define RGB_LED4_RED_GPIO		14
-#define RGB_LED4_GREEN_GPIO		27
-#define RGB_LED4_BLUE_GPIO		26
-
-#define RGB_LED6_RED_GPIO		22
-#define RGB_LED6_GREEN_GPIO		21
-#define RGB_LED6_BLUE_GPIO		13
-
-#define RGB_LED8_RED_GPIO		4
-#define RGB_LED8_GREEN_GPIO		16
-#define RGB_LED8_BLUE_GPIO		15
-
 
 //List of the RGB LEDs present on the e-puck 2
 typedef enum {
