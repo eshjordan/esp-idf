@@ -30,7 +30,7 @@ Functions to control and use the bluetooth stack
 #define SERVICE_BUFFER_SIZE         150
 #define HEARTBEAT_PERIOD_MS         1   //call at each loop
 #define INITIAL_INCOMMING_CREDITS   1
-#define OUTGOING_CREDITS_THRESHOLD  2
+#define OUTGOING_CREDITS_THRESHOLD  1
 #define DELAY_10_TICKS              10
 #define DELAY_1000_TICKS            1000     
 
