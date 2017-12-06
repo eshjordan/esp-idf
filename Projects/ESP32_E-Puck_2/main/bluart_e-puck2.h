@@ -21,7 +21,11 @@ Functions to init and use a bluetooth-UART translation
 #define BLUART_UART_FLOWCTRL				UART_HW_FLOWCTRL_DISABLE
 #define BLUART_UART_FLOWCTRL_THRESHOLD		122
 
-void bluart_task(void *pvParameter);
+
+/*
+ *	Init the uart used for the bluart tasks and create the tasks
+*/
+void bluart_init(void);
 
 
 #endif /* BLUART_E_PUCK_2_H */

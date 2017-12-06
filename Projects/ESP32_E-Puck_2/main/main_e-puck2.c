@@ -30,6 +30,7 @@ void app_main(void)
 { 
   rgb_init();
   button_init();
+  bluart_init();
 
   //a bluetooth echo example
   //Due to a very strange bug of freeRTOS implementation in the ESP32 environment, the tasks related to the bluetooth
@@ -37,8 +38,6 @@ void app_main(void)
   //If we specifiy the core for the tasks, it works, no matter which core is chosen for each task.
   // xTaskCreatePinnedToCore(&example_echo_bluetooth_task_channel_1, "example_echo_bluetooth_task", 
   //             EXAMPLE_ECHO_STACK_SIZE, NULL, EXAMPLE_ECHO_PRIO, NULL, 1);
-  xTaskCreatePinnedToCore(&bluart_task, "bluetooth-uart pipeline over rfcomm", 
-              EXAMPLE_ECHO_STACK_SIZE, NULL, EXAMPLE_ECHO_PRIO, NULL, 1);
   xTaskCreatePinnedToCore(&example_echo_bluetooth_task_channel_2, "example_echo_bluetooth_task2", 
               EXAMPLE_ECHO_STACK_SIZE, NULL, EXAMPLE_ECHO_PRIO, NULL, 1);
   xTaskCreatePinnedToCore(&example_echo_bluetooth_task_channel_3, "example_echo_bluetooth_task3", 
