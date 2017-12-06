@@ -37,6 +37,8 @@ void app_main(void)
               EXAMPLE_ECHO_STACK_SIZE, NULL, EXAMPLE_ECHO_PRIO, NULL, 1);
   xTaskCreatePinnedToCore(&example_echo_bluetooth_task_channel_2, "example_echo_bluetooth_task2", 
               EXAMPLE_ECHO_STACK_SIZE, NULL, EXAMPLE_ECHO_PRIO, NULL, 1);
+  xTaskCreatePinnedToCore(&example_echo_bluetooth_task_channel_3, "example_echo_bluetooth_task3", 
+              EXAMPLE_ECHO_STACK_SIZE, NULL, EXAMPLE_ECHO_PRIO, NULL, 1);
   
   //A uart read/write example without event queue;
   xTaskCreate(echo_task, "uart_echo_task", ECHO_TASK_STACK_SIZE, NULL, ECHO_TASK_PRIO, NULL);

@@ -79,6 +79,7 @@ static void bluetooth_send(rfcomm_user_channel_t* channel);
 static const char *channels_names[] = {
     "1",   //channel 1
     "2",   //channel 2
+    "3",   //channel 3
 };
 
 ////////////////////////////////////////////internal variables/////////////////////////////////////////////////
@@ -620,6 +621,25 @@ void example_echo_bluetooth_task_channel_2(void *pvParameter){
     //for(int k = 0 ; k < 96 ; k++){
     if(rcv>0){
         while(bluetooth_write(CHANNEL_2, test_buf,rcv) != DATAS_WRITTEN){
+            vTaskDelay(10 / portTICK_PERIOD_MS);
+        }
+    }
+    vTaskDelay(2000 / portTICK_PERIOD_MS);
+  }
+}
+void example_echo_bluetooth_task_channel_3(void *pvParameter){
+  uint8_t test_buf[2000];
+  uint16_t size = 2000;
+
+  for(int i = 0 ; i < size ; i++){
+    test_buf[i] = i;
+  }
+  while(1){
+    vTaskDelay(10 / portTICK_PERIOD_MS);
+    int16_t rcv = bluetooth_read(CHANNEL_3, test_buf, size);
+    //for(int k = 0 ; k < 96 ; k++){
+    if(rcv>0){
+        while(bluetooth_write(CHANNEL_3, test_buf,rcv) != DATAS_WRITTEN){
             vTaskDelay(10 / portTICK_PERIOD_MS);
         }
     }
