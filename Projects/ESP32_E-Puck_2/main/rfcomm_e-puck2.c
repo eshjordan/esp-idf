@@ -403,7 +403,7 @@ static void bluetooth_receive(rfcomm_user_channel_t* channel, uint8_t* buffer, u
     }
 }
 
-int16_t bluetooth_read(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_len){
+int16_t bluetooth_read(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_len, int16_t* status){
 
     rfcomm_user_channel_t* channel = &rf_channel[channel_nb];
 
@@ -411,6 +411,7 @@ int16_t bluetooth_read(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_l
     static uint16_t size_to_read = 0;
 
     if(!channel->xReadBluetooth){
+        *status = BLUETOOTH_NOT_CONNECTED;
         return BLUETOOTH_NOT_CONNECTED;
     }
 
@@ -443,19 +444,23 @@ int16_t bluetooth_read(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_l
                     reset_blue_rx(channel);
                 }
                 xSemaphoreGive(channel->xReadBluetooth);
+                *status = size_to_read;
                 return size_to_read;
             }else{
                 xSemaphoreGive(channel->xReadBluetooth);
                 log_rfcomm("nothing received\n");
+                *status = 0;
                 return 0;
             }
         }else{
             xSemaphoreGive(channel->xReadBluetooth);
             log_rfcomm("bluetooth is not connected\n");
+            *status = BLUETOOTH_NOT_CONNECTED;
             return BLUETOOTH_NOT_CONNECTED;
         }
     }else{
         log_rfcomm("semaphore not free bluetooth_read\n");
+        *status = TASK_COLLISION;
         return TASK_COLLISION;
     }
 }
@@ -516,13 +521,14 @@ static void bluetooth_send(rfcomm_user_channel_t* channel){
     
 }
 
-int8_t bluetooth_write(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_len){
+int16_t bluetooth_write(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_len, int16_t* status){
 
     static uint16_t i = 0;
 
     rfcomm_user_channel_t* channel = &rf_channel[channel_nb];
 
     if(!channel->xWriteBluetooth){
+        *status = BLUETOOTH_NOT_CONNECTED;
         return BLUETOOTH_NOT_CONNECTED;
     }
 
@@ -544,21 +550,24 @@ int8_t bluetooth_write(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_l
 
                 log_rfcomm("wrote %d bytes to send buffer\n", buffer_len);
                 log_rfcomm("remaining size = %d, nb_to_send = %d\n",channel->remaining_size_blue_tx, channel->nb_to_send_blue_tx);
-                
+                *status = DATAS_WRITTEN;
                 return DATAS_WRITTEN;
             }else{
                 xSemaphoreGive(channel->xWriteBluetooth);
                 log_rfcomm("not enough space\n");
+                *status = BUFFER_FULL;
                 return BUFFER_FULL;
             }
         }else{
             xSemaphoreGive(channel->xWriteBluetooth);
             log_rfcomm("bluetooth is not connected\n");
+            *status = BLUETOOTH_NOT_CONNECTED;
             return BLUETOOTH_NOT_CONNECTED;
         }
         
     }else{
         log_rfcomm("semaphore not free bluetooth_write\n");
+        *status = TASK_COLLISION;
         return TASK_COLLISION;
     }
 }
@@ -590,16 +599,17 @@ void bluetooth_connectable_control(CONTROL_STATE state){
 void example_echo_bluetooth_task_channel_1(void *pvParameter){
   uint8_t test_buf[2000];
   uint16_t size = 2000;
+  int16_t status;
 
   for(int i = 0 ; i < size ; i++){
     test_buf[i] = i;
   }
   while(1){
     vTaskDelay(10 / portTICK_PERIOD_MS);
-    int16_t rcv = bluetooth_read(CHANNEL_1, test_buf, size);
+    int16_t rcv = bluetooth_read(CHANNEL_1, test_buf, size, &status);
     //for(int j = 0 ; j < 96 ; j++){
     if(rcv>0){
-        while(bluetooth_write(CHANNEL_1, test_buf,rcv) != DATAS_WRITTEN){
+        while(bluetooth_write(CHANNEL_1, test_buf, rcv, &status) != DATAS_WRITTEN){
             vTaskDelay(10 / portTICK_PERIOD_MS);
         }
     }
@@ -609,16 +619,17 @@ void example_echo_bluetooth_task_channel_1(void *pvParameter){
 void example_echo_bluetooth_task_channel_2(void *pvParameter){
   uint8_t test_buf[2000];
   uint16_t size = 2000;
+  int16_t status;
 
   for(int i = 0 ; i < size ; i++){
     test_buf[i] = i;
   }
   while(1){
     vTaskDelay(10 / portTICK_PERIOD_MS);
-    int16_t rcv = bluetooth_read(CHANNEL_2, test_buf, size);
+    int16_t rcv = bluetooth_read(CHANNEL_2, test_buf, size, &status);
     //for(int k = 0 ; k < 96 ; k++){
     if(rcv>0){
-        while(bluetooth_write(CHANNEL_2, test_buf,rcv) != DATAS_WRITTEN){
+        while(bluetooth_write(CHANNEL_2, test_buf, rcv, &status) != DATAS_WRITTEN){
             vTaskDelay(10 / portTICK_PERIOD_MS);
         }
     }
@@ -628,16 +639,17 @@ void example_echo_bluetooth_task_channel_2(void *pvParameter){
 void example_echo_bluetooth_task_channel_3(void *pvParameter){
   uint8_t test_buf[2000];
   uint16_t size = 2000;
+  int16_t status;
 
   for(int i = 0 ; i < size ; i++){
     test_buf[i] = i;
   }
   while(1){
     vTaskDelay(10 / portTICK_PERIOD_MS);
-    int16_t rcv = bluetooth_read(CHANNEL_3, test_buf, size);
+    int16_t rcv = bluetooth_read(CHANNEL_3, test_buf, size, &status);
     //for(int k = 0 ; k < 96 ; k++){
     if(rcv>0){
-        while(bluetooth_write(CHANNEL_3, test_buf,rcv) != DATAS_WRITTEN){
+        while(bluetooth_write(CHANNEL_3, test_buf, rcv, &status) != DATAS_WRITTEN){
             vTaskDelay(10 / portTICK_PERIOD_MS);
         }
     }

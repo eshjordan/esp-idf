@@ -63,10 +63,11 @@ typedef enum{
  * @param channel_nb	Channel number to use to write the datas. See CHANNEL_NB
  * @param buffer 		Pointer to a buffer containing the datas to send
  * @param buffer_len	Size of the buffer provided (max BLUE_TX_BUFFER_SIZE)
+ * @param status		Pointer used to store the same result as the return
  *
  * @return		A status code. See #ref return bluetooth functions
  */
-int8_t bluetooth_write(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_len);
+int16_t bluetooth_write(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_len, int16_t* status);
 
 /**
  * @brief Read datas from the bluetooth
@@ -76,10 +77,11 @@ int8_t bluetooth_write(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_l
  * @param channel_nb	Channel number to use to read the datas. See CHANNEL_NB
  * @param buffer 		Pointer to a buffer to feed with the received datas
  * @param buffer_len	Size of the buffer provided
+ * @param status		Pointer used to store the same result as the return
  *
  * @return		The amount of datas read or a status code. See #ref returns bluetooth functions
  */
-int16_t bluetooth_read(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_len);
+int16_t bluetooth_read(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_len, int16_t* status);
 
 /**
  * @brief Enable/disable the power of the bluetooth module
