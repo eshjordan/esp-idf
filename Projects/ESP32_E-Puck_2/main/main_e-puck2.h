@@ -16,6 +16,9 @@ Firmware to be run on the ESP32 of the e-puck2
 #define DELAY_10_TICKS              10
 #define DELAY_1000_TICKS            1000   
 
+#define CORE_0						0
+#define CORE_1						1
+
 
 ///////////////////////////////////////////BLUART DEFINITIONS//////////////////////////////////////////////
 #define BLUART_BLUETOOTH_CHANNEL_USED		CHANNEL_1

@@ -63,10 +63,10 @@ void bluart_init(void){
     
     //creates the tasks to handle the UART-Bluetooth pipelines
     xTaskCreatePinnedToCore(&bluart_uart_to_bluetooth_task, "uart to bluetooth translator", 
-              BLUART_UART_TO_BLUETOOTH_TASK_SIZE, NULL, BLUART_UART_TO_BLUETOOTH_TASK_PRIO, NULL, 1);
+              BLUART_UART_TO_BLUETOOTH_TASK_SIZE, NULL, BLUART_UART_TO_BLUETOOTH_TASK_PRIO, NULL, CORE_1);
 	
 	xTaskCreatePinnedToCore(&bluart_bluetooth_to_uart_task, "bluetooth to uart translator", 
-              BLUART_BLUETOOTH_TO_UART_TASK_SIZE, NULL, BLUART_BLUETOOTH_TO_UART_TASK_PRIO, NULL, 1);
+              BLUART_BLUETOOTH_TO_UART_TASK_SIZE, NULL, BLUART_BLUETOOTH_TO_UART_TASK_PRIO, NULL, CORE_1);
 
 }
 /*
