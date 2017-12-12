@@ -75,9 +75,9 @@ static void bluetooth_send(rfcomm_user_channel_t* channel);
 
 //names of the channels (virtual serial ports) as seen by the computer
 static const char *channels_names[] = {
-    "1",   //channel 1
-    "2",   //channel 2
-    "3",   //channel 3
+    "GDB",   //channel 1
+    "UART",  //channel 2
+    "SPI",   //channel 3
 };
 
 ////////////////////////////////////////////internal variables/////////////////////////////////////////////////
