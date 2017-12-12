@@ -12,6 +12,7 @@ Functions to configure and use the button through interruption
 #include "freertos/task.h"
 #include "freertos/xtensa_api.h"
 #include "freertos/queue.h"
+#include "main_e-puck2.h"
 #include "button_e-puck2.h"
 #include "rgb_led_e-puck2.h"
 
