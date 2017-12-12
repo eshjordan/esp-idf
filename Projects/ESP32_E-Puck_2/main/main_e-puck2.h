@@ -27,7 +27,7 @@ Firmware to be run on the ESP32 of the e-puck2
 #define BLUART_UART_TX_PIN					UART_PIN_NO_CHANGE //default pin U0TXD
 #define BLUART_UART_RX_PIN					UART_PIN_NO_CHANGE //default pin U0RXD
 
-#define BLUART_CONNECTION_STATUT_PIN		GPIO_NUM_0	//0 = bluetooth connected, 1 = bluetooth not connected
+#define BLUART_CONNECTION_STATUS_PIN		GPIO_NUM_0	//0 = bluetooth connected, 1 = bluetooth not connected
 
 
 //////////////////////////////////////////RGB_LED DEFINITIONS//////////////////////////////////////////////

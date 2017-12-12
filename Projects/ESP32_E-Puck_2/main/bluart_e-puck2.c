@@ -51,7 +51,7 @@ void bluart_init(void){
 	//interrupt of falling edge
 	io_conf.intr_type = GPIO_PIN_INTR_DISABLE;
 	//bit mask of the pins
-	io_conf.pin_bit_mask = ((uint64_t)1 << BLUART_CONNECTION_STATUT_PIN);
+	io_conf.pin_bit_mask = ((uint64_t)1 << BLUART_CONNECTION_STATUS_PIN);
 	//set as input mode    
 	io_conf.mode = GPIO_MODE_OUTPUT_OD;
 	//enable pull-up mode (no pull-up on pin 34 to 39)
@@ -59,7 +59,7 @@ void bluart_init(void){
 	//disable pull-down mode (no pull-down on pin 34 to 39)
 	io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
 	gpio_config(&io_conf);
-	gpio_set_level(BLUART_CONNECTION_STATUT_PIN, BLUART_NOT_CONNECTED);
+	gpio_set_level(BLUART_CONNECTION_STATUS_PIN, BLUART_NOT_CONNECTED);
     
     //creates the tasks to handle the UART-Bluetooth pipelines
     xTaskCreatePinnedToCore(&bluart_uart_to_bluetooth_task, "uart to bluetooth translator", 
@@ -110,9 +110,9 @@ void bluart_bluetooth_to_uart_task(void *pvParameter){
 	    len = bluetooth_read(BLUART_BLUETOOTH_CHANNEL_USED, buffer, BLUART_BUFFER_SIZE, &status);
 	    //updates the pin to tell the bluetooth is connected
 	    if(status == BLUETOOTH_NOT_CONNECTED){
-	    	gpio_set_level(BLUART_CONNECTION_STATUT_PIN, BLUART_NOT_CONNECTED);
+	    	gpio_set_level(BLUART_CONNECTION_STATUS_PIN, BLUART_NOT_CONNECTED);
 	    }else{
-	    	 gpio_set_level(BLUART_CONNECTION_STATUT_PIN, BLUART_CONNECTED);
+	    	 gpio_set_level(BLUART_CONNECTION_STATUS_PIN, BLUART_CONNECTED);
 	    }
 		//write to UART
 	    if(len > 0) {
