@@ -78,7 +78,7 @@ void bluart_uart_to_bluetooth_task(void *pvParameter){
 	int16_t status;
 
     while(1) {
-    	vTaskDelay(10 / portTICK_PERIOD_MS);
+    	vTaskDelay(1 / portTICK_PERIOD_MS);
         //Read data from UART
 		len = uart_read_bytes(BLUART_UART_USED, buffer, BLUART_BUFFER_SIZE, DELAY_1_TICKS);
 		//Write to the bluetooth tx buffer
@@ -89,7 +89,7 @@ void bluart_uart_to_bluetooth_task(void *pvParameter){
 	        	if(status == BLUETOOTH_NOT_CONNECTED){
 			    	 break;
 			    }
-	            vTaskDelay(10 / portTICK_PERIOD_MS);
+	            vTaskDelay(1 / portTICK_PERIOD_MS);
 	        }
 	    }
     }
@@ -105,7 +105,7 @@ void bluart_bluetooth_to_uart_task(void *pvParameter){
 	int16_t status;
 
     while(1) {
-    	vTaskDelay(10 / portTICK_PERIOD_MS);
+    	vTaskDelay(1 / portTICK_PERIOD_MS);
 	    //read data from bluetooth rx buffer
 	    len = bluetooth_read(BLUART_BLUETOOTH_CHANNEL_USED, buffer, BLUART_BUFFER_SIZE, &status);
 	    //updates the pin to tell the bluetooth is connected
