@@ -194,7 +194,7 @@ static void spp_service_setup(void){
         memset(rf_channel[i].spp_service_buffer, 0, sizeof(rf_channel[i].spp_service_buffer));
         spp_create_sdp_record(rf_channel[i].spp_service_buffer, rf_channel[i].service_record, rf_channel[i].server_id, channels_names[i]);
         sdp_register_service(rf_channel[i].spp_service_buffer);
-        log_rfcomm("SDP service n°%d record size: %u\n", (i + 1), de_get_len(rf_channel[i].spp_service_buffer));
+        log_info_rfcomm("SDP service n°%d record size: %u\n", (i + 1), de_get_len(rf_channel[i].spp_service_buffer));
     }
 }
 
@@ -285,15 +285,15 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
             switch (hci_event_packet_get_type(packet)) {
                 case HCI_EVENT_PIN_CODE_REQUEST:
                     // inform about pin code request
-                    log_rfcomm("Pin code request - using '0000'\n");
+                    log_info_rfcomm("Pin code request - using '0000'\n");
                     hci_event_pin_code_request_get_bd_addr(packet, event_addr);
                     gap_pin_code_response(event_addr, "0000");
                     break;
 
                 case HCI_EVENT_USER_CONFIRMATION_REQUEST:
                     // ssp: inform about user confirmation request
-                    log_rfcomm("SSP User Confirmation Request with numeric value '%06"PRIu32"'\n", little_endian_read_32(packet, 8));
-                    log_rfcomm("SSP User Confirmation Auto accept\n");
+                    log_info_rfcomm("SSP User Confirmation Request with numeric value '%06"PRIu32"'\n", little_endian_read_32(packet, 8));
+                    log_info_rfcomm("SSP User Confirmation Auto accept\n");
                     break;
 
                 case RFCOMM_EVENT_INCOMING_CONNECTION:
@@ -301,14 +301,14 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                     rfcomm_event_incoming_connection_get_bd_addr(packet, event_addr); 
                     ch_used = rfcomm_event_incoming_connection_get_server_channel(packet) - 1;
                     rf_channel[ch_used].remote_id = rfcomm_event_incoming_connection_get_rfcomm_cid(packet);
-                    log_rfcomm("RFCOMM channel %u requested for %s\n", rf_channel[ch_used].server_id, bd_addr_to_str(event_addr));
+                    log_info_rfcomm("RFCOMM channel %u requested for %s\n", rf_channel[ch_used].server_id, bd_addr_to_str(event_addr));
                     rfcomm_accept_connection(rf_channel[ch_used].remote_id);
                     break;
                
                 case RFCOMM_EVENT_CHANNEL_OPENED:
                     // data: event(8), len(8), status (8), address (48), server channel(8), rfcomm_cid(16), max frame size(16)
                     if (rfcomm_event_channel_opened_get_status(packet)) {
-                        log_rfcomm("RFCOMM channel open failed, status %u\n", rfcomm_event_channel_opened_get_status(packet));
+                        log_info_rfcomm("RFCOMM channel open failed, status %u\n", rfcomm_event_channel_opened_get_status(packet));
                     } else {
                         //the channels begin at 1 and the index of the structure at 0. That's why we substract 1
                         ch_used = rfcomm_event_channel_opened_get_server_channel(packet) - 1; 
@@ -319,7 +319,7 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                         //we compute how many credits we can grant in one time depending on the rx buffer size
                         rf_channel[ch_used].nb_incomming_credit_to_grant = (BLUE_RX_BUFFER_SIZE / rf_channel[ch_used].mtu);
                         rf_channel[ch_used].incomming_credits = INITIAL_INCOMMING_CREDITS;
-                        log_rfcomm("RFCOMM channel open succeeded. New RFCOMM Channel ID %u, max frame size %u\n", rf_channel[ch_used].remote_id, rf_channel[ch_used].mtu);
+                        log_info_rfcomm("RFCOMM channel open succeeded. New RFCOMM Channel ID %u, max frame size %u\n", rf_channel[ch_used].remote_id, rf_channel[ch_used].mtu);
                         //once a connection has been established, we disable the discoverability 
                         //(without effect if it has not bee ativated earlier) and the connectivity
                         //this means nobody else can establish a connection while we already have one
@@ -342,7 +342,7 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
                     for(int i = 0 ; i < NB_RFCOMM_CHANNELS ; i++){
                         if(xSemaphoreTake(rf_channel[i].xWriteBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
                             rf_channel[i].remote_id = 0;
-                            log_rfcomm("Channel n° %d closed. New remote ID = %d\n",i + 1,rf_channel[i].remote_id);
+                            log_info_rfcomm("Channel n° %d closed. New remote ID = %d\n",i + 1,rf_channel[i].remote_id);
                             xSemaphoreGive(rf_channel[i].xWriteBluetooth);
                         }
                     }
@@ -355,8 +355,8 @@ static void packet_handler (uint8_t packet_type, uint16_t channel, uint8_t *pack
             break;
 
         case RFCOMM_DATA_PACKET:
-            log_rfcomm("<==================RCV: %d characters =====================>",size);
-            log_rfcomm("'\n");
+            log_info_rfcomm("<==================RCV: %d characters =====================>",size);
+            log_info_rfcomm("'\n");
             
             ch_used = get_index_from_remote_channel(channel);
             if(ch_used < NB_RFCOMM_CHANNELS){
@@ -386,10 +386,10 @@ static void bluetooth_receive(rfcomm_user_channel_t* channel, uint8_t* buffer, u
 
     static uint16_t i = 0;
 
-    log_rfcomm("incomming_credits = %d\n",channel->incomming_credits);
+    log_info_rfcomm("incomming_credits = %d\n",channel->incomming_credits);
 
     if(xSemaphoreTake(channel->xReadBluetooth, (TickType_t)DELAY_1000_TICKS) == pdTRUE){
-        log_rfcomm("received %d characters \n",buffer_len);
+        log_info_rfcomm("received %d characters \n",buffer_len);
         channel->remaining_size_blue_rx -= buffer_len;
         channel->nb_to_read_blue_rx += buffer_len;
         channel->incomming_credits--;
@@ -398,7 +398,7 @@ static void bluetooth_receive(rfcomm_user_channel_t* channel, uint8_t* buffer, u
             //the pointer is incremented after the copy of the value
             *channel->ptr_to_receive_blue_rx++ = buffer[i];
         }
-        log_rfcomm("remaining size = %d\n",channel->remaining_size_blue_rx);
+        log_info_rfcomm("remaining size = %d\n",channel->remaining_size_blue_rx);
         xSemaphoreGive(channel->xReadBluetooth);
     }
 }
@@ -424,7 +424,7 @@ int16_t bluetooth_read(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_l
                     size_to_read = buffer_len;
                 }
 
-                log_rfcomm("read %d characters\n",channel->nb_to_read_blue_rx);
+                log_info_rfcomm("read %d characters\n",channel->nb_to_read_blue_rx);
                 channel->nb_to_read_blue_rx -= size_to_read;
                 channel->remaining_size_blue_rx += size_to_read;
 
@@ -433,14 +433,14 @@ int16_t bluetooth_read(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_l
                     buffer[i] = *channel->ptr_to_read_blue_rx++;
                 }
 
-                log_rfcomm("remaining size = %d, nb to read = %d\n",channel->remaining_size_blue_rx, channel->nb_to_read_blue_rx);
+                log_info_rfcomm("remaining size = %d, nb to read = %d\n",channel->remaining_size_blue_rx, channel->nb_to_read_blue_rx);
 
                 if(!channel->nb_to_read_blue_rx){
                     if(!channel->grant_incomming_credit && !channel->incomming_credits){
                         channel->grant_incomming_credit = UPDATE;
-                        log_rfcomm("grant credit bluetooth_read\n");
+                        log_info_rfcomm("grant credit bluetooth_read\n");
                     }
-                    log_rfcomm("no more to read => reset ptr\n");
+                    log_info_rfcomm("no more to read => reset ptr\n");
                     reset_blue_rx(channel);
                 }
                 xSemaphoreGive(channel->xReadBluetooth);
@@ -448,18 +448,18 @@ int16_t bluetooth_read(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_l
                 return size_to_read;
             }else{
                 xSemaphoreGive(channel->xReadBluetooth);
-                log_rfcomm("nothing received\n");
+                log_debug_rfcomm("nothing received\n");
                 *status = 0;
                 return 0;
             }
         }else{
             xSemaphoreGive(channel->xReadBluetooth);
-            log_rfcomm("bluetooth is not connected\n");
+            log_debug_rfcomm("bluetooth is not connected\n");
             *status = BLUETOOTH_NOT_CONNECTED;
             return BLUETOOTH_NOT_CONNECTED;
         }
     }else{
-        log_rfcomm("semaphore not free bluetooth_read\n");
+        log_debug_rfcomm("semaphore not free bluetooth_read\n");
         *status = TASK_COLLISION;
         return TASK_COLLISION;
     }
@@ -491,7 +491,7 @@ static void bluetooth_send(rfcomm_user_channel_t* channel){
         }
 
         credits = rfcomm_get_outgoing_credits(channel->remote_id);
-        log_rfcomm("outgoing credits = %d\n",credits);
+        log_info_rfcomm("outgoing credits = %d\n",credits);
         if(credits <= OUTGOING_CREDITS_THRESHOLD){
             //stop the sending during 100ms in order to let the computer digest the datas and 
             //free new credits for us => continue the sending only if we have more than 2 credits
@@ -504,18 +504,18 @@ static void bluetooth_send(rfcomm_user_channel_t* channel){
             channel->nb_to_send_blue_tx -= size_to_send;
 
             channel->ptr_to_send_blue_tx += size_to_send;
-            log_rfcomm(" %d bytes sent, remaining = %d\n",size_to_send, channel->nb_to_send_blue_tx);
+            log_info_rfcomm(" %d bytes sent, remaining = %d\n",size_to_send, channel->nb_to_send_blue_tx);
         }
 
         if(channel->nb_to_send_blue_tx > 0){
-            log_rfcomm("must send another\n");
+            log_info_rfcomm("must send another\n");
             xSemaphoreGive(channel->xWriteBluetooth);
             rfcomm_request_can_send_now_event(channel->remote_id);
         }else{
             //reset the pointers
             reset_blue_tx(channel);
             xSemaphoreGive(channel->xWriteBluetooth);
-            log_rfcomm("must not send => reset ptr\n");
+            log_info_rfcomm("must not send => reset ptr\n");
         }
     }
     
@@ -548,25 +548,25 @@ int16_t bluetooth_write(CHANNEL_NB channel_nb, uint8_t* buffer, uint16_t buffer_
                 
                 xSemaphoreGive(channel->xWriteBluetooth);
 
-                log_rfcomm("wrote %d bytes to send buffer\n", buffer_len);
-                log_rfcomm("remaining size = %d, nb_to_send = %d\n",channel->remaining_size_blue_tx, channel->nb_to_send_blue_tx);
+                log_info_rfcomm("wrote %d bytes to send buffer\n", buffer_len);
+                log_info_rfcomm("remaining size = %d, nb_to_send = %d\n",channel->remaining_size_blue_tx, channel->nb_to_send_blue_tx);
                 *status = DATAS_WRITTEN;
                 return DATAS_WRITTEN;
             }else{
                 xSemaphoreGive(channel->xWriteBluetooth);
-                log_rfcomm("not enough space\n");
+                log_debug_rfcomm("not enough space\n");
                 *status = BUFFER_FULL;
                 return BUFFER_FULL;
             }
         }else{
             xSemaphoreGive(channel->xWriteBluetooth);
-            log_rfcomm("bluetooth is not connected\n");
+            log_debug_rfcomm("bluetooth is not connected\n");
             *status = BLUETOOTH_NOT_CONNECTED;
             return BLUETOOTH_NOT_CONNECTED;
         }
         
     }else{
-        log_rfcomm("semaphore not free bluetooth_write\n");
+        log_debug_rfcomm("semaphore not free bluetooth_write\n");
         *status = TASK_COLLISION;
         return TASK_COLLISION;
     }

@@ -15,7 +15,8 @@ Functions to control and use the bluetooth stack
 #include "btstack.h"
 
 
-//#define ENABLE_LOG_RFCOMM
+//#define ENABLE_LOG_INFO_RFCOMM
+//#define ENABLE_LOG_DEBUG_RFCOMM
 
 #define BLUE_RX_BUFFER_SIZE		2000	
 #define BLUE_TX_BUFFER_SIZE		2000
@@ -49,10 +50,16 @@ typedef enum{
 #define TASK_COLLISION			-2
 #define BLUETOOTH_NOT_CONNECTED	-3
 
-#ifdef ENABLE_LOG_RFCOMM
-#define log_rfcomm(format, ...)  printf(format,  ## __VA_ARGS__)
+#ifdef ENABLE_LOG_INFO_RFCOMM
+#define log_info_rfcomm(format, ...)  printf(format,  ## __VA_ARGS__)
 #else
-#define log_rfcomm(...) __log_unused(__VA_ARGS__)
+#define log_info_rfcomm(...) __log_unused(__VA_ARGS__)
+#endif
+
+#ifdef ENABLE_LOG_DEBUG_RFCOMM
+#define log_debug_rfcomm(format, ...)  printf(format,  ## __VA_ARGS__)
+#else
+#define log_debug_rfcomm(...) __log_unused(__VA_ARGS__)
 #endif
 
 /**
