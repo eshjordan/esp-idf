@@ -21,13 +21,20 @@ Firmware to be run on the ESP32 of the e-puck2
 
 
 ///////////////////////////////////////////BLUART DEFINITIONS//////////////////////////////////////////////
-#define BLUART_BLUETOOTH_CHANNEL_USED		CHANNEL_1
+#define BLUART_413_BLUETOOTH_CHANNEL_USED		CHANNEL_1
 
-#define BLUART_UART_USED					UART_NUM_0
-#define BLUART_UART_TX_PIN					UART_PIN_NO_CHANGE //default pin U0TXD
-#define BLUART_UART_RX_PIN					UART_PIN_NO_CHANGE //default pin U0RXD
+#define BLUART_413_UART_USED					UART_NUM_0
+#define BLUART_413_UART_TX_PIN					UART_PIN_NO_CHANGE //default pin U0TXD
+#define BLUART_413_UART_RX_PIN					UART_PIN_NO_CHANGE //default pin U0RXD
 
-#define BLUART_CONNECTION_STATUS_PIN		GPIO_NUM_0	//0 = bluetooth connected, 1 = bluetooth not connected
+#define BLUART_413_CONNECTION_STATUS_PIN		GPIO_NUM_0	//0 = bluetooth connected, 1 = bluetooth not connected
+
+
+#define BLUART_407_BLUETOOTH_CHANNEL_USED		CHANNEL_2
+
+#define BLUART_407_UART_USED					UART_NUM_1
+#define BLUART_407_UART_TX_PIN					GPIO_NUM_17
+#define BLUART_407_UART_RX_PIN					GPIO_NUM_34
 
 
 //////////////////////////////////////////RGB_LED DEFINITIONS//////////////////////////////////////////////
