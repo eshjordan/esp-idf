@@ -163,7 +163,7 @@ class ConsoleReader(StoppableThread):
             # this is the way cancel() is implemented in pyserial 3.3 or newer,
             # older pyserial (3.1+) has cancellation implemented via 'select',
             # which does not work when console sends an escape sequence response
-            # 
+            #
             # even older pyserial (<3.1) does not have this method
             #
             # on Windows there is a different (also hacky) fix, applied above.
@@ -236,9 +236,9 @@ class Monitor(object):
                 if c == unichr(0x7f):
                     c = unichr(8)    # map the BS key (which yields DEL) to backspace
                 return c
-            
-            self.console.getkey = types.MethodType(getkey_patched, self.console) 
-        
+
+            self.console.getkey = types.MethodType(getkey_patched, self.console)
+
         self.serial = serial_instance
         self.console_reader = ConsoleReader(self.console, self.event_queue)
         self.serial_reader = SerialReader(self.serial, self.event_queue)
@@ -561,8 +561,11 @@ if os.name == 'nt':
                             self.output.write(self.matched) # not an ANSI color code, display verbatim
                         self.matched = b''
                 else:
-                    self.output.write(b)
-                    self.matched = b''
+                    try:
+                        self.output.write(b)
+                        self.matched = b''
+                    except:
+                        pass
 
         def flush(self):
             self.output.flush()
