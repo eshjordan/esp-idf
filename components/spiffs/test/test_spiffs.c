@@ -346,9 +346,10 @@ void test_spiffs_concurrent(const char* filename_prefix)
     read_write_test_arg_t args2 = READ_WRITE_TEST_ARG_INIT(names[1], 2);
 
     printf("writing f1 and f2\n");
-
-    xTaskCreatePinnedToCore(&read_write_task, "rw1", 2048, &args1, 3, NULL, 0);
-    xTaskCreatePinnedToCore(&read_write_task, "rw2", 2048, &args2, 3, NULL, 1);
+    const int cpuid_0 = 0;
+    const int cpuid_1 = portNUM_PROCESSORS - 1;
+    xTaskCreatePinnedToCore(&read_write_task, "rw1", 2048, &args1, 3, NULL, cpuid_0);
+    xTaskCreatePinnedToCore(&read_write_task, "rw2", 2048, &args2, 3, NULL, cpuid_1);
 
     xSemaphoreTake(args1.done, portMAX_DELAY);
     printf("f1 done\n");
@@ -364,10 +365,10 @@ void test_spiffs_concurrent(const char* filename_prefix)
 
     printf("reading f1 and f2, writing f3 and f4\n");
 
-    xTaskCreatePinnedToCore(&read_write_task, "rw3", 2048, &args3, 3, NULL, 1);
-    xTaskCreatePinnedToCore(&read_write_task, "rw4", 2048, &args4, 3, NULL, 0);
-    xTaskCreatePinnedToCore(&read_write_task, "rw1", 2048, &args1, 3, NULL, 0);
-    xTaskCreatePinnedToCore(&read_write_task, "rw2", 2048, &args2, 3, NULL, 1);
+    xTaskCreatePinnedToCore(&read_write_task, "rw3", 2048, &args3, 3, NULL, cpuid_1);
+    xTaskCreatePinnedToCore(&read_write_task, "rw4", 2048, &args4, 3, NULL, cpuid_0);
+    xTaskCreatePinnedToCore(&read_write_task, "rw1", 2048, &args1, 3, NULL, cpuid_0);
+    xTaskCreatePinnedToCore(&read_write_task, "rw2", 2048, &args2, 3, NULL, cpuid_1);
 
     xSemaphoreTake(args1.done, portMAX_DELAY);
     printf("f1 done\n");
@@ -504,3 +505,45 @@ TEST_CASE("multiple tasks can use same volume", "[spiffs]")
     test_spiffs_concurrent("/spiffs/f");
     test_teardown();
 }
+
+#ifdef CONFIG_SPIFFS_USE_MTIME
+TEST_CASE("mtime is updated when file is opened", "[spiffs]")
+{
+    /* Open a file, check that mtime is set correctly */
+    const char* filename = "/spiffs/time";
+    test_setup();
+    time_t t_before_create = time(NULL);
+    test_spiffs_create_file_with_text(filename, "\n");
+    time_t t_after_create = time(NULL);
+
+    struct stat st;
+    TEST_ASSERT_EQUAL(0, stat(filename, &st));
+    printf("mtime=%d\n", (int) st.st_mtime);
+    TEST_ASSERT(st.st_mtime >= t_before_create
+             && st.st_mtime <= t_after_create);
+
+    /* Wait a bit, open again, check that mtime is updated */
+    vTaskDelay(2000 / portTICK_PERIOD_MS);
+    time_t t_before_open = time(NULL);
+    FILE *f = fopen(filename, "a");
+    time_t t_after_open = time(NULL);
+    TEST_ASSERT_EQUAL(0, fstat(fileno(f), &st));
+    printf("mtime=%d\n", (int) st.st_mtime);
+    TEST_ASSERT(st.st_mtime >= t_before_open
+             && st.st_mtime <= t_after_open);
+    fclose(f);
+
+    /* Wait a bit, open for reading, check that mtime is not updated */
+    vTaskDelay(2000 / portTICK_PERIOD_MS);
+    time_t t_before_open_ro = time(NULL);
+    f = fopen(filename, "r");
+    TEST_ASSERT_EQUAL(0, fstat(fileno(f), &st));
+    printf("mtime=%d\n", (int) st.st_mtime);
+    TEST_ASSERT(t_before_open_ro > t_after_open
+             && st.st_mtime >= t_before_open
+             && st.st_mtime <= t_after_open);
+    fclose(f);
+
+    test_teardown();
+}
+#endif // CONFIG_SPIFFS_USE_MTIME

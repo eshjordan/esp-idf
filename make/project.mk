@@ -11,6 +11,8 @@
 #
 
 .PHONY: build-components menuconfig defconfig all build clean all_binaries check-submodules size size-components size-files list-components
+
+MAKECMDGOALS ?= all
 all: all_binaries
 # see below for recipe of 'all' target
 #
@@ -38,6 +40,7 @@ help:
 	@echo "make app - Build just the app"
 	@echo "make app-flash - Flash just the app"
 	@echo "make app-clean - Clean just the app"
+	@echo "make print_flash_cmd - Print the arguments for esptool when flash"
 	@echo ""
 	@echo "See also 'make bootloader', 'make bootloader-flash', 'make bootloader-clean', "
 	@echo "'make partition_table', etc, etc."
@@ -47,7 +50,14 @@ ifndef MAKE_RESTARTS
 ifeq ("$(filter 4.% 3.81 3.82,$(MAKE_VERSION))","")
 $(warning esp-idf build system only supports GNU Make versions 3.81 or newer. You may see unexpected results with other Makes.)
 endif
+
+ifdef MSYSTEM
+ifneq ("$(MSYSTEM)","MINGW32")
+$(warning esp-idf build system only supports MSYS2 in "MINGW32" mode. Consult the ESP-IDF documentation for details.)
 endif
+endif  # MSYSTEM
+
+endif  # MAKE_RESTARTS
 
 # can't run 'clean' along with any non-clean targets
 ifneq ("$(filter clean% %clean,$(MAKECMDGOALS))" ,"")
@@ -60,7 +70,7 @@ OS ?=
 
 # make IDF_PATH a "real" absolute path
 # * works around the case where a shell character is embedded in the environment variable value.
-# * changes Windows-style C:/blah/ paths to MSYS/Cygwin style /c/blah
+# * changes Windows-style C:/blah/ paths to MSYS style /c/blah
 ifeq ("$(OS)","Windows_NT")
 # On Windows MSYS2, make wildcard function returns empty string for paths of form /xyz
 # where /xyz is a directory inside the MSYS root - so we don't use it.
@@ -85,7 +95,7 @@ $(error If IDF_PATH is overriden on command line, it must be an absolute path wi
 endif
 
 ifneq ("$(IDF_PATH)","$(subst :,,$(IDF_PATH))")
-$(error IDF_PATH cannot contain colons. If overriding IDF_PATH on Windows, use Cygwin-style /c/dir instead of C:/dir)
+$(error IDF_PATH cannot contain colons. If overriding IDF_PATH on Windows, use MSYS Unix-style /c/dir instead of C:/dir)
 endif
 
 # disable built-in make rules, makes debugging saner
@@ -146,6 +156,7 @@ export COMPONENTS
 # NOTE: These paths must be generated WITHOUT a trailing / so we
 # can use $(notdir x) to get the component name.
 COMPONENT_PATHS := $(foreach comp,$(COMPONENTS),$(firstword $(foreach cd,$(COMPONENT_DIRS),$(wildcard $(dir $(cd))$(comp) $(cd)/$(comp)))))
+export COMPONENT_PATHS
 
 TEST_COMPONENTS ?=
 TESTS_ALL ?=
@@ -256,6 +267,19 @@ COMMON_FLAGS = \
 	-mlongcalls \
 	-nostdlib
 
+ifndef IS_BOOTLOADER_BUILD
+# stack protection (only one option can be selected in menuconfig)
+ifdef CONFIG_STACK_CHECK_NORM
+COMMON_FLAGS += -fstack-protector
+endif
+ifdef CONFIG_STACK_CHECK_STRONG
+COMMON_FLAGS += -fstack-protector-strong
+endif
+ifdef CONFIG_STACK_CHECK_ALL
+COMMON_FLAGS += -fstack-protector-all
+endif
+endif
+
 # Optimization flags are set based on menuconfig choice
 ifdef CONFIG_OPTIMIZATION_LEVEL_RELEASE
 OPTIMIZATION_FLAGS = -Os
@@ -296,22 +320,27 @@ CXXFLAGS := $(strip \
 	$(CXXFLAGS) \
 	$(EXTRA_CXXFLAGS))
 
+ifdef CONFIG_CXX_EXCEPTIONS
+CXXFLAGS += -fexceptions
+else
+CXXFLAGS += -fno-exceptions
+endif
+
 export CFLAGS CPPFLAGS CXXFLAGS
+
+# Set default values that were not previously defined
+CC ?= gcc
+LD ?= ld
+AR ?= ar
+OBJCOPY ?= objcopy
+SIZE ?= size
 
 # Set host compiler and binutils
 HOSTCC := $(CC)
 HOSTLD := $(LD)
 HOSTAR := $(AR)
-ifdef OBJCOPY
 HOSTOBJCOPY := $(OBJCOPY)
-else
-HOSTOBJCOPY := objcopy
-endif
-ifdef SIZE
 HOSTSIZE := $(SIZE)
-else
-HOSTSIZE := size
-endif
 export HOSTCC HOSTLD HOSTAR HOSTOBJCOPY SIZE
 
 # Set target compiler. Defaults to whatever the user has
@@ -483,6 +512,10 @@ list-components:
 	$(info COMPONENT_PATHS (paths to all components):)
 	$(foreach cp,$(COMPONENT_PATHS),$(info $(cp)))
 
+# print flash command, so users can dump this to config files and download somewhere without idf
+print_flash_cmd:
+	echo $(ESPTOOL_WRITE_FLASH_OPTIONS) $(ESPTOOL_ALL_FLASH_ARGS) | sed -e 's:'$(PWD)/build/'::g'
+
 # Check toolchain version using the output of xtensa-esp32-elf-gcc --version command.
 # The output normally looks as follows
 #     xtensa-esp32-elf-gcc (crosstool-NG crosstool-ng-1.22.0-59-ga194053) 4.8.5
@@ -494,7 +527,7 @@ TOOLCHAIN_COMMIT_DESC := $(shell $(CC) --version | sed -E -n 's|.*crosstool-ng-(
 TOOLCHAIN_GCC_VER := $(shell $(CC) --version | sed -E -n 's|xtensa-esp32-elf-gcc.*\ \(.*\)\ (.*)|\1|gp')
 
 # Officially supported version(s)
-SUPPORTED_TOOLCHAIN_COMMIT_DESC := 1.22.0-73-ge28a011
+SUPPORTED_TOOLCHAIN_COMMIT_DESC := 1.22.0-75-gbaf03c2
 SUPPORTED_TOOLCHAIN_GCC_VERSIONS := 5.2.0
 
 ifdef TOOLCHAIN_COMMIT_DESC

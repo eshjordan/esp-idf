@@ -421,6 +421,8 @@ void gatt_process_exec_write_req (tGATT_TCB *p_tcb, UINT8 op_code, UINT16 len, U
         if (is_prepare_write_valid){
             if((queue_data->p_attr->p_value != NULL) && (queue_data->p_attr->p_value->attr_val.attr_val != NULL)){
                 memcpy(queue_data->p_attr->p_value->attr_val.attr_val+queue_data->offset, queue_data->value, queue_data->len);
+                //don't forget to increase the attribute value length in the gatts database.
+                queue_data->p_attr->p_value->attr_val.attr_len += queue_data->len;
             }
         }
         osi_free(queue_data);
@@ -947,7 +949,10 @@ static void gatts_process_mtu_req (tGATT_TCB *p_tcb, UINT16 len, UINT8 *p_data)
             p_tcb->payload_size = mtu;
         }
 
-        l2cble_set_fixed_channel_tx_data_length(p_tcb->peer_bda, L2CAP_ATT_CID, p_tcb->payload_size);
+        /* host will set packet data length to 251 automatically if remote device support set packet data length,
+            so l2cble_set_fixed_channel_tx_data_length() is not necessary.
+            l2cble_set_fixed_channel_tx_data_length(p_tcb->peer_bda, L2CAP_ATT_CID, p_tcb->payload_size);
+        */
 
         if ((p_buf = attp_build_sr_msg(p_tcb, GATT_RSP_MTU, (tGATT_SR_MSG *) &p_tcb->payload_size)) != NULL) {
             attp_send_sr_msg (p_tcb, p_buf);

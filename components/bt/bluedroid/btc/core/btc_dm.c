@@ -28,6 +28,9 @@
 #include "bta_gatt_api.h"
 #include "allocator.h"
 
+#if (BTC_GAP_BT_INCLUDED == TRUE)
+#include "btc_gap_bt.h"
+#endif /* BTC_GAP_BT_INCLUDED == TRUE */
 
 /******************************************************************************
 **  Constants & Macros
@@ -247,12 +250,6 @@ static void btc_dm_ble_auth_cmpl_evt (tBTA_DM_AUTH_CMPL *p_auth_cmpl)
          if (btc_storage_get_remote_addr_type(&bdaddr, &addr_type) != BT_STATUS_SUCCESS) {
             btc_storage_set_remote_addr_type(&bdaddr, p_auth_cmpl->addr_type, true);
         }
-        /* check the irk has been save in the flash or not, if the irk has already save, means that the peer device has bonding
-           before. */
-        if(pairing_cb.ble.is_pid_key_rcvd) {
-            btc_storage_compare_address_key_value(&bdaddr, BTM_LE_KEY_PID,
-                                                  (void *)&pairing_cb.ble.pid_key, sizeof(tBTM_LE_PID_KEYS));
-        }
         btc_dm_save_ble_bonding_keys();
     } else {
         /*Map the HCI fail reason  to  bt status  */
@@ -467,17 +464,28 @@ void btc_dm_sec_cb_handler(btc_msg_t *msg)
         LOG_ERROR("BTA_DM_DEV_UNPAIRED_EVT");
         memcpy(bd_addr.address, p_data->link_down.bd_addr, sizeof(BD_ADDR));
         btm_set_bond_type_dev(p_data->link_down.bd_addr, BOND_TYPE_UNKNOWN);
-        //remove the bonded key in the config and nvs flash.
-        btc_storage_remove_ble_dev_type(&bd_addr, false);
-        btc_storage_remove_remote_addr_type(&bd_addr, false);
-        btc_storage_remove_ble_bonding_keys(&bd_addr);
+        param.remove_bond_dev_cmpl.status = ESP_BT_STATUS_FAIL;
+        
+        if (p_data->link_down.status == HCI_SUCCESS) {
+            //remove the bonded key in the config and nvs flash.
+            btc_storage_remove_ble_dev_type(&bd_addr, false);
+            btc_storage_remove_remote_addr_type(&bd_addr, false);
+            param.remove_bond_dev_cmpl.status = btc_storage_remove_ble_bonding_keys(&bd_addr);
+        }
         ble_msg.act = ESP_GAP_BLE_REMOVE_BOND_DEV_COMPLETE_EVT;
-        param.remove_bond_dev_cmpl.status = (p_data->link_down.status == HCI_SUCCESS) ? ESP_BT_STATUS_SUCCESS : ESP_BT_STATUS_FAIL;
         memcpy(param.remove_bond_dev_cmpl.bd_addr, p_data->link_down.bd_addr, sizeof(BD_ADDR));
 #endif /* #if (SMP_INCLUDED == TRUE) */
         break;
     }
     case BTA_DM_BUSY_LEVEL_EVT:
+#if (BTC_GAP_BT_INCLUDED == TRUE)
+        {
+        if (p_data->busy_level.level_flags & BTM_BL_INQUIRY_PAGING_MASK) {
+            btc_gap_bt_busy_level_updated(p_data->busy_level.level_flags);
+        }
+        break;
+        }
+#endif /* BTC_GAP_BT_INCLUDED  == TRUE */
     case BTA_DM_LINK_UP_EVT:
     case BTA_DM_LINK_DOWN_EVT:
     case BTA_DM_HW_ERROR_EVT:

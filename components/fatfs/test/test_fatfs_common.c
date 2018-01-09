@@ -125,15 +125,15 @@ void test_fatfs_lseek(const char* filename)
     TEST_ASSERT_EQUAL(0, fclose(f));
 }
 
-void test_fatfs_stat(const char* filename)
+void test_fatfs_stat(const char* filename, const char* root_dir)
 {
     struct tm tm;
-    tm.tm_year = 2016 - 1900;
-    tm.tm_mon = 0;
-    tm.tm_mday = 10;
-    tm.tm_hour = 16;
-    tm.tm_min = 30;
-    tm.tm_sec = 0;
+    tm.tm_year = 2017 - 1900;
+    tm.tm_mon = 11;
+    tm.tm_mday = 8;
+    tm.tm_hour = 19;
+    tm.tm_min = 51;
+    tm.tm_sec = 10;
     time_t t = mktime(&tm);
     printf("Setting time: %s", asctime(&tm));
     struct timeval now = { .tv_sec = t };
@@ -151,6 +151,11 @@ void test_fatfs_stat(const char* filename)
 
     TEST_ASSERT(st.st_mode & S_IFREG);
     TEST_ASSERT_FALSE(st.st_mode & S_IFDIR);
+
+    memset(&st, 0, sizeof(st));
+    TEST_ASSERT_EQUAL(0, stat(root_dir, &st));
+    TEST_ASSERT(st.st_mode & S_IFDIR);
+    TEST_ASSERT_FALSE(st.st_mode & S_IFREG);
 }
 
 void test_fatfs_unlink(const char* filename)
@@ -404,8 +409,10 @@ void test_fatfs_concurrent(const char* filename_prefix)
 
     printf("writing f1 and f2\n");
 
-    xTaskCreatePinnedToCore(&read_write_task, "rw1", 2048, &args1, 3, NULL, 0);
-    xTaskCreatePinnedToCore(&read_write_task, "rw2", 2048, &args2, 3, NULL, 1);
+    const int cpuid_0 = 0;
+    const int cpuid_1 = portNUM_PROCESSORS - 1;
+    xTaskCreatePinnedToCore(&read_write_task, "rw1", 2048, &args1, 3, NULL, cpuid_0);
+    xTaskCreatePinnedToCore(&read_write_task, "rw2", 2048, &args2, 3, NULL, cpuid_1);
 
     xSemaphoreTake(args1.done, portMAX_DELAY);
     printf("f1 done\n");
@@ -421,10 +428,10 @@ void test_fatfs_concurrent(const char* filename_prefix)
 
     printf("reading f1 and f2, writing f3 and f4\n");
 
-    xTaskCreatePinnedToCore(&read_write_task, "rw3", 2048, &args3, 3, NULL, 1);
-    xTaskCreatePinnedToCore(&read_write_task, "rw4", 2048, &args4, 3, NULL, 0);
-    xTaskCreatePinnedToCore(&read_write_task, "rw1", 2048, &args1, 3, NULL, 0);
-    xTaskCreatePinnedToCore(&read_write_task, "rw2", 2048, &args2, 3, NULL, 1);
+    xTaskCreatePinnedToCore(&read_write_task, "rw3", 2048, &args3, 3, NULL, cpuid_1);
+    xTaskCreatePinnedToCore(&read_write_task, "rw4", 2048, &args4, 3, NULL, cpuid_0);
+    xTaskCreatePinnedToCore(&read_write_task, "rw1", 2048, &args1, 3, NULL, cpuid_0);
+    xTaskCreatePinnedToCore(&read_write_task, "rw2", 2048, &args2, 3, NULL, cpuid_1);
 
     xSemaphoreTake(args1.done, portMAX_DELAY);
     printf("f1 done\n");

@@ -160,9 +160,8 @@ typedef void (*tBTU_EVENT_CALLBACK)(BT_HDR *p_hdr);
 #define BTU_TTYPE_BLE_GAP_FAST_ADV                  106
 #define BTU_TTYPE_BLE_OBSERVE                       107
 
-
 #define BTU_TTYPE_UCD_TO                            108
-
+#define BTU_TTYPE_BLE_SCAN                          109
 
 
 /* This is the inquiry response information held by BTU, and available
@@ -235,6 +234,7 @@ extern const BD_ADDR        BT_BD_ANY;
 */
 void btu_start_timer (TIMER_LIST_ENT *p_tle, UINT16 type, UINT32 timeout);
 void btu_stop_timer (TIMER_LIST_ENT *p_tle);
+void btu_free_timer (TIMER_LIST_ENT *p_tle);
 void btu_start_timer_oneshot(TIMER_LIST_ENT *p_tle, UINT16 type, UINT32 timeout);
 void btu_stop_timer_oneshot(TIMER_LIST_ENT *p_tle);
 

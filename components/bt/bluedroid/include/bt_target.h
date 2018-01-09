@@ -44,24 +44,47 @@
 #define BTA_SDP_INCLUDED            TRUE
 #define BTA_PAN_INCLUDED            FALSE
 #define BTA_HH_INCLUDED             FALSE
+#define SDP_INCLUDED                TRUE
+
+#if CONFIG_A2DP_SNK_ENABLED
 #define BTA_AR_INCLUDED             TRUE
 #define BTA_AV_INCLUDED             TRUE
 #define BTA_AV_SINK_INCLUDED        TRUE
-#define SDP_INCLUDED                TRUE
-#define RFCOMM_INCLUDED             FALSE
-#define PAN_INCLUDED                FALSE
-#define HID_HOST_INCLUDED           FALSE
 #define AVDT_INCLUDED               TRUE
 #define A2D_INCLUDED                TRUE
 #define AVCT_INCLUDED               TRUE
 #define AVRC_INCLUDED               TRUE
+#define BTC_AV_INCLUDED             TRUE
 #define SBC_DEC_INCLUDED            TRUE
+#else
+#define BTA_AR_INCLUDED             FALSE
+#define BTA_AV_INCLUDED             FALSE
+#define BTA_AV_SINK_INCLUDED        FALSE
+#define AVDT_INCLUDED               FALSE
+#define A2D_INCLUDED                FALSE
+#define AVCT_INCLUDED               FALSE
+#define AVRC_INCLUDED               FALSE
+#define BTC_AV_INCLUDED             FALSE
+#define SBC_DEC_INCLUDED            FALSE
+#endif /* CONFIG_A2DP_SNK_ENABLED */
+
+#if CONFIG_BT_SPP_ENABLED
+#define RFCOMM_INCLUDED             TRUE
+#define BTA_JV_INCLUDED             TRUE
+#define BTC_SPP_INCLUDED            TRUE
+#else /* #if CONFIG_BT_SPP_ENABLED */
+#define RFCOMM_INCLUDED             FALSE
+#define BTA_JV_INCLUDED             FALSE
+#define BTC_SPP_INCLUDED            FALSE
+#endif /* #if CONFIG_BT_SPP_ENABLED */
+
+#define PAN_INCLUDED                FALSE
+#define HID_HOST_INCLUDED           FALSE
 #define SBC_ENC_INCLUDED            FALSE
 #define MCA_INCLUDED                FALSE
 #define BTC_SM_INCLUDED             TRUE
 #define BTC_PRF_QUEUE_INCLUDED      TRUE
 #define BTC_GAP_BT_INCLUDED         TRUE
-#define BTC_AV_INCLUDED             TRUE
 
 #else /* #if CONFIG_CLASSIC_BT_ENABLED */
 #define CLASSIC_BT_INCLUDED         FALSE
@@ -73,6 +96,8 @@
 #define BTA_AV_SINK_INCLUDED        FALSE
 #define SDP_INCLUDED                FALSE
 #define RFCOMM_INCLUDED             FALSE
+#define BTA_JV_INCLUDED             FALSE
+#define BTC_SPP_INCLUDED            FALSE
 #define PAN_INCLUDED                FALSE
 #define HID_HOST_INCLUDED           FALSE
 #define AVDT_INCLUDED               FALSE
@@ -647,7 +672,8 @@
 
 /* 4.1/4.2 secure connections feature */
 #ifndef SC_MODE_INCLUDED
-#define SC_MODE_INCLUDED                TRUE
+// Disable AES-CCM (BT 4.1) for BT Classic to workaround controller AES issue. E0 encryption (BT 4.0) will be used.
+#define SC_MODE_INCLUDED                FALSE
 #endif
 
 /* Used for conformance testing ONLY */
@@ -681,11 +707,15 @@
 /* The maximum number of simultaneous channels that L2CAP can support. Up to 16*/
 #ifndef MAX_L2CAP_CHANNELS
 #if (CLASSIC_BT_INCLUDED == TRUE)
-#define MAX_L2CAP_CHANNELS          8
+#define MAX_L2CAP_CHANNELS          16
 #else
+#if (SMP_INCLUDED == FALSE)
 #define MAX_L2CAP_CHANNELS          MAX_ACL_CONNECTIONS  //This is used in the BLE client when start connected with the peer device
+#else
+#define MAX_L2CAP_CHANNELS          (MAX_ACL_CONNECTIONS * 2)  //This is used in the BLE client when start connected with the peer device and in SMP
+#endif   ///SMP_INCLUDED == FALSE
 #endif   ///CLASSIC_BT_INCLUDED == TRUE
-#endif
+#endif   ///MAX_L2CAP_CHANNELS
 
 /* The maximum number of simultaneous applications that can register with L2CAP. */
 #ifndef MAX_L2CAP_CLIENTS

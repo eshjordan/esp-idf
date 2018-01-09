@@ -180,7 +180,11 @@ BOOLEAN BTM_SecAddBleKey (BD_ADDR bd_addr, tBTM_LE_KEY_VALUE *p_le_key, tBTM_LE_
 
 #if (BLE_PRIVACY_SPT == TRUE)
     if (key_type == BTM_LE_KEY_PID || key_type == BTM_LE_KEY_LID) {
-        btm_ble_resolving_list_load_dev (p_dev_rec);
+        /* It will cause that scanner doesn't send scan request to advertiser
+         * which has sent IRK to us and we have stored the IRK in controller.
+         * It is a design problem of hardware. The temporal solution is not to 
+         * send the key to the controller and then resolve the random address in host. */
+        //btm_ble_resolving_list_load_dev (p_dev_rec);
     }
 #endif
 
@@ -661,6 +665,7 @@ BOOLEAN BTM_ReadConnectedTransportAddress(BD_ADDR remote_bda, tBT_TRANSPORT tran
 
     /* if no device can be located, return */
     if (p_dev_rec == NULL) {
+        memset(remote_bda, 0, BD_ADDR_LEN);
         return FALSE;
     }
 
@@ -808,7 +813,7 @@ tBTM_STATUS BTM_SetBleDataLength(BD_ADDR bd_addr, UINT16 tx_pdu_length)
     }
 
     if (!HCI_LE_DATA_LEN_EXT_SUPPORTED(p_acl->peer_le_features)) {
-        BTM_TRACE_DEBUG("%s failed, peer does not support request", __FUNCTION__);
+        BTM_TRACE_ERROR("%s failed, peer does not support request", __FUNCTION__);
         return BTM_PEER_LE_DATA_LEN_UNSUPPORTED;
     }
 
@@ -1217,6 +1222,14 @@ void btm_sec_save_le_key(BD_ADDR bd_addr, tBTM_LE_KEY_TYPE key_type, tBTM_LE_KEY
             p_rec->ble.keys.key_size = p_keys->lenc_key.key_size;
             p_rec->ble.key_type |= BTM_LE_KEY_LENC;
 
+            /* Set that link key is known since this shares field with BTM_SEC_FLAG_LKEY_KNOWN flag in btm_api.h*/
+            p_rec->sec_flags |=  BTM_SEC_LE_LINK_KEY_KNOWN;
+            if ( p_keys->pcsrk_key.sec_level == SMP_SEC_AUTHENTICATED) {
+                p_rec->sec_flags |= BTM_SEC_LE_LINK_KEY_AUTHED;
+            } else {
+                p_rec->sec_flags &= ~BTM_SEC_LE_LINK_KEY_AUTHED;
+            }
+
             BTM_TRACE_DEBUG("BTM_LE_KEY_LENC key_type=0x%x DIV=0x%x key_size=0x%x sec_level=0x%x",
                             p_rec->ble.key_type,
                             p_rec->ble.keys.div,
@@ -1413,7 +1426,7 @@ tBTM_STATUS btm_ble_set_encryption (BD_ADDR bd_addr, void *p_ref_data, UINT8 lin
 
     switch (sec_act) {
     case BTM_BLE_SEC_ENCRYPT:
-        if (link_role == BTM_ROLE_MASTER) {
+        if (link_role == BTM_ROLE_MASTER && (p_rec->ble.key_type & BTM_LE_KEY_PENC)) {
             /* start link layer encryption using the security info stored */
             cmd = btm_ble_start_encrypt(bd_addr, FALSE, NULL);
             break;
@@ -1422,7 +1435,7 @@ tBTM_STATUS btm_ble_set_encryption (BD_ADDR bd_addr, void *p_ref_data, UINT8 lin
        sec_request to request the master to encrypt the link */
     case BTM_BLE_SEC_ENCRYPT_NO_MITM:
     case BTM_BLE_SEC_ENCRYPT_MITM:
-        if (link_role == BTM_ROLE_MASTER) {
+        if ((link_role == BTM_ROLE_MASTER) && (sec_act != BTM_BLE_SEC_ENCRYPT)) {
             auth_req = (sec_act == BTM_BLE_SEC_ENCRYPT_NO_MITM)
                        ? SMP_AUTH_GEN_BOND : (SMP_AUTH_GEN_BOND | SMP_AUTH_YN_BIT);
             btm_ble_link_sec_check (bd_addr, auth_req, &sec_req_act);
@@ -2062,7 +2075,11 @@ UINT8 btm_proc_smp_cback(tSMP_EVT event, BD_ADDR bd_addr, tSMP_EVT_DATA *p_data)
                     p_dev_rec->sec_state = BTM_SEC_STATE_IDLE;
 #if (defined BLE_PRIVACY_SPT && BLE_PRIVACY_SPT == TRUE)
                     /* add all bonded device into resolving list if IRK is available*/
-                    btm_ble_resolving_list_load_dev(p_dev_rec);
+                    /* It will cause that scanner doesn't send scan request to advertiser
+                     * which has sent IRK to us and we have stored the IRK in controller.
+                     * It is a design problem of hardware. The temporal solution is not to 
+                     * send the key to the controller and then resolve the random address in host. */
+                    //btm_ble_resolving_list_load_dev(p_dev_rec);
 #endif
                 }
 

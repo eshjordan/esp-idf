@@ -852,6 +852,11 @@ typedef void (*tBLE_SCAN_PARAM_SETUP_CBACK)(tGATT_IF client_if, tBTM_STATUS stat
 
 tBTM_BLE_SCAN_SETUP_CBACK bta_ble_scan_setup_cb;
 
+typedef void (tBTM_START_ADV_CMPL_CBACK) (UINT8 status);
+typedef void (tBTM_START_STOP_ADV_CMPL_CBACK) (UINT8 status);
+
+
+
 /*****************************************************************************
 **  EXTERNAL FUNCTION DECLARATIONS
 *****************************************************************************/
@@ -943,7 +948,7 @@ tBTM_STATUS BTM_BleSetAdvParams(UINT16 adv_int_min, UINT16 adv_int_max,
 *******************************************************************************/
 tBTM_STATUS BTM_BleSetAdvParamsStartAdv(UINT16 adv_int_min, UINT16 adv_int_max, UINT8 adv_type,
                                         tBLE_ADDR_TYPE own_bda_type, tBLE_BD_ADDR *p_dir_bda,
-                                        tBTM_BLE_ADV_CHNL_MAP chnl_map, tBTM_BLE_AFP afp);
+                                        tBTM_BLE_ADV_CHNL_MAP chnl_map, tBTM_BLE_AFP afp, tBTM_START_ADV_CMPL_CBACK *adv_cb);
 
 
 /*******************************************************************************
@@ -1205,6 +1210,22 @@ tBTM_STATUS BTM_BleWriteScanRspRaw(UINT8 *p_raw_scan_rsp, UINT32 raw_scan_rsp_le
 *******************************************************************************/
 //extern
 tBTM_STATUS BTM_BleObserve(BOOLEAN start, UINT32 duration,
+                           tBTM_INQ_RESULTS_CB *p_results_cb, tBTM_CMPL_CB *p_cmpl_cb);
+
+/*******************************************************************************
+**
+** Function         BTM_BleScan
+**
+** Description      This procedure keep the device listening for advertising
+**                  events from a broadcast device.
+**
+** Parameters       start: start or stop scan.
+**
+** Returns          void
+**
+*******************************************************************************/
+//extern
+tBTM_STATUS BTM_BleScan(BOOLEAN start, UINT32 duration,
                            tBTM_INQ_RESULTS_CB *p_results_cb, tBTM_CMPL_CB *p_cmpl_cb);
 
 
@@ -1594,7 +1615,7 @@ BOOLEAN BTM_ReadConnectedTransportAddress(BD_ADDR remote_bda,
 **
 *******************************************************************************/
 //extern
-tBTM_STATUS BTM_BleBroadcast(BOOLEAN start);
+tBTM_STATUS BTM_BleBroadcast(BOOLEAN start, tBTM_START_STOP_ADV_CMPL_CBACK *p_stop_adv_cback);
 
 /*******************************************************************************
 **
@@ -1695,7 +1716,7 @@ void BTM_BleTurnOnPrivacyOnRemote(BD_ADDR bd_addr,
 **
 *******************************************************************************/
 //extern
-BOOLEAN BTM_BleUpdateAdvWhitelist(BOOLEAN add_remove, BD_ADDR emote_bda);
+BOOLEAN BTM_BleUpdateAdvWhitelist(BOOLEAN add_remove, BD_ADDR emote_bda, tBTM_ADD_WHITELIST_CBACK *add_wl_cb);
 
 /*******************************************************************************
 **

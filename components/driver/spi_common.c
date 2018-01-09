@@ -246,6 +246,11 @@ esp_err_t spicommon_bus_initialize_io(spi_host_device_t host, const spi_bus_conf
     }
 
     *is_native = native;
+    if ( native ) {
+        ESP_LOGD(SPI_TAG, "SPI%d use native pins.", host );
+    } else {
+        ESP_LOGD(SPI_TAG, "SPI%d use gpio matrix.", host );
+    }
 
     if (native) {
         //All SPI native pin selections resolve to 1, so we put that here instead of trying to figure
@@ -396,8 +401,7 @@ bool IRAM_ATTR spicommon_dmaworkaround_req_reset(int dmachan, dmaworkaround_cb_t
         ret = false;
     } else {
         //Reset DMA
-        DPORT_SET_PERI_REG_MASK(DPORT_PERIP_RST_EN_REG, DPORT_SPI_DMA_RST);
-        DPORT_CLEAR_PERI_REG_MASK(DPORT_PERIP_RST_EN_REG, DPORT_SPI_DMA_RST);
+        periph_module_reset( PERIPH_SPI_DMA_MODULE );
         ret = true;
     }
     portEXIT_CRITICAL(&dmaworkaround_mux);
@@ -415,8 +419,7 @@ void IRAM_ATTR spicommon_dmaworkaround_idle(int dmachan)
     dmaworkaround_channels_busy[dmachan-1] = 0;
     if (dmaworkaround_waiting_for_chan == dmachan) {
         //Reset DMA
-        DPORT_SET_PERI_REG_MASK(DPORT_PERIP_RST_EN_REG, DPORT_SPI_DMA_RST);
-        DPORT_CLEAR_PERI_REG_MASK(DPORT_PERIP_RST_EN_REG, DPORT_SPI_DMA_RST);
+        periph_module_reset( PERIPH_SPI_DMA_MODULE );
         dmaworkaround_waiting_for_chan = 0;
         //Call callback
         dmaworkaround_cb(dmaworkaround_cb_arg);

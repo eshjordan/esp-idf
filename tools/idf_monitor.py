@@ -55,6 +55,8 @@ CTRL_F = '\x06'
 CTRL_H = '\x08'
 CTRL_R = '\x12'
 CTRL_T = '\x14'
+CTRL_Y = '\x19'
+CTRL_P = '\x10'
 CTRL_RBRACKET = '\x1d'  # Ctrl+]
 
 # ANSI terminal codes
@@ -258,6 +260,7 @@ class Monitor(object):
         self._pressed_menu_key = False
         self._read_line = b""
         self._gdb_buffer = b""
+        self._output_enabled = True
 
     def main_loop(self):
         self.console_reader.start()
@@ -294,12 +297,15 @@ class Monitor(object):
                 self.serial.write(codecs.encode(key))
             except serial.SerialException:
                 pass # this shouldn't happen, but sometimes port has closed in serial thread
+            except UnicodeEncodeError:
+                pass # this can happen if a non-ascii character was passed, ignoring
 
     def handle_serial_input(self, data):
         # this may need to be made more efficient, as it pushes out a byte
         # at a time to the console
         for b in data:
-            self.console.write_bytes(b)
+            if self._output_enabled:
+                self.console.write_bytes(b)
             if b == b'\n': # end of line
                 self.handle_serial_input_line(self._read_line.strip())
                 self._read_line = b""
@@ -322,10 +328,23 @@ class Monitor(object):
             time.sleep(0.2)
             self.serial.setRTS(False)
             self.serial.setDTR(False) #Added because Windows doens't update RTS flag alone
+            self.output_enable(True)
         elif c == CTRL_F:  # Recompile & upload
             self.run_make("flash")
         elif c == CTRL_A:  # Recompile & upload app only
             self.run_make("app-flash")
+        elif c == CTRL_Y:  # Toggle output display
+            self.output_toggle()
+        elif c == CTRL_P:
+            yellow_print("Pause app (enter bootloader mode), press Ctrl-T Ctrl-R to restart")
+            # to fast trigger pause without press menu key
+            self.serial.setDTR(False)  # IO0=HIGH
+            self.serial.setRTS(True)   # EN=LOW, chip in reset
+            time.sleep(1.3) # timeouts taken from esptool.py, includes esp32r0 workaround. defaults: 0.1
+            self.serial.setDTR(True)   # IO0=LOW
+            self.serial.setRTS(False)  # EN=HIGH, chip out of reset
+            time.sleep(0.45) # timeouts taken from esptool.py, includes esp32r0 workaround. defaults: 0.05
+            self.serial.setDTR(False)  # IO0=HIGH, done
         else:
             red_print('--- unknown menu character {} --'.format(key_description(c)))
 
@@ -342,13 +361,16 @@ class Monitor(object):
 ---    {reset:7} Reset target board via RTS line
 ---    {make:7} Run 'make flash' to build & flash
 ---    {appmake:7} Run 'make app-flash to build & flash app
+---    {output:7} Toggle output display
+---    {pause:7} Reset target into bootloader to pause app via RTS line
 """.format(version=__version__,
            exit=key_description(self.exit_key),
            menu=key_description(self.menu_key),
            reset=key_description(CTRL_R),
            make=key_description(CTRL_F),
            appmake=key_description(CTRL_A),
-
+           output=key_description(CTRL_Y),
+           pause=key_description(CTRL_P),
            )
 
     def __enter__(self):
@@ -395,11 +417,13 @@ class Monitor(object):
                 p.wait()
             if p.returncode != 0:
                 self.prompt_next_action("Build failed")
+            else:
+                self.output_enable(True)
 
     def lookup_pc_address(self, pc_addr):
         translation = subprocess.check_output(
             ["%saddr2line" % self.toolchain_prefix,
-             "-pfia", "-e", self.elf_file, pc_addr],
+             "-pfiaC", "-e", self.elf_file, pc_addr],
             cwd=".")
         if not "?? ??:0" in translation:
             yellow_print(translation)
@@ -431,6 +455,13 @@ class Monitor(object):
             except KeyboardInterrupt:
                 pass  # happens on Windows, maybe other OSes
             self.prompt_next_action("gdb exited")
+
+    def output_enable(self, enable):
+        self._output_enabled = enable
+
+    def output_toggle(self):
+        self._output_enabled = not self._output_enabled
+        yellow_print("\nToggle output display: {}, Type Ctrl-T Ctrl-Y to show/disable output again.".format(self._output_enabled))
 
 def main():
     parser = argparse.ArgumentParser("idf_monitor - a serial output monitor for esp-idf")
@@ -563,9 +594,14 @@ if os.name == 'nt':
                 else:
                     try:
                         self.output.write(b)
-                        self.matched = b''
-                    except:
-                        pass
+                    except IOError:
+                        # Windows 10 bug since the Fall Creators Update, sometimes writing to console randomly fails
+                        # (but usually succeeds the second time, it seems.) Ref https://github.com/espressif/esp-idf/issues/1136
+                        try:
+                            self.output.write(b)
+                        except IOError:
+                            pass
+                    self.matched = b''
 
         def flush(self):
             self.output.flush()

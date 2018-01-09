@@ -19,6 +19,7 @@
 #include "esp_attr.h"
 #include "esp_intr_alloc.h"
 #include "esp_log.h"
+#include "esp_clk.h"
 #include "esp_timer_impl.h"
 #include "soc/frc_timer_reg.h"
 #include "soc/rtc.h"
@@ -112,16 +113,38 @@ static uint32_t s_timer_us_per_overflow;
 // will not increment s_time_base_us if this flag is set.
 static bool s_mask_overflow;
 
+//The timer_overflow_happened read alarm register to tell if overflow happened.
+//However, there is a monent that overflow happens, and before ISR function called
+//alarm register is set to another value, then you call timer_overflow_happened, 
+//it will return false.
+//So we store the overflow value when new alarm is to be set. 
+static bool s_overflow_happened;
+
+#ifdef CONFIG_PM_DFS_USE_RTC_TIMER_REF
+// If DFS is enabled, upon the first frequency change this value is set to the
+// difference between esp_timer value and RTC timer value. On every subsequent
+// frequency change, s_time_base_us is adjusted to maintain the same difference
+// between esp_timer and RTC timer. (All mentioned values are in microseconds.)
+static uint64_t s_rtc_time_diff = 0;
+#endif
+
 // Spinlock used to protect access to static variables above and to the hardware
 // registers.
 portMUX_TYPE s_time_update_lock = portMUX_INITIALIZER_UNLOCKED;
 
+#define TIMER_BEFORE(a, b) ((int)((uint32_t)(a) - (uint32_t)(b)) < 0)
+
 // Check if timer overflow has happened (but was not handled by ISR yet)
 static inline bool IRAM_ATTR timer_overflow_happened()
 {
+    if (s_overflow_happened) {
+        return true;
+    }
+ 
     return (REG_READ(FRC_TIMER_CTRL_REG(1)) & FRC_TIMER_INT_STATUS) != 0 &&
-            REG_READ(FRC_TIMER_ALARM_REG(1)) == ALARM_OVERFLOW_VAL &&
-            !s_mask_overflow;
+            ((REG_READ(FRC_TIMER_ALARM_REG(1)) == ALARM_OVERFLOW_VAL && !s_mask_overflow) || 
+            (TIMER_BEFORE(REG_READ(FRC_TIMER_ALARM_REG(1)), ALARM_OVERFLOW_VAL) &&
+            TIMER_BEFORE(ALARM_OVERFLOW_VAL, REG_READ(FRC_TIMER_COUNT_REG(1)))));
 }
 
 uint64_t IRAM_ATTR esp_timer_impl_get_time()
@@ -164,25 +187,35 @@ void IRAM_ATTR esp_timer_impl_set_alarm(uint64_t timestamp)
     uint64_t time_after_timebase_us = timestamp - s_time_base_us;
     // Adjust current time if overflow has happened
     bool overflow = timer_overflow_happened();
+    uint64_t cur_count = REG_READ(FRC_TIMER_COUNT_REG(1));
+    uint32_t offset = s_timer_ticks_per_us;
+
+    //If overflow is going to happen in 1us, let's wait until it happens,
+    //else we think it will not happen before new alarm set.
+    //And we should wait current timer count less than ALARM_OVERFLOW_VAL,
+    //maybe equals to 0.
+    if (cur_count + offset >= ALARM_OVERFLOW_VAL) {
+        do {
+            overflow = timer_overflow_happened();
+            cur_count = REG_READ(FRC_TIMER_COUNT_REG(1));
+        } while(!overflow || cur_count >= ALARM_OVERFLOW_VAL);
+    }
+
     if (overflow) {
         assert(time_after_timebase_us > s_timer_us_per_overflow);
         time_after_timebase_us -= s_timer_us_per_overflow;
+        s_overflow_happened = true;
     }
     // Calculate desired timer compare value (may exceed 2^32-1)
     uint64_t compare_val = time_after_timebase_us * s_timer_ticks_per_us;
     uint32_t alarm_reg_val = ALARM_OVERFLOW_VAL;
     // Use calculated alarm value if it is less than 2^32-1
     if (compare_val < ALARM_OVERFLOW_VAL) {
-        uint64_t cur_count = REG_READ(FRC_TIMER_COUNT_REG(1));
         // If we by the time we update ALARM_REG, COUNT_REG value is higher,
         // interrupt will not happen for another 2^32 timer ticks, so need to
         // check if alarm value is too close in the future (e.g. <1 us away).
-        uint32_t offset = s_timer_ticks_per_us;
         if (compare_val < cur_count + offset) {
             compare_val = cur_count + offset;
-            if (compare_val > UINT32_MAX) {
-                compare_val = ALARM_OVERFLOW_VAL;
-            }
         }
         alarm_reg_val = (uint32_t) compare_val;
     }
@@ -196,6 +229,7 @@ static void IRAM_ATTR timer_alarm_isr(void *arg)
     // Timekeeping: adjust s_time_base_us if counter has passed ALARM_OVERFLOW_VAL
     if (timer_overflow_happened()) {
         s_time_base_us += s_timer_us_per_overflow;
+        s_overflow_happened = false;
     }
     s_mask_overflow = false;
     // Clear interrupt status
@@ -208,6 +242,55 @@ static void IRAM_ATTR timer_alarm_isr(void *arg)
     (*s_alarm_handler)(arg);
 }
 
+void IRAM_ATTR esp_timer_impl_update_apb_freq(uint32_t apb_ticks_per_us)
+{
+    portENTER_CRITICAL(&s_time_update_lock);
+    /* Bail out if the timer is not initialized yet */
+    if (s_timer_interrupt_handle == NULL) {
+        portEXIT_CRITICAL(&s_time_update_lock);
+        return;
+    }
+
+    uint32_t new_ticks_per_us = apb_ticks_per_us / TIMER_DIV;
+    uint32_t alarm = REG_READ(FRC_TIMER_ALARM_REG(1));
+    uint32_t count = REG_READ(FRC_TIMER_COUNT_REG(1));
+    uint64_t ticks_to_alarm = alarm - count;
+    uint64_t new_ticks = (ticks_to_alarm * new_ticks_per_us) / s_timer_ticks_per_us;
+    uint32_t new_alarm_val;
+    if (alarm > count && new_ticks <= FRC_TIMER_LOAD_VALUE(1)) {
+        new_alarm_val = new_ticks;
+    } else {
+        new_alarm_val = ALARM_OVERFLOW_VAL;
+        if (alarm != ALARM_OVERFLOW_VAL) {
+            s_mask_overflow = true;
+        }
+    }
+    REG_WRITE(FRC_TIMER_ALARM_REG(1), new_alarm_val);
+    REG_WRITE(FRC_TIMER_LOAD_REG(1), 0);
+
+    s_time_base_us += count / s_timer_ticks_per_us;
+
+#ifdef CONFIG_PM_DFS_USE_RTC_TIMER_REF
+    // Due to the extra time required to read RTC time, don't attempt this
+    // adjustment when switching to a higher frequency (which usually
+    // happens in an interrupt).
+    if (new_ticks_per_us < s_timer_ticks_per_us) {
+        uint64_t rtc_time = esp_clk_rtc_time();
+        uint64_t new_rtc_time_diff = s_time_base_us - rtc_time;
+        if (s_rtc_time_diff != 0) {
+            uint64_t correction = new_rtc_time_diff - s_rtc_time_diff;
+            s_time_base_us -= correction;
+        } else {
+            s_rtc_time_diff = new_rtc_time_diff;
+        }
+    }
+#endif // CONFIG_PM_DFS_USE_RTC_TIMER_REF
+
+    s_timer_ticks_per_us = new_ticks_per_us;
+    s_timer_us_per_overflow = FRC_TIMER_LOAD_VALUE(1) / new_ticks_per_us;
+
+    portEXIT_CRITICAL(&s_time_update_lock);
+}
 
 esp_err_t esp_timer_impl_init(intr_handler_t alarm_handler)
 {
@@ -255,7 +338,7 @@ void esp_timer_impl_deinit()
 // FIXME: This value is safe for 80MHz APB frequency.
 // Should be modified to depend on clock frequency.
 
-uint64_t esp_timer_impl_get_min_period_us()
+uint64_t IRAM_ATTR esp_timer_impl_get_min_period_us()
 {
     return 50;
 }
