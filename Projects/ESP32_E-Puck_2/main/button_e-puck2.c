@@ -59,7 +59,7 @@ uint8_t button_is_pressed(void){
 void button_init(void){
   gpio_config_t io_conf;
   //interrupt of falling edge
-  io_conf.intr_type = GPIO_PIN_INTR_NEGEDGE;
+  io_conf.intr_type = GPIO_PIN_INTR_DISABLE;//GPIO_PIN_INTR_NEGEDGE;
   //bit mask of the pins
   io_conf.pin_bit_mask = ((uint64_t)1 << BUTTON_GPIO);
   //set as input mode    
@@ -71,7 +71,7 @@ void button_init(void){
   gpio_config(&io_conf);
 
   //install gpio isr service
-  gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
+  //gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
   //hook isr handler for specific gpio pin
-  gpio_isr_handler_add(BUTTON_GPIO, button_isr_cb, (void*) BUTTON_GPIO);
+  //gpio_isr_handler_add(BUTTON_GPIO, button_isr_cb, (void*) BUTTON_GPIO);
 }
