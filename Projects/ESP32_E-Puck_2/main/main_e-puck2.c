@@ -32,7 +32,7 @@ void app_main(void)
   rgb_init();
   button_init();
   bluart_init();
-  uart_init();
+  //uart_init();
   spi_init();
 
   //a bluetooth echo example
