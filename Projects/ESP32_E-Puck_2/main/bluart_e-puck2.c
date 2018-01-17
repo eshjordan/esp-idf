@@ -156,7 +156,7 @@ void bluart_generic_uart_to_bluetooth_task(bluart_config_t* bluart, uint8_t* buf
         	if(*status == BLUETOOTH_NOT_CONNECTED){
 		    	 break;
 		    }
-            vTaskDelay(1 / portTICK_PERIOD_MS);
+            //vTaskDelay(1 / portTICK_PERIOD_MS);
         }
     }
 }
