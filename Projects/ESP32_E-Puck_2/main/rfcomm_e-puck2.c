@@ -21,11 +21,11 @@ Functions to control and use the bluetooth stack
 #include "freertos/xtensa_api.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
-#include "esp_efuse.h"
 #include "btstack.h"
 #include "main_e-puck2.h"
 #include "rfcomm_e-puck2.h"
 #include "button_e-puck2.h"
+#include "utility.h"
 
 #define SERVICE_RECORD              0x10001   //service class id (could be everything)
 #define SERVICE_BUFFER_SIZE         150
@@ -664,9 +664,6 @@ void example_echo_bluetooth_task_channel_3(void *pvParameter){
 */
 int btstack_setup(int argc, const char * argv[]){
 	static char bt_name[14];
-	uint32_t blk3_rdata0, blk3_rdata1;
-	uint64_t temp;
-	uint16_t robot_id;
 	
     //init the channels used
     init_rf_channels_struct(rf_channel);
@@ -679,20 +676,8 @@ int btstack_setup(int argc, const char * argv[]){
     //set the authentification process
     gap_ssp_set_io_capability(SSP_IO_CAPABILITY_DISPLAY_ONLY);
 
-	 // The id of the robot is stored in the first 64 bits of the block3 of efuses.
-	 // Each id is 2 bytes long, thus there is space for writing 4 times the id in case there is the need to change it.
-	 // The old id need to be programmed to 0xFFFF in order to be identified as invalid.
-	blk3_rdata0 = REG_READ(EFUSE_BLK3_RDATA0_REG);
-	blk3_rdata1 = REG_READ(EFUSE_BLK3_RDATA1_REG);
-	temp = ((uint64_t)blk3_rdata1<<32)|blk3_rdata0;
-	for(int i=0; i<4; i++) {
-		robot_id = (temp>>(i*16))&0xFFFF;
-		if(robot_id != 0xFFFF) {
-			break;
-		}
-	}	
 	//set the name of the device as seen by the computer the zeros are replaced by the mac adress
-	sprintf(bt_name, "e-puck2_%05d", robot_id);
+	sprintf(bt_name, "e-puck2_%05d", robot_get_id());
 	gap_set_local_name(bt_name);
 
     //enable the discoverability of the bluetooth if the button is pressed during the startup
