@@ -29,4 +29,8 @@ void spi_task(void *pvParameter);
  */
 void spi_init(void);
 
+uint8_t* spi_get_data_ptr(void);
+void spi_set_event_data_sent(void);
+void spi_set_event_data_tx_error(void);
+
 #endif /* SPI_E_PUCK_2_H */

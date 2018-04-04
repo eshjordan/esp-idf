@@ -52,6 +52,7 @@ Contains the freeRTOS task and all necessary support
 #include "http_server.h"
 #include "wifi_manager.h"
 #include "utility.h"
+#include "socket_e-puck2.h"
 
 
 
@@ -179,7 +180,8 @@ bool wifi_manager_fetch_wifi_sta_config(){
 			free(buff);
 			return false;
 		}
-		memcpy(wifi_manager_config_sta->sta.ssid, buff, sz);
+		//memcpy(wifi_manager_config_sta->sta.ssid, buff, sz);
+		sprintf((char*)wifi_manager_config_sta->sta.ssid, "%s", "gilpea");
 
 		/* password */
 		sz = sizeof(wifi_manager_config_sta->sta.password);
@@ -188,7 +190,8 @@ bool wifi_manager_fetch_wifi_sta_config(){
 			free(buff);
 			return false;
 		}
-		memcpy(wifi_manager_config_sta->sta.password, buff, sz);
+		//memcpy(wifi_manager_config_sta->sta.password, buff, sz);
+		sprintf((char*)wifi_manager_config_sta->sta.password, "%s", "cia0te1234567");
 
 		/* settings */
 		sz = sizeof(wifi_settings);
@@ -425,6 +428,7 @@ void wifi_manager_destroy(){
 
 
 void wifi_manager( void * pvParameters ){
+	uint8_t curr_mode = 0;
 
 	/* memory allocation of objects used by the task */
 	wifi_manager_json_mutex = xSemaphoreCreateMutex();
@@ -463,88 +467,102 @@ void wifi_manager( void * pvParameters ){
 #endif
 		/* request a connection */
 		xEventGroupSetBits(wifi_manager_event_group, WIFI_MANAGER_REQUEST_STA_CONNECT_BIT);
-	}
+		
+		/* init wifi as station + access point */
+		wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
+		ESP_ERROR_CHECK(esp_wifi_init(&wifi_init_config));
+		ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
+		ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+		ESP_ERROR_CHECK(esp_wifi_set_ps(wifi_settings.sta_power_save));
+	
+	} else {
+	
+		curr_mode = 1;
 
-	/* start the softAP access point */
-	/* stop DHCP server */
-	ESP_ERROR_CHECK(tcpip_adapter_dhcps_stop(TCPIP_ADAPTER_IF_AP));
-
-	/* assign a static IP to the AP network interface */
-	tcpip_adapter_ip_info_t info;
-	memset(&info, 0x00, sizeof(info));
-	IP4_ADDR(&info.ip, 192, 168, 1, 1);
-	IP4_ADDR(&info.gw, 192, 168, 1, 1);
-	IP4_ADDR(&info.netmask, 255, 255, 255, 0);
-	ESP_ERROR_CHECK(tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_AP, &info));
-
-	/* start dhcp server */
-	ESP_ERROR_CHECK(tcpip_adapter_dhcps_start(TCPIP_ADAPTER_IF_AP));
-
-	tcpip_adapter_dhcp_status_t status;
-	if(wifi_settings.sta_static_ip) {
-#if WIFI_MANAGER_DEBUG
-		printf("wifi_manager: assigning static ip to STA interface. IP: %s , GW: %s , Mask: %s\n", ip4addr_ntoa(&wifi_settings.sta_static_ip_config.ip), ip4addr_ntoa(&wifi_settings.sta_static_ip_config.gw), ip4addr_ntoa(&wifi_settings.sta_static_ip_config.netmask));
-#endif
-		/* stop DHCP client*/
-		ESP_ERROR_CHECK(tcpip_adapter_dhcpc_stop(TCPIP_ADAPTER_IF_STA));
-
-		/* assign a static IP to the STA network interface */
-		ESP_ERROR_CHECK(tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_STA, &wifi_settings.sta_static_ip_config));
+		/* start the softAP access point */
+		/* stop DHCP server */
+		ESP_ERROR_CHECK(tcpip_adapter_dhcps_stop(TCPIP_ADAPTER_IF_AP));
+	
+		/* assign a static IP to the AP network interface */
+		tcpip_adapter_ip_info_t info;
+		memset(&info, 0x00, sizeof(info));
+		IP4_ADDR(&info.ip, 192, 168, 1, 1);
+		IP4_ADDR(&info.gw, 192, 168, 1, 1);
+		IP4_ADDR(&info.netmask, 255, 255, 255, 0);
+		ESP_ERROR_CHECK(tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_AP, &info));
+	
+		/* start dhcp server */
+		ESP_ERROR_CHECK(tcpip_adapter_dhcps_start(TCPIP_ADAPTER_IF_AP));
+	
+		tcpip_adapter_dhcp_status_t status;
+		if(wifi_settings.sta_static_ip) {
+	#if WIFI_MANAGER_DEBUG
+			printf("wifi_manager: assigning static ip to STA interface. IP: %s , GW: %s , Mask: %s\n", ip4addr_ntoa(&wifi_settings.sta_static_ip_config.ip), ip4addr_ntoa(&wifi_settings.sta_static_ip_config.gw), ip4addr_ntoa(&wifi_settings.sta_static_ip_config.netmask));
+	#endif
+			/* stop DHCP client*/
+			ESP_ERROR_CHECK(tcpip_adapter_dhcpc_stop(TCPIP_ADAPTER_IF_STA));
+	
+			/* assign a static IP to the STA network interface */
+			ESP_ERROR_CHECK(tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_STA, &wifi_settings.sta_static_ip_config));
+			}
+		else {
+			/* start DHCP client if not started*/
+	#if WIFI_MANAGER_DEBUG
+			printf("wifi_manager: Start DHCP client for STA interface. If not already running\n");
+	#endif
+			ESP_ERROR_CHECK(tcpip_adapter_dhcpc_get_status(TCPIP_ADAPTER_IF_STA, &status));
+			if (status!=TCPIP_ADAPTER_DHCP_STARTED)
+				ESP_ERROR_CHECK(tcpip_adapter_dhcpc_start(TCPIP_ADAPTER_IF_STA));
 		}
-	else {
-		/* start DHCP client if not started*/
-#if WIFI_MANAGER_DEBUG
-		printf("wifi_manager: Start DHCP client for STA interface. If not already running\n");
-#endif
-		ESP_ERROR_CHECK(tcpip_adapter_dhcpc_get_status(TCPIP_ADAPTER_IF_STA, &status));
-		if (status!=TCPIP_ADAPTER_DHCP_STARTED)
-			ESP_ERROR_CHECK(tcpip_adapter_dhcpc_start(TCPIP_ADAPTER_IF_STA));
+
+		/* init wifi as station + access point */
+		wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
+		ESP_ERROR_CHECK(esp_wifi_init(&wifi_init_config));
+		ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
+		ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+		ESP_ERROR_CHECK(esp_wifi_set_bandwidth(WIFI_IF_AP, wifi_settings.ap_bandwidth));
+		ESP_ERROR_CHECK(esp_wifi_set_ps(wifi_settings.sta_power_save));
+
+		// configure the softAP and start it */
+		sprintf((char*)wifi_settings.ap_ssid, "e-puck2_%05d", robot_get_id());
+		wifi_config_t ap_config = {
+			.ap = {
+				.ssid_len = 0,
+				.channel = wifi_settings.ap_channel,
+				.authmode = WIFI_AUTH_WPA2_PSK,
+				.ssid_hidden = wifi_settings.ap_ssid_hidden,
+				.max_connection = AP_MAX_CONNECTIONS,
+				.beacon_interval = AP_BEACON_INTERVAL,
+			},
+		};
+		memcpy(ap_config.ap.ssid, wifi_settings.ap_ssid , sizeof(wifi_settings.ap_ssid));
+		memcpy(ap_config.ap.password, wifi_settings.ap_pwd, sizeof(wifi_settings.ap_pwd));
+	
+		ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));		
+		
 	}
 
 
-	/* init wifi as station + access point */
-	wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
-	ESP_ERROR_CHECK(esp_wifi_init(&wifi_init_config));
-	ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
-	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
-	ESP_ERROR_CHECK(esp_wifi_set_bandwidth(WIFI_IF_AP, wifi_settings.ap_bandwidth));
-	ESP_ERROR_CHECK(esp_wifi_set_ps(wifi_settings.sta_power_save));
-
-	// configure the softAP and start it */
-	sprintf((char*)wifi_settings.ap_ssid, "e-puck2_%05d", robot_get_id());
-	wifi_config_t ap_config = {
-		.ap = {
-			.ssid_len = 0,
-			.channel = wifi_settings.ap_channel,
-			.authmode = WIFI_AUTH_WPA2_PSK,
-			.ssid_hidden = wifi_settings.ap_ssid_hidden,
-			.max_connection = AP_MAX_CONNECTIONS,
-			.beacon_interval = AP_BEACON_INTERVAL,
-		},
-	};
-	memcpy(ap_config.ap.ssid, wifi_settings.ap_ssid , sizeof(wifi_settings.ap_ssid));
-	memcpy(ap_config.ap.password, wifi_settings.ap_pwd, sizeof(wifi_settings.ap_pwd));
-
-	ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
 	ESP_ERROR_CHECK(esp_wifi_start());
 
-#if WIFI_MANAGER_DEBUG
-	printf("wifi_manager: starting softAP with ssid %s\n", ap_config.ap.ssid);
-	if(wifi_settings.ap_bandwidth == 1)
-	printf("wifi_manager: starting softAP with 20 MHz bandwidth\n");
-	else printf("wifi_manager: starting softAP with 40 MHz bandwidth\n");
-	printf("wifi_manager: starting softAP on channel %i\n", wifi_settings.ap_channel);
-	if(wifi_settings.sta_power_save ==1) printf("wifi_manager: STA power save enabled\n");
-#endif
-
-	/* wait for access point to start */
-	xEventGroupWaitBits(wifi_manager_event_group, WIFI_MANAGER_AP_STARTED, pdFALSE, pdTRUE, portMAX_DELAY );
-
-#if WIFI_MANAGER_DEBUG
-	printf("wifi_mamager: softAP started, starting http_server\n");
-#endif
-	http_server_set_event_start();
-
+	if(curr_mode == 1) {
+	#if WIFI_MANAGER_DEBUG
+		//printf("wifi_manager: starting softAP with ssid %s\n", ap_config.ap.ssid);
+		if(wifi_settings.ap_bandwidth == 1)
+		printf("wifi_manager: starting softAP with 20 MHz bandwidth\n");
+		else printf("wifi_manager: starting softAP with 40 MHz bandwidth\n");
+		printf("wifi_manager: starting softAP on channel %i\n", wifi_settings.ap_channel);
+		if(wifi_settings.sta_power_save ==1) printf("wifi_manager: STA power save enabled\n");
+	#endif
+	
+		/* wait for access point to start */
+		xEventGroupWaitBits(wifi_manager_event_group, WIFI_MANAGER_AP_STARTED, pdFALSE, pdTRUE, portMAX_DELAY );
+	
+	#if WIFI_MANAGER_DEBUG
+		printf("wifi_mamager: softAP started, starting http_server\n");
+	#endif
+		http_server_set_event_start();
+	}
 
 	EventBits_t uxBits;
 	for(;;){
@@ -629,6 +647,8 @@ void wifi_manager( void * pvParameters ){
 
 						/* save wifi config in NVS */
 						wifi_manager_save_sta_config();
+
+						socket_set_event_connected();
 					}
 					else{
 

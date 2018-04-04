@@ -108,7 +108,7 @@ extern "C" {
  *  Value: 1 will turn off own AP when connected to another AP (STA only mode when connected)
  *  Turning off own AP when connected to another AP minimize channel interference and increase throughput
  */
-#define DEFAULT_STA_ONLY 			0
+#define DEFAULT_STA_ONLY 			1
 
 /** @brief Defines if wifi power save shall be enabled.
  *  Value: WIFI_PS_NONE for full power (wifi modem always on)

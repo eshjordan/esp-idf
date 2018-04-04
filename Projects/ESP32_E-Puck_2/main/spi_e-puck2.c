@@ -9,10 +9,15 @@ Functions to configure and use the SPI communication between the main processor 
 */
 #include <string.h>
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/event_groups.h"
+
 #include "driver/spi_slave.h"
 #include "button_e-puck2.h"
 #include "main_e-puck2.h"
 #include "rgb_led_e-puck2.h"
+#include "socket_e-puck2.h"
 
 // Hardware VSPI pins.
 #define PIN_NUM_MOSI 23
@@ -20,14 +25,38 @@ Functions to configure and use the SPI communication between the main processor 
 #define PIN_NUM_CLK  18
 #define PIN_NUM_CS   5
 
+#define MAX_BUFF_SIZE 19200 // For the image.
 #define SPI_PACKET_MAX_SIZE 4092
+
+const int DATA_SENT_BIT = BIT0;
+const int DATA_TX_ERROR_BIT = BIT1;
 
 uint8_t* spi_tx_buff;
 uint8_t* spi_rx_buff;
+static uint8_t image_buff1[MAX_BUFF_SIZE];
+SemaphoreHandle_t sem_image = NULL;
+
+static EventGroupHandle_t spi_event_group;
+
+void spi_set_event_data_sent(void) {
+	xEventGroupSetBits(spi_event_group, DATA_SENT_BIT);
+}
+
+void spi_set_event_data_tx_error(void) {
+	xEventGroupSetBits(spi_event_group, DATA_TX_ERROR_BIT);
+}
+
+uint8_t* spi_get_data_ptr(void) {
+	return image_buff1;
+}
 
 void spi_task(void *pvParameter) {
 	esp_err_t ret;
-
+	uint16_t numPackets = 0;
+	uint32_t remainingBytes = 0;	
+	unsigned int packetId = 0;
+	uint8_t rx_err = 0;
+	
 	spi_slave_transaction_t transaction;
 	memset(&transaction, 0, sizeof(transaction));
 	transaction.rx_buffer = spi_rx_buff;
@@ -37,22 +66,74 @@ void spi_task(void *pvParameter) {
 	
 	for(;;) {
 		spi_tx_buff[0] = button_is_pressed(); // Button status to send to F407.
+		spi_tx_buff[1] = 0xB7; // Get image.
+		transaction.length = (12*8);
 		ret = spi_slave_transmit(VSPI_HOST, &transaction, portMAX_DELAY); // Wait until the master start the transaction.
 		assert(ret==ESP_OK);
 		if(transaction.trans_len == 12*8) { // Check the correct number of bytes are received.
-			rgb_set_intensity(LED2, RED_LED, spi_rx_buff[0], 0);
-			rgb_set_intensity(LED2, GREEN_LED, spi_rx_buff[1], 0);
-			rgb_set_intensity(LED2, BLUE_LED, spi_rx_buff[2], 0);
-			rgb_set_intensity(LED4, RED_LED, spi_rx_buff[3], 0);
-			rgb_set_intensity(LED4, GREEN_LED, spi_rx_buff[4], 0);
-			rgb_set_intensity(LED4, BLUE_LED, spi_rx_buff[5], 0);
-			rgb_set_intensity(LED6, RED_LED, spi_rx_buff[6], 0);
-			rgb_set_intensity(LED6, GREEN_LED, spi_rx_buff[7], 0);
-			rgb_set_intensity(LED6, BLUE_LED, spi_rx_buff[8], 0);
-			rgb_set_intensity(LED8, RED_LED, spi_rx_buff[9], 0);
-			rgb_set_intensity(LED8, GREEN_LED, spi_rx_buff[10], 0);
-			rgb_set_intensity(LED8, BLUE_LED, spi_rx_buff[11], 0);
+//			rgb_set_intensity(LED2, RED_LED, spi_rx_buff[0], 0);
+//			rgb_set_intensity(LED2, GREEN_LED, spi_rx_buff[1], 0);
+//			rgb_set_intensity(LED2, BLUE_LED, spi_rx_buff[2], 0);
+//			rgb_set_intensity(LED4, RED_LED, spi_rx_buff[3], 0);
+//			rgb_set_intensity(LED4, GREEN_LED, spi_rx_buff[4], 0);
+//			rgb_set_intensity(LED4, BLUE_LED, spi_rx_buff[5], 0);
+//			rgb_set_intensity(LED6, RED_LED, spi_rx_buff[6], 0);
+//			rgb_set_intensity(LED6, GREEN_LED, spi_rx_buff[7], 0);
+//			rgb_set_intensity(LED6, BLUE_LED, spi_rx_buff[8], 0);
+//			rgb_set_intensity(LED8, RED_LED, spi_rx_buff[9], 0);
+//			rgb_set_intensity(LED8, GREEN_LED, spi_rx_buff[10], 0);
+//			rgb_set_intensity(LED8, BLUE_LED, spi_rx_buff[11], 0);
+		} else {
+			continue;
 		}
+		
+		rgb_set_intensity(LED2, GREEN_LED, 100, 0);
+
+		numPackets = 19200/SPI_PACKET_MAX_SIZE;
+		remainingBytes = 19200%SPI_PACKET_MAX_SIZE;
+		transaction.length = (SPI_PACKET_MAX_SIZE*8);
+		rx_err = 0;
+		for(packetId=0; packetId<numPackets; packetId++) {
+			transaction.rx_buffer = &image_buff1[packetId*SPI_PACKET_MAX_SIZE];
+			ret = spi_slave_transmit(VSPI_HOST, &transaction, portMAX_DELAY);
+			assert(ret==ESP_OK);
+			if(transaction.trans_len != SPI_PACKET_MAX_SIZE*8) { // Check the correct number of bytes are received.			
+				rx_err = 1;
+				rgb_set_intensity(LED4, RED_LED, 100, 0);
+				break;
+			}
+		}
+		if(remainingBytes>0 && rx_err==0) {
+			transaction.length = (remainingBytes*8);
+			transaction.rx_buffer = &image_buff1[packetId*SPI_PACKET_MAX_SIZE];
+			ret = spi_slave_transmit(VSPI_HOST, &transaction, portMAX_DELAY);
+			assert(ret==ESP_OK);
+			if(transaction.trans_len != remainingBytes*8) { // Check the correct number of bytes are received.			
+				rx_err = 1;
+				rgb_set_intensity(LED6, RED_LED, 100, 0);
+			}			
+		}
+		
+		if(rx_err == 0) {
+
+			for(packetId=0; packetId<19200; packetId++) {
+				if(image_buff1[packetId] == 0) {
+					rgb_set_intensity(LED6, BLUE_LED, 100, 0);
+				}
+			}
+
+			//xSemaphoreGive(sem_image);
+			socket_set_event_data_ready();
+			rgb_set_intensity(LED8, BLUE_LED, 100, 0);
+			xEventGroupWaitBits(spi_event_group, DATA_SENT_BIT|DATA_TX_ERROR_BIT, true, false, portMAX_DELAY);
+			rgb_set_intensity(LED8, BLUE_LED, 0, 0);
+		}
+		
+		rgb_set_intensity(LED2, GREEN_LED, 0, 0);
+		rgb_set_intensity(LED4, RED_LED, 0, 0);
+		rgb_set_intensity(LED6, RED_LED, 0, 0);
+		rgb_set_intensity(LED6, BLUE_LED, 0, 0);
+
 	}
 }
 
@@ -62,6 +143,11 @@ void spi_init(void) {
 	spi_tx_buff = (uint8_t*) heap_caps_malloc(SPI_PACKET_MAX_SIZE, MALLOC_CAP_DMA);
 	spi_rx_buff = (uint8_t*) heap_caps_malloc(SPI_PACKET_MAX_SIZE, MALLOC_CAP_DMA);	
 
+	spi_event_group = xEventGroupCreate();
+
+	// Create the binary semaphores.
+	sem_image = xSemaphoreCreateBinary();	
+	
   	// Configuration for the SPI bus.
     spi_bus_config_t buscfg = {
         .miso_io_num = PIN_NUM_MISO,

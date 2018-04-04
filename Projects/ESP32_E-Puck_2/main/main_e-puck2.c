@@ -28,6 +28,7 @@ Firmware to be run on the ESP32 of the e-puck2
 #include "wifi_manager.h"
 #include "utility.h"
 #include "nvs_flash.h"
+#include "socket_e-puck2.h"
 
 extern int btstack_main(void);
 
@@ -40,6 +41,7 @@ void app_main(void)
   spi_init();
   robot_read_id();
   ESP_ERROR_CHECK( nvs_flash_init() );
+  socket_init();
 
   // SPI communication task.
   xTaskCreatePinnedToCore(spi_task, "spi_task", SPI_TASK_STACK_SIZE, NULL, SPI_TASK_PRIO, NULL, CORE_1);
@@ -48,5 +50,8 @@ void app_main(void)
   xTaskCreatePinnedToCore(&http_server, "http_server", 2048, NULL, 5, NULL, CORE_1);
   
   // WiFi configuration task.
-  xTaskCreatePinnedToCore(&wifi_manager, "wifi_manager", 4096, NULL, 4, NULL, CORE_1);	
+  xTaskCreatePinnedToCore(&wifi_manager, "wifi_manager", 4096, NULL, 4, NULL, CORE_1);
+
+  // WiFi stream task.
+  xTaskCreatePinnedToCore(&socket_task, "socket_task", 4096, NULL, 4, NULL, CORE_1);
 }
