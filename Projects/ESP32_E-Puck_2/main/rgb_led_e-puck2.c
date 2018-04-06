@@ -219,8 +219,10 @@ void rgb_set_intensity(rgb_led_name_t rgb_led, led_name_t led, uint8_t intensity
     intensity = RGB_MAX_INTENSITY;
   }
   uint32_t value = (RGB_MAX_INTENSITY - intensity) * RGB_MAX_DUTY / RGB_MAX_INTENSITY; 
-  ledc_set_fade_with_time(led_config[rgb_led][led].speed_mode, 
-                          led_config[rgb_led][led].channel, value, time_ms);
+  if(ledc_set_fade_with_time(led_config[rgb_led][led].speed_mode,
+                          led_config[rgb_led][led].channel, value, time_ms) != ESP_OK) {
+	  return;
+  }
   ledc_fade_start(led_config[rgb_led][led].speed_mode, 
                   led_config[rgb_led][led].channel, LEDC_FADE_NO_WAIT);
 }

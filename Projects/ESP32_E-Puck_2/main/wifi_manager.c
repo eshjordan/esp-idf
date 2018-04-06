@@ -181,7 +181,8 @@ bool wifi_manager_fetch_wifi_sta_config(){
 			return false;
 		}
 		//memcpy(wifi_manager_config_sta->sta.ssid, buff, sz);
-		sprintf((char*)wifi_manager_config_sta->sta.ssid, "%s", "gilpea");
+		//sprintf((char*)wifi_manager_config_sta->sta.ssid, "%s", "gilpea");
+		sprintf((char*)wifi_manager_config_sta->sta.ssid, "%s", "Sunrise_2.4GHz_BDA268");
 
 		/* password */
 		sz = sizeof(wifi_manager_config_sta->sta.password);
@@ -191,7 +192,8 @@ bool wifi_manager_fetch_wifi_sta_config(){
 			return false;
 		}
 		//memcpy(wifi_manager_config_sta->sta.password, buff, sz);
-		sprintf((char*)wifi_manager_config_sta->sta.password, "%s", "cia0te1234567");
+		//sprintf((char*)wifi_manager_config_sta->sta.password, "%s", "cia0te1234567");
+		sprintf((char*)wifi_manager_config_sta->sta.password, "%s", "byr1pa3rs4T2");
 
 		/* settings */
 		sz = sizeof(wifi_settings);

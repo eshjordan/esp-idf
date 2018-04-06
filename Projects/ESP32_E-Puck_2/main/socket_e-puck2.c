@@ -142,6 +142,8 @@ void socket_task(void *pvParameter) {
     			}
     			break;
     	}
+
+    	vTaskDelay( (TickType_t)10); /* allows the freeRTOS scheduler to take over if needed */
     }
 
 
