@@ -42,16 +42,21 @@ void app_main(void)
   robot_read_id();
   ESP_ERROR_CHECK( nvs_flash_init() );
   socket_init();
-
-  // SPI communication task.
-  xTaskCreatePinnedToCore(spi_task, "spi_task", SPI_TASK_STACK_SIZE, NULL, SPI_TASK_PRIO, NULL, CORE_1);
-  
+ 
   // Start the HTTP Server task.
   xTaskCreatePinnedToCore(&http_server, "http_server", 2048, NULL, 5, NULL, CORE_1);
   
   // WiFi configuration task.
-  xTaskCreatePinnedToCore(&wifi_manager, "wifi_manager", 4096, NULL, 4, NULL, CORE_1);
+  xTaskCreatePinnedToCore(&wifi_manager, "wifi_manager", 4096, NULL, 5, NULL, CORE_1);
 
   // WiFi stream task.
-  xTaskCreatePinnedToCore(&socket_task, "socket_task", 4096, NULL, 4, NULL, CORE_1);
+  xTaskCreatePinnedToCore(&socket_task, "socket_task", 4096, NULL, 5, NULL, CORE_1);
+
+  // Add a pause to let the socket and wifi tasks to be ready before starting the SPI task.
+  // This is to avoid random crash at the beginning.
+  vTaskDelay(1000/portTICK_PERIOD_MS);
+  // SPI communication task.
+  xTaskCreatePinnedToCore(spi_task, "spi_task", SPI_TASK_STACK_SIZE, NULL, SPI_TASK_PRIO, NULL, CORE_1);
+  
+  xTaskCreatePinnedToCore(button_task, "button_task", 2048, NULL, 4, NULL, CORE_1);  
 }

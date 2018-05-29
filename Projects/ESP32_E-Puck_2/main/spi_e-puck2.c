@@ -25,7 +25,7 @@ Functions to configure and use the SPI communication between the main processor 
 #define PIN_NUM_CLK  18
 #define PIN_NUM_CS   5
 
-#define MAX_BUFF_SIZE 19200 // For the image.
+#define MAX_BUFF_SIZE 38400 // For the image.
 #define SPI_PACKET_MAX_SIZE 4092
 
 const int DATA_SENT_BIT = BIT0;
@@ -76,6 +76,9 @@ void spi_task(void *pvParameter) {
 	unsigned int packetId = 0;
 	uint8_t rx_err = 0;
 	
+	memset(spi_rx_buff, 0x01, SPI_PACKET_MAX_SIZE);
+	memset(spi_tx_buff, 0x01, SPI_PACKET_MAX_SIZE);
+
 	memset(&transaction, 0, sizeof(transaction));
 	transaction.rx_buffer = spi_rx_buff;
 	transaction.tx_buffer = spi_tx_buff;
@@ -89,7 +92,8 @@ void spi_task(void *pvParameter) {
 		spi_tx_buff[0] = button_is_pressed(); // Button status to send to F407.
 		spi_tx_buff[1] = 0xB7; // Get image.
 		transaction.rx_buffer = spi_rx_buff;
-
+		transaction.trans_len = 0;
+		
 		ret = spi_slave_transmit(VSPI_HOST, &transaction, portMAX_DELAY);
 		assert(ret==ESP_OK);
 
@@ -102,9 +106,9 @@ void spi_task(void *pvParameter) {
 //			continue;
 //		}
 
-		if(transaction.trans_len > SPI_PACKET_MAX_SIZE*8) {
-			printf("1)%d\r\n", transaction.trans_len);
-		}
+//		if(transaction.trans_len > SPI_PACKET_MAX_SIZE*8) {
+//			printf("1)%d\r\n", transaction.trans_len);
+//		}
 
 		if(transaction.trans_len == 12*8) { // Check the correct number of bytes are received.
 //			rgb_set_intensity(LED2, RED_LED, spi_rx_buff[0], 0);
@@ -125,8 +129,8 @@ void spi_task(void *pvParameter) {
 		
 //		rgb_set_intensity(LED2, GREEN_LED, 100, 0);
 
-		numPackets = 19200/SPI_PACKET_MAX_SIZE;
-		remainingBytes = 19200%SPI_PACKET_MAX_SIZE;
+		numPackets = MAX_BUFF_SIZE/SPI_PACKET_MAX_SIZE;
+		remainingBytes = MAX_BUFF_SIZE%SPI_PACKET_MAX_SIZE;
 		rx_err = 0;
 		for(packetId=0; packetId<numPackets; packetId++) {
 			transaction.rx_buffer = &image_buff1[packetId*SPI_PACKET_MAX_SIZE];
@@ -181,11 +185,11 @@ void spi_task(void *pvParameter) {
 		
 		if(rx_err == 0) {
 
-			for(packetId=0; packetId<19200; packetId++) {
-				if(image_buff1[packetId] == 0) {
+		//	for(packetId=0; packetId<19200; packetId++) {
+		//		if(image_buff1[packetId] == 0) {
 //					rgb_set_intensity(LED6, BLUE_LED, 100, 0);
-				}
-			}
+		//		}
+		//	}
 
 			socket_set_event_data_ready();
 //			rgb_set_intensity(LED8, BLUE_LED, 100, 0);
@@ -220,12 +224,12 @@ void spi_init(void) {
 //		printf("spi rx buff allocated\r\n");
 //	}
 	image_buff1 = (uint8_t*) heap_caps_malloc(MAX_BUFF_SIZE, MALLOC_CAP_DMA);
-//	if(image_buff1 == NULL) {
-//		printf("cannot allocate image buff\r\n");
-//		return;
-//	} else {
-//		printf("image buff allocated\r\n");
-//	}
+	if(image_buff1 == NULL) {
+		printf("cannot allocate image buff\r\n");
+		return;
+	} else {
+		printf("image buff allocated\r\n");
+	}
 
 	spi_event_group = xEventGroupCreate();
 	

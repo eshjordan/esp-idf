@@ -47,13 +47,14 @@ Contains the freeRTOS task and all necessary support
 #include "lwip/api.h"
 #include "lwip/err.h"
 #include "lwip/netdb.h"
+//#include "mdns.h"
 
 #include "json.h"
 #include "http_server.h"
 #include "wifi_manager.h"
 #include "utility.h"
 #include "socket_e-puck2.h"
-
+#include "rgb_led_e-puck2.h"
 
 
 SemaphoreHandle_t wifi_manager_json_mutex = NULL;
@@ -62,6 +63,8 @@ wifi_ap_record_t *accessp_records; //[MAX_AP_NUM];
 char *accessp_json = NULL;
 char *ip_info_json = NULL;
 wifi_config_t* wifi_manager_config_sta = NULL;
+//mdns_server_t * mdns = NULL;
+ip4_addr_t ip;
 
 /**
  * The actual WiFi settings in use
@@ -111,6 +114,23 @@ void wifi_manager_disconnect_async(){
 	xEventGroupSetBits(wifi_manager_event_group, WIFI_MANAGER_REQUEST_WIFI_DISCONNECT);
 }
 
+esp_err_t wifi_manager_erase_sta_config() {
+	nvs_handle handle;
+	esp_err_t esp_err;
+	
+	esp_err = nvs_open(wifi_manager_nvs_namespace, NVS_READWRITE, &handle);
+	if (esp_err != ESP_OK) return esp_err;
+	
+	esp_err = nvs_erase_all(handle);
+	if (esp_err != ESP_OK) return esp_err;
+	
+	esp_err = nvs_commit(handle);
+	if (esp_err != ESP_OK) return esp_err;
+
+	nvs_close(handle);
+	
+	return ESP_OK;
+}
 
 esp_err_t wifi_manager_save_sta_config(){
 
@@ -133,6 +153,9 @@ esp_err_t wifi_manager_save_sta_config(){
 		esp_err = nvs_set_blob(handle, "settings", &wifi_settings, sizeof(wifi_settings));
 		if (esp_err != ESP_OK) return esp_err;
 
+		esp_err = nvs_set_u8(handle, "valid_conf", 1);
+		if (esp_err != ESP_OK) return esp_err;
+		
 		esp_err = nvs_commit(handle);
 		if (esp_err != ESP_OK) return esp_err;
 
@@ -160,8 +183,15 @@ bool wifi_manager_fetch_wifi_sta_config(){
 
 	nvs_handle handle;
 	esp_err_t esp_err;
+	uint8_t valid_conf = 0;
+	
 	if(nvs_open(wifi_manager_nvs_namespace, NVS_READONLY, &handle) == ESP_OK){
 
+		esp_err = nvs_get_u8(handle, "valid_conf", &valid_conf);
+		if(valid_conf != 1 || esp_err != ESP_OK) {
+			return false;
+		}
+	
 		if(wifi_manager_config_sta == NULL){
 			wifi_manager_config_sta = (wifi_config_t*)malloc(sizeof(wifi_config_t));
 		}
@@ -180,9 +210,9 @@ bool wifi_manager_fetch_wifi_sta_config(){
 			free(buff);
 			return false;
 		}
-		//memcpy(wifi_manager_config_sta->sta.ssid, buff, sz);
+		memcpy(wifi_manager_config_sta->sta.ssid, buff, sz);
 		//sprintf((char*)wifi_manager_config_sta->sta.ssid, "%s", "gilpea");
-		sprintf((char*)wifi_manager_config_sta->sta.ssid, "%s", "Sunrise_2.4GHz_BDA268");
+		//sprintf((char*)wifi_manager_config_sta->sta.ssid, "%s", "Sunrise_2.4GHz_BDA268");
 
 		/* password */
 		sz = sizeof(wifi_manager_config_sta->sta.password);
@@ -191,9 +221,9 @@ bool wifi_manager_fetch_wifi_sta_config(){
 			free(buff);
 			return false;
 		}
-		//memcpy(wifi_manager_config_sta->sta.password, buff, sz);
+		memcpy(wifi_manager_config_sta->sta.password, buff, sz);
 		//sprintf((char*)wifi_manager_config_sta->sta.password, "%s", "cia0te1234567");
-		sprintf((char*)wifi_manager_config_sta->sta.password, "%s", "byr1pa3rs4T2");
+		//sprintf((char*)wifi_manager_config_sta->sta.password, "%s", "byr1pa3rs4T2");
 
 		/* settings */
 		sz = sizeof(wifi_settings);
@@ -363,6 +393,7 @@ esp_err_t wifi_manager_event_handler(void *ctx, system_event_t *event)
         break;
 
 	case SYSTEM_EVENT_STA_GOT_IP:
+		ip = event->event_info.got_ip.ip_info.ip;
         xEventGroupSetBits(wifi_manager_event_group, WIFI_MANAGER_WIFI_CONNECTED_BIT);
         break;
 
@@ -430,7 +461,33 @@ void wifi_manager_destroy(){
 
 
 void wifi_manager( void * pvParameters ){
-	uint8_t curr_mode = 0;
+/*
+	// This include MDNS with newer esp-idf.
+	static char rob_name[14];
+	sprintf(rob_name, "e-puck2_%05d", robot_get_id());
+    //initialize mDNS
+    ESP_ERROR_CHECK( mdns_init() );
+    //set mDNS hostname (required if you want to advertise services)
+    ESP_ERROR_CHECK( mdns_hostname_set(rob_name) );
+    //set default mDNS instance name
+    ESP_ERROR_CHECK( mdns_instance_name_set("e-puck2") );
+
+    //mdns_service_add(NULL, "_http", "_tcp", 1000, NULL, 0);
+
+    //structure with TXT records
+    mdns_txt_item_t serviceTxtData[3] = {
+        {"board","esp32"},
+        {"u","user"},
+        {"p","password"}
+    };
+
+    //initialize service
+    ESP_ERROR_CHECK( mdns_service_add("ESP32-WebServer", "_http", "_tcp", 80, serviceTxtData, 3) );
+    //add another TXT item
+    ESP_ERROR_CHECK( mdns_service_txt_item_set("_http", "_tcp", "path", "/foobar") );
+    //change TXT item value
+    ESP_ERROR_CHECK( mdns_service_txt_item_set("_http", "_tcp", "u", "admin") );
+*/
 
 	/* memory allocation of objects used by the task */
 	wifi_manager_json_mutex = xSemaphoreCreateMutex();
@@ -470,6 +527,27 @@ void wifi_manager( void * pvParameters ){
 		/* request a connection */
 		xEventGroupSetBits(wifi_manager_event_group, WIFI_MANAGER_REQUEST_STA_CONNECT_BIT);
 		
+		tcpip_adapter_dhcp_status_t status;
+		if(wifi_settings.sta_static_ip) {
+	#if WIFI_MANAGER_DEBUG
+			printf("wifi_manager: assigning static ip to STA interface. IP: %s , GW: %s , Mask: %s\n", ip4addr_ntoa(&wifi_settings.sta_static_ip_config.ip), ip4addr_ntoa(&wifi_settings.sta_static_ip_config.gw), ip4addr_ntoa(&wifi_settings.sta_static_ip_config.netmask));
+	#endif
+			/* stop DHCP client*/
+			ESP_ERROR_CHECK(tcpip_adapter_dhcpc_stop(TCPIP_ADAPTER_IF_STA));
+
+			/* assign a static IP to the STA network interface */
+			ESP_ERROR_CHECK(tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_STA, &wifi_settings.sta_static_ip_config));
+			}
+		else {
+			/* start DHCP client if not started*/
+	#if WIFI_MANAGER_DEBUG
+			printf("wifi_manager: Start DHCP client for STA interface. If not already running\n");
+	#endif
+			ESP_ERROR_CHECK(tcpip_adapter_dhcpc_get_status(TCPIP_ADAPTER_IF_STA, &status));
+			if (status!=TCPIP_ADAPTER_DHCP_STARTED)
+				ESP_ERROR_CHECK(tcpip_adapter_dhcpc_start(TCPIP_ADAPTER_IF_STA));
+		}
+
 		/* init wifi as station + access point */
 		wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
 		ESP_ERROR_CHECK(esp_wifi_init(&wifi_init_config));
@@ -477,9 +555,13 @@ void wifi_manager( void * pvParameters ){
 		ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
 		ESP_ERROR_CHECK(esp_wifi_set_ps(wifi_settings.sta_power_save));
 	
-	} else {
+		ESP_ERROR_CHECK(esp_wifi_start());	
 	
-		curr_mode = 1;
+	} else {
+
+		rgb_set_intensity(LED2, RED_LED, 100, 0);
+		rgb_set_intensity(LED2, GREEN_LED, 0, 0);
+		rgb_set_intensity(LED2, BLUE_LED, 0, 0);
 
 		/* start the softAP access point */
 		/* stop DHCP server */
@@ -503,7 +585,7 @@ void wifi_manager( void * pvParameters ){
 	#endif
 			/* stop DHCP client*/
 			ESP_ERROR_CHECK(tcpip_adapter_dhcpc_stop(TCPIP_ADAPTER_IF_STA));
-	
+
 			/* assign a static IP to the STA network interface */
 			ESP_ERROR_CHECK(tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_STA, &wifi_settings.sta_static_ip_config));
 			}
@@ -515,15 +597,16 @@ void wifi_manager( void * pvParameters ){
 			ESP_ERROR_CHECK(tcpip_adapter_dhcpc_get_status(TCPIP_ADAPTER_IF_STA, &status));
 			if (status!=TCPIP_ADAPTER_DHCP_STARTED)
 				ESP_ERROR_CHECK(tcpip_adapter_dhcpc_start(TCPIP_ADAPTER_IF_STA));
-		}
+		}	
 
+		
 		/* init wifi as station + access point */
 		wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
 		ESP_ERROR_CHECK(esp_wifi_init(&wifi_init_config));
 		ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
-		ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+		ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
 		ESP_ERROR_CHECK(esp_wifi_set_bandwidth(WIFI_IF_AP, wifi_settings.ap_bandwidth));
-		ESP_ERROR_CHECK(esp_wifi_set_ps(wifi_settings.sta_power_save));
+		ESP_ERROR_CHECK(esp_wifi_set_ps(wifi_settings.sta_power_save));		
 
 		// configure the softAP and start it */
 		sprintf((char*)wifi_settings.ap_ssid, "e-puck2_%05d", robot_get_id());
@@ -540,29 +623,25 @@ void wifi_manager( void * pvParameters ){
 		memcpy(ap_config.ap.ssid, wifi_settings.ap_ssid , sizeof(wifi_settings.ap_ssid));
 		memcpy(ap_config.ap.password, wifi_settings.ap_pwd, sizeof(wifi_settings.ap_pwd));
 	
-		ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));		
+		ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config));
+		ESP_ERROR_CHECK(esp_wifi_start());
+
+		#if WIFI_MANAGER_DEBUG
+			//printf("wifi_manager: starting softAP with ssid %s\n", ap_config.ap.ssid);
+			if(wifi_settings.ap_bandwidth == 1)
+			printf("wifi_manager: starting softAP with 20 MHz bandwidth\n");
+			else printf("wifi_manager: starting softAP with 40 MHz bandwidth\n");
+			printf("wifi_manager: starting softAP on channel %i\n", wifi_settings.ap_channel);
+			if(wifi_settings.sta_power_save ==1) printf("wifi_manager: STA power save enabled\n");
+		#endif
 		
-	}
-
-
-	ESP_ERROR_CHECK(esp_wifi_start());
-
-	if(curr_mode == 1) {
-	#if WIFI_MANAGER_DEBUG
-		//printf("wifi_manager: starting softAP with ssid %s\n", ap_config.ap.ssid);
-		if(wifi_settings.ap_bandwidth == 1)
-		printf("wifi_manager: starting softAP with 20 MHz bandwidth\n");
-		else printf("wifi_manager: starting softAP with 40 MHz bandwidth\n");
-		printf("wifi_manager: starting softAP on channel %i\n", wifi_settings.ap_channel);
-		if(wifi_settings.sta_power_save ==1) printf("wifi_manager: STA power save enabled\n");
-	#endif
-	
 		/* wait for access point to start */
 		xEventGroupWaitBits(wifi_manager_event_group, WIFI_MANAGER_AP_STARTED, pdFALSE, pdTRUE, portMAX_DELAY );
-	
-	#if WIFI_MANAGER_DEBUG
-		printf("wifi_mamager: softAP started, starting http_server\n");
-	#endif
+		
+		#if WIFI_MANAGER_DEBUG
+			printf("wifi_mamager: softAP started, starting http_server\n");
+		#endif
+			
 		http_server_set_event_start();
 	}
 
@@ -651,6 +730,31 @@ void wifi_manager( void * pvParameters ){
 						wifi_manager_save_sta_config();
 
 						socket_set_event_connected();
+
+						rgb_set_intensity(LED2, RED_LED, 0, 0);
+						rgb_set_intensity(LED2, GREEN_LED, 100, 0);
+						rgb_set_intensity(LED2, BLUE_LED, 0, 0);
+
+
+						printf("\r\n\t>>>>>> IP: %s <<<<<<\r\n\r\n", inet_ntoa(ip));
+
+						/*
+						// This include MDNS with older esp-idf.
+						if (!mdns) {
+							esp_err_t err = mdns_init(TCPIP_ADAPTER_IF_STA, &mdns);
+							if (err) {
+								#if WIFI_MANAGER_DEBUG
+									printf("Failed starting MDNS: %u", err);
+								#endif
+							} else {
+								static char rob_name[14];
+								sprintf(rob_name, "e-puck2_%05d", robot_get_id());
+								ESP_ERROR_CHECK( mdns_set_hostname(mdns, rob_name) );
+								ESP_ERROR_CHECK( mdns_set_instance(mdns, "e-puck2") );
+								ESP_ERROR_CHECK( mdns_service_add(mdns, "_http", "_tcp", 80) );
+							}
+						}
+						*/
 					}
 					else{
 

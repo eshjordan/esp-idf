@@ -19,10 +19,11 @@ Functions to configure and use the socket to exchange data through WiFi.
 #include "main_e-puck2.h"
 #include "spi_e-puck2.h"
 #include "esp_log.h"
+#include "rgb_led_e-puck2.h"
 
 #define TCP_PORT 1000
 #define TAG "socket:"
-#define MAX_BUFF_SIZE 19200 // For the image.
+#define MAX_BUFF_SIZE 38400 // For the image.
 #define SPI_PACKET_MAX_SIZE 4092
 
 const int CONNECTED_BIT = BIT0;
@@ -66,6 +67,7 @@ void socket_task(void *pvParameter) {
 	unsigned int packet_id = 0;
     EventBits_t evg_bits;
     uint8_t tx_err = 0;
+    uint8_t toggle_led = 0;
 
     printf("socket_server: waiting for start bit\n");
     xEventGroupWaitBits(socket_event_group, CONNECTED_BIT, false, true, portMAX_DELAY);
@@ -100,6 +102,9 @@ void socket_task(void *pvParameter) {
 
     	switch(conn_state) {
     		case 0:
+    			rgb_set_intensity(LED2, RED_LED, 0, 0);
+    			rgb_set_intensity(LED2, GREEN_LED, 100, 0);
+    			rgb_set_intensity(LED2, BLUE_LED, 0, 0);
     		    printf("socket_server: waiting for connection\n");
     		    client_sock = accept(server_sock, (struct sockaddr *)&client_addr, &client_addr_len);
     		    if (client_sock < 0) {
@@ -109,6 +114,10 @@ void socket_task(void *pvParameter) {
     		    }
     		    printf("socket_server: connection established\n");
     		    conn_state = 1;
+
+    			rgb_set_intensity(LED2, RED_LED, 0, 0);
+    			rgb_set_intensity(LED2, GREEN_LED, 0, 0);
+    			rgb_set_intensity(LED2, BLUE_LED, 100, 0);
     			break;
 
     		case 1:
@@ -116,8 +125,8 @@ void socket_task(void *pvParameter) {
     		    data_buff = spi_get_data_ptr();
     		    tx_err = 0;
 
-    		    num_packets = 19200/SPI_PACKET_MAX_SIZE;
-    		    remaining_bytes = 19200%SPI_PACKET_MAX_SIZE;
+    		    num_packets = MAX_BUFF_SIZE/SPI_PACKET_MAX_SIZE;
+    		    remaining_bytes = MAX_BUFF_SIZE%SPI_PACKET_MAX_SIZE;
     			for(packet_id=0; packet_id<num_packets; packet_id++) {
     				if( send(client_sock, &data_buff[SPI_PACKET_MAX_SIZE*packet_id], SPI_PACKET_MAX_SIZE, 0) < 0) {
     					show_socket_error_reason("send_data", client_sock);
@@ -137,6 +146,8 @@ void socket_task(void *pvParameter) {
 
     			if(tx_err == 0) {
     				spi_set_event_data_sent();
+    				toggle_led = 1 - toggle_led;
+    				rgb_set_intensity(LED2, BLUE_LED, toggle_led*100, 0);
     			} else {
     				spi_set_event_data_tx_error();
     			}

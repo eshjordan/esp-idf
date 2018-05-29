@@ -176,7 +176,7 @@ char* wifi_manager_get_ap_list_json();
 char* wifi_manager_get_ip_info_json();
 
 
-
+esp_err_t wifi_manager_erase_sta_config();
 
 /**
  * @brief saves the current STA wifi config to flash ram storage.

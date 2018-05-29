@@ -24,5 +24,6 @@ uint8_t button_is_pressed(void);
  */
 void button_init(void);
 
+void button_task(void *pvParameter);
 
 #endif /* BUTTON_E_PUCK2_H */
