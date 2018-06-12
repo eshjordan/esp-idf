@@ -9,12 +9,20 @@ Functions to control the RGB LEDs connected of the ESP32 of the E-Puck 2
 */
 
 #include <stdio.h>
+#include <string.h>
 #include "main_e-puck2.h"
 #include "esp_attr.h"   
 #include "esp_err.h"
 #include "rgb_led_e-puck2.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
+#include "freertos/task.h"
 
 #define INTR_NO_FLAG  0
+
+const int UPDATE_ALL_RGB_LEDS = BIT0;
+uint8_t rgb_value[NUM_RGB_LED][NUM_LED]= {0};
+static EventGroupHandle_t rgb_event_group;
 
 //Timer configuration for the LED PWM module
 ledc_timer_config_t led_timer = {
@@ -211,6 +219,8 @@ void rgb_init(void){
   }
   //enable the isr
   ledc_fade_func_install(INTR_NO_FLAG);
+  
+  rgb_event_group = xEventGroupCreate();
 }
 
 void rgb_set_intensity(rgb_led_name_t rgb_led, led_name_t led, uint8_t intensity, uint16_t time_ms){
@@ -248,4 +258,29 @@ void rgb_set_color( rgb_led_name_t rgb_led, uint8_t intensity, rgb_color_t* colo
   }
 
 }
+
+void rgb_update_all(uint8_t *value) {
+	memcpy(rgb_value, value, 12);
+	xEventGroupSetBits(rgb_event_group, UPDATE_ALL_RGB_LEDS);
+	
+}
+
+void rgb_task(void *pvParameter) {
+	while(1) {
+		xEventGroupWaitBits(rgb_event_group, UPDATE_ALL_RGB_LEDS, true, false, portMAX_DELAY);
+		rgb_set_intensity(LED2, RED_LED, rgb_value[0][0], 0);
+		rgb_set_intensity(LED2, GREEN_LED, rgb_value[0][1], 0);
+		rgb_set_intensity(LED2, BLUE_LED, rgb_value[0][2], 0);
+		rgb_set_intensity(LED4, RED_LED, rgb_value[1][0], 0);
+		rgb_set_intensity(LED4, GREEN_LED, rgb_value[1][1], 0);
+		rgb_set_intensity(LED4, BLUE_LED, rgb_value[1][2], 0);
+		rgb_set_intensity(LED6, RED_LED, rgb_value[2][0], 0);
+		rgb_set_intensity(LED6, GREEN_LED, rgb_value[2][1], 0);
+		rgb_set_intensity(LED6, BLUE_LED, rgb_value[2][2], 0);
+		rgb_set_intensity(LED8, RED_LED, rgb_value[3][0], 0);
+		rgb_set_intensity(LED8, GREEN_LED, rgb_value[3][1], 0);
+		rgb_set_intensity(LED8, BLUE_LED, rgb_value[3][2], 0);			
+	}
+}
+
 

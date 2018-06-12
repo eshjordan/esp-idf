@@ -93,6 +93,20 @@ void rgb_set_intensity(rgb_led_name_t rgb_led, led_name_t led, uint8_t intensity
  */
 void rgb_set_color(rgb_led_name_t led, uint8_t intensity, rgb_color_t* color_value, uint16_t time_ms);
 
+/**
+ * @brief Update the buffer containing the RGB LEDs intensities and trigger the next update.
+ *
+ * @param uint8_t* 	Buffer containing the values for all the RGB LEDs.
+ * 					
+ */
+void rgb_update_all(uint8_t *value);
+
+/**
+ * @brief 	RGB update handling. This task is used with "rgb_udpate_all" in order to update the RGB LEDs intensities without delays for the caller.
+ *
+ * @param *pvParameter	parameter from the xCreateTask 	
+ */
+void rgb_task(void *pvParameter);
 
 #endif /* RGB_LED_E_PUCK_H */
 

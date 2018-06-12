@@ -558,10 +558,10 @@ void wifi_manager( void * pvParameters ){
 		ESP_ERROR_CHECK(esp_wifi_start());	
 	
 	} else {
-
-		rgb_set_intensity(LED2, RED_LED, 100, 0);
-		rgb_set_intensity(LED2, GREEN_LED, 0, 0);
-		rgb_set_intensity(LED2, BLUE_LED, 0, 0);
+		// Indicate to the user that the robot cannot connect to the AP.
+		//rgb_set_intensity(LED2, RED_LED, 100, 0);
+		//rgb_set_intensity(LED2, GREEN_LED, 0, 0);
+		//rgb_set_intensity(LED2, BLUE_LED, 0, 0);
 
 		/* start the softAP access point */
 		/* stop DHCP server */
@@ -660,6 +660,8 @@ void wifi_manager( void * pvParameters ){
 
 				/* wait until wifi disconnects. From experiments, it seems to take about 150ms to disconnect */
 				xEventGroupWaitBits(wifi_manager_event_group, WIFI_MANAGER_STA_DISCONNECT_BIT, pdFALSE, pdTRUE, portMAX_DELAY );
+				
+				socket_set_event_disconnected();
 			}
 			xEventGroupClearBits(wifi_manager_event_group, WIFI_MANAGER_STA_DISCONNECT_BIT);
 
@@ -731,9 +733,10 @@ void wifi_manager( void * pvParameters ){
 
 						socket_set_event_connected();
 
-						rgb_set_intensity(LED2, RED_LED, 0, 0);
-						rgb_set_intensity(LED2, GREEN_LED, 100, 0);
-						rgb_set_intensity(LED2, BLUE_LED, 0, 0);
+						// Indicate to the user that the robot is connected to the AP and is waiting a connection.
+						//rgb_set_intensity(LED2, RED_LED, 0, 0);
+						//rgb_set_intensity(LED2, GREEN_LED, 100, 0);
+						//rgb_set_intensity(LED2, BLUE_LED, 0, 0);
 
 
 						printf("\r\n\t>>>>>> IP: %s <<<<<<\r\n\r\n", inet_ntoa(ip));

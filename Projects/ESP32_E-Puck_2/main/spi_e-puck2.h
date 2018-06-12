@@ -16,6 +16,16 @@ Functions to configure and use the SPI communication between the main processor 
 #define SPI_TASK_STACK_SIZE	8192
 #define SPI_TASK_PRIO		5
 
+typedef enum {
+	EMPTY,
+	FILLED
+} image_buffer_state_t;
+
+typedef struct {
+	image_buffer_state_t state;
+	uint8_t* data;
+} image_buffer_t;
+
 /**
  * @brief 	SPI communication handling between the F407 and ESP32
  *
@@ -29,8 +39,9 @@ void spi_task(void *pvParameter);
  */
 void spi_init(void);
 
-uint8_t* spi_get_data_ptr(void);
-void spi_set_event_data_sent(void);
-void spi_set_event_data_tx_error(void);
+/**
+ * @brief Return the pointer to the most recent SPI data received from the STM32.
+ */
+image_buffer_t* spi_get_data_ptr(void);
 
 #endif /* SPI_E_PUCK_2_H */
