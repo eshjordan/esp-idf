@@ -66,7 +66,6 @@ void socket_task(void *pvParameter) {
 	uint32_t remaining_bytes = 0;
 	unsigned int packet_id = 0;
     EventBits_t evg_bits;
-    uint8_t tx_err = 0;
 	
 	while(1) {
 		evg_bits = xEventGroupGetBits(socket_event_group);
@@ -106,6 +105,8 @@ void socket_task(void *pvParameter) {
 				break;
 				
 			case 2: // Wait connection from a peer.
+				//rgb_update_led2(0, 100, 0);
+				rgb_led2_gpio_set(1, 0, 1);
     		    printf("socket_server: waiting for connection\n");
     		    client_sock = accept(server_sock, (struct sockaddr *)&client_addr, &client_addr_len);
     		    if (client_sock < 0) {
@@ -114,42 +115,30 @@ void socket_task(void *pvParameter) {
     		        break;
     		    }
     		    printf("socket_server: connection established\n");
-    		    conn_state = 3;
-				tx_err = 0;		
+    		    conn_state = 3;	
 				break;
 				
 			case 3: // Exchanging data.
-				while(1) {
-					if(tx_err == 0) { // If the last transmission was ok, then request another image.
-						img_buff = spi_get_data_ptr();
-						if(img_buff == NULL) {
-							vTaskDelay(1/portTICK_PERIOD_MS);
-							//vTaskDelay(100);
-						} else {
-							break;
-						}
-					} else { // If there was an error in the transmission of the image, keep the same data pointer to retry transmitting the same image.
-						break;
-					}
-				}				
-    		    tx_err = 0;
+				img_buff = spi_get_data_ptr();					
     		    num_packets = MAX_BUFF_SIZE/SPI_PACKET_MAX_SIZE;
     		    remaining_bytes = MAX_BUFF_SIZE%SPI_PACKET_MAX_SIZE;
+				//rgb_update_led2(0, 0, 100);
+				rgb_led2_gpio_set(1, 1, 0);
     			for(packet_id=0; packet_id<num_packets; packet_id++) {
     				if( send(client_sock, &(img_buff->data[SPI_PACKET_MAX_SIZE*packet_id]), SPI_PACKET_MAX_SIZE, 0) < 0) {
     					show_socket_error_reason("send_data", client_sock);
     					conn_state = 2;
-    					tx_err = 1;
     					break;
     				}
     			}
-    			if(remaining_bytes>0 && tx_err==0) {
+    			if(remaining_bytes>0 && conn_state==3) { // If there is a last image segment and no errors occurred.
     				if( send(client_sock, &(img_buff->data[SPI_PACKET_MAX_SIZE*packet_id]), remaining_bytes, 0) < 0) {
     					show_socket_error_reason("send_data", client_sock);
     					conn_state = 2;
-    					tx_err = 1;
     				}
-    			}	
+    			}
+				//rgb_update_led2(0, 0, 0);		
+				rgb_led2_gpio_set(1, 1, 1);				
 				break;
 		}
 		

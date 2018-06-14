@@ -30,6 +30,7 @@ Functions to configure and use the SPI communication between the main processor 
 #define SPI_PACKET_MAX_SIZE 4092
 
 const int BUFF_FILL_NEXT = BIT0;
+const int BUFF_FILLED = BIT1;
 
 uint8_t* spi_tx_buff;
 uint8_t* spi_rx_buff;
@@ -61,19 +62,24 @@ static spi_slave_interface_config_t slvcfg = {
 };
 
 image_buffer_t* spi_get_data_ptr(void) {
-	if(image_buff_curr->state == FILLED) {
-		image_buff_last = image_buff_curr;
-		if(image_buff_curr == image_buff1) {
-			image_buff_curr = image_buff2;
-		} else {
-			image_buff_curr = image_buff1;
-		}
-		image_buff_curr->state = EMPTY;
-		xEventGroupSetBits(spi_event_group, BUFF_FILL_NEXT);
-		return image_buff_last;
-	} else {
-		return NULL;
+	// Wait for the next buffer to be filled in case it isn't.
+	if(image_buff_curr->state == EMPTY) {
+		xEventGroupWaitBits(spi_event_group, BUFF_FILLED, true, false, portMAX_DELAY);
 	}
+	xEventGroupClearBits(spi_event_group, BUFF_FILLED); // This bit remain set if the buffer was already filled, so clear it.
+	
+	image_buff_last = image_buff_curr;
+	if(image_buff_curr == image_buff1) {
+		image_buff_curr = image_buff2;
+	} else {
+		image_buff_curr = image_buff1;
+	}
+	image_buff_curr->state = EMPTY;
+	
+	xEventGroupSetBits(spi_event_group, BUFF_FILL_NEXT); // Tell the SPI task to fill the next buffer.
+	
+	return image_buff_last;
+
 }
 
 void spi_task(void *pvParameter) {
@@ -203,6 +209,7 @@ void spi_task(void *pvParameter) {
 				} else if(transaction.trans_len == remainingBytes*8) {
 					image_buff_curr->state = FILLED;
 					spi_state = 6;
+					xEventGroupSetBits(spi_event_group, BUFF_FILLED);
 				} else {
 					spi_state = 0;
 				}				

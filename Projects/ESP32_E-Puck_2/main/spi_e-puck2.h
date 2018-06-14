@@ -13,7 +13,7 @@ Functions to configure and use the SPI communication between the main processor 
 
 #define BUF_SIZE (1024)
 
-#define SPI_TASK_STACK_SIZE	8192
+#define SPI_TASK_STACK_SIZE	4096
 #define SPI_TASK_PRIO		5
 
 typedef enum {

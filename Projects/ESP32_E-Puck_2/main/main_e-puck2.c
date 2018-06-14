@@ -44,10 +44,10 @@ void app_main(void)
   socket_init();
  
   // Start the HTTP Server task.
-  xTaskCreatePinnedToCore(&http_server, "http_server", 2048, NULL, 5, NULL, CORE_1);
+  xTaskCreatePinnedToCore(&http_server, "http_server", 2048, NULL, 4, NULL, CORE_1);
   
   // WiFi configuration task.
-  xTaskCreatePinnedToCore(&wifi_manager, "wifi_manager", 4096, NULL, 5, NULL, CORE_1);
+  xTaskCreatePinnedToCore(&wifi_manager, "wifi_manager", 4096, NULL, 4, NULL, CORE_1);
 
   // WiFi stream task.
   xTaskCreatePinnedToCore(&socket_task, "socket_task", 4096, NULL, 5, NULL, CORE_1);

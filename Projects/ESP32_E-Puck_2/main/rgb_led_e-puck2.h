@@ -108,5 +108,25 @@ void rgb_update_all(uint8_t *value);
  */
 void rgb_task(void *pvParameter);
 
+/**
+ * @brief Update the RGB LED2 intensities and trigger the next update of LED2.
+ *
+ * @param r 	LED2 red intensity.
+ * @param g 	LED2 green intensity.
+ * @param b 	LED2 blue intensity.
+ * 					
+ */
+void rgb_update_led2(uint8_t r, uint8_t g, uint8_t b);
+
+/**
+ * @brief Change the state of the RGB LED2 when in "GPIO" mode.
+ *
+ * @param r 	LED2 red (1=off, 0=on).
+ * @param g 	LED2 green (1=off, 0=on).
+ * @param b 	LED2 blue (1=off, 0=on).
+ * 					
+ */
+void rgb_led2_gpio_set(uint8_t r, uint8_t g, uint8_t b);
+
 #endif /* RGB_LED_E_PUCK_H */
 
