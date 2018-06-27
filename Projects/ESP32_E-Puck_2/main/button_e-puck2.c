@@ -88,9 +88,8 @@ void button_task(void *pvParameter) {
 					printf("resetting NVS flash\r\n");
 					wifi_manager_erase_sta_config();
 					button_state = 0;
-	    			rgb_set_intensity(LED2, RED_LED, 0, 0);
-	    			rgb_set_intensity(LED2, GREEN_LED, 0, 0);
-	    			rgb_set_intensity(LED2, BLUE_LED, 0, 0);
+					// Indicate to the user that the flash is erased.
+					rgb_led2_gpio_set(0, 1, 1);
 				}
 				break;
 		}

@@ -20,6 +20,7 @@ Functions to configure and use the socket to exchange data through WiFi.
 #include "spi_e-puck2.h"
 #include "esp_log.h"
 #include "rgb_led_e-puck2.h"
+#include "uart_e-puck2.h"
 
 #define TCP_PORT 1000
 #define TAG "socket:"
@@ -66,6 +67,12 @@ void socket_task(void *pvParameter) {
 	uint32_t remaining_bytes = 0;
 	unsigned int packet_id = 0;
     EventBits_t evg_bits;
+	uint8_t to_recv = 0;
+	int16_t len = 0;
+	sensors_buffer_t* sensors_buff = NULL;
+	uint8_t actuators_buff[8]; // Packet id (1) + speed left (2) + speed right (2) + led0 (1) + led2 (1) + led4 (1)
+	uint8_t header[1];
+	uint8_t conn_error = 0;
 	
 	while(1) {
 		evg_bits = xEventGroupGetBits(socket_event_group);
@@ -115,30 +122,110 @@ void socket_task(void *pvParameter) {
     		        break;
     		    }
     		    printf("socket_server: connection established\n");
-    		    conn_state = 3;	
+    		    conn_state = 3;
+				conn_error = 0;
 				break;
 				
-			case 3: // Exchanging data.
-				img_buff = spi_get_data_ptr();					
+			case 3: // Receive commands (new actuators values).				
+				to_recv = 9; // Packet id (1) + img start/stop (1) + speed left (2) + speed right (2) + led0 (1) + led2 (1) + led4 (1)
+				while (to_recv > 0) {
+					len = recv(client_sock, &actuators_buff[(9 - to_recv)], to_recv, 0);
+					if (len > 0) {
+						to_recv -= len;
+					} else if (len < 0) {
+						show_socket_error_reason("recv_cmd", client_sock);
+						conn_error = 1;
+						break;
+					}
+					//printf("len=%d\r\n", len);
+				}
+				//printf("req=%d\n", actuators_buff[1]);				
+				if(conn_error == 0) {
+					// Check id = 0x03??
+					uart_set_actuators_state(actuators_buff);
+					if(actuators_buff[1] == 0x00) {
+						conn_state = 6;
+					} else if(actuators_buff[1]&0x01) {
+						conn_state = 4; // Send image first.
+					} else if(actuators_buff[1]&0x02) {
+						conn_state = 5; // Send only sensors.
+					}
+				} else {
+					conn_state = 2;
+				}
+				break;				
+				
+			case 4: // Exchanging image.
+				rgb_led2_gpio_set(1, 0, 1);
+				img_buff = spi_get_data_ptr();		
+				rgb_led2_gpio_set(1, 1, 1);				
     		    num_packets = MAX_BUFF_SIZE/SPI_PACKET_MAX_SIZE;
     		    remaining_bytes = MAX_BUFF_SIZE%SPI_PACKET_MAX_SIZE;
 				//rgb_update_led2(0, 0, 100);
 				rgb_led2_gpio_set(1, 1, 0);
+				header[0] = 0x01;
+    			if( send(client_sock, header, 1, 0) < 0) { // Send id=0x01
+    				show_socket_error_reason("send_image_header", client_sock);
+    				conn_state = 2;
+					break;
+    			}				
     			for(packet_id=0; packet_id<num_packets; packet_id++) {
-    				if( send(client_sock, &(img_buff->data[SPI_PACKET_MAX_SIZE*packet_id]), SPI_PACKET_MAX_SIZE, 0) < 0) {
+    				if((len=send(client_sock, &(img_buff->data[SPI_PACKET_MAX_SIZE*packet_id]), SPI_PACKET_MAX_SIZE, 0)) < 0) {
     					show_socket_error_reason("send_data", client_sock);
-    					conn_state = 2;
+    					conn_error = 1;
     					break;
     				}
+					//printf("%d)%d\r\n", packet_id, len);
     			}
-    			if(remaining_bytes>0 && conn_state==3) { // If there is a last image segment and no errors occurred.
-    				if( send(client_sock, &(img_buff->data[SPI_PACKET_MAX_SIZE*packet_id]), remaining_bytes, 0) < 0) {
+    			if(remaining_bytes>0 && conn_error==0) { // If there is a last image segment and no errors occurred.
+    				if((len=send(client_sock, &(img_buff->data[SPI_PACKET_MAX_SIZE*packet_id]), remaining_bytes, 0)) < 0) {
     					show_socket_error_reason("send_data", client_sock);
-    					conn_state = 2;
+    					conn_error = 1;
     				}
+					//printf("%d)%d\r\n", packet_id, len);
     			}
 				//rgb_update_led2(0, 0, 0);		
-				rgb_led2_gpio_set(1, 1, 1);				
+				rgb_led2_gpio_set(1, 1, 1);
+				if(conn_error == 0) {
+					if(actuators_buff[1]&0x02) { // Send also sensors.
+						conn_state = 5;
+					} else {
+						uart_get_data_ptr();
+						conn_state = 3;
+					}
+				} else {
+					conn_state = 2;
+				}
+				break;
+				
+			case 5: // Send sensors values.
+				rgb_led2_gpio_set(0, 1, 1);
+				sensors_buff = uart_get_data_ptr();
+				rgb_led2_gpio_set(1, 1, 1);
+				header[0] = 0x02;
+    			if( send(client_sock, header, 1, 0) < 0) { // Send id=0x02
+    				show_socket_error_reason("send_sensor_header", client_sock);
+    				conn_state = 2;
+					break;
+    			}				
+    			if( send(client_sock, &(sensors_buff->data[0]), UART_RX_BUFF_SIZE, 0) < 0) {
+    				show_socket_error_reason("send_sensor_data", client_sock);
+    				conn_state = 2;
+					break;
+    			}
+				rgb_led2_gpio_set(1, 1, 1);
+				conn_state = 3;
+				break;
+				
+			case 6:
+				header[0] = 0x04;
+    			if( send(client_sock, header, 1, 0) < 0) { // Send id=0x04
+    				show_socket_error_reason("send_empty_header", client_sock);
+    				conn_state = 2;
+					break;
+    			}
+				sensors_buff = uart_get_data_ptr();
+				conn_state = 3;
 				break;
 		}
 		

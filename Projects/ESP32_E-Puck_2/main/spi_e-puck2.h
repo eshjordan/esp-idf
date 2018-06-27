@@ -17,8 +17,8 @@ Functions to configure and use the SPI communication between the main processor 
 #define SPI_TASK_PRIO		5
 
 typedef enum {
-	EMPTY,
-	FILLED
+	IMG_BUFF_EMPTY=0,
+	IMG_BUFF_FILLED=1
 } image_buffer_state_t;
 
 typedef struct {

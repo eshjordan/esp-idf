@@ -37,7 +37,7 @@ void app_main(void)
   rgb_init();
   button_init();
   //bluart_init();
-  //uart_init();
+  uart_init();
   spi_init();
   robot_read_id();
   ESP_ERROR_CHECK( nvs_flash_init() );

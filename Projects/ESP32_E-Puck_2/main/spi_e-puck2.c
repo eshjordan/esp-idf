@@ -19,6 +19,7 @@ Functions to configure and use the SPI communication between the main processor 
 #include "main_e-puck2.h"
 #include "rgb_led_e-puck2.h"
 #include "socket_e-puck2.h"
+#include "utility.h"
 
 // Hardware VSPI pins.
 #define PIN_NUM_MOSI 23
@@ -29,8 +30,8 @@ Functions to configure and use the SPI communication between the main processor 
 #define MAX_BUFF_SIZE 38400 // For the image.
 #define SPI_PACKET_MAX_SIZE 4092
 
-const int BUFF_FILL_NEXT = BIT0;
-const int BUFF_FILLED = BIT1;
+const int EVT_IMG_BUFF_FILL_NEXT = BIT0;
+const int EVT_IMG_BUFF_FILLED = BIT1;
 
 uint8_t* spi_tx_buff;
 uint8_t* spi_rx_buff;
@@ -63,10 +64,10 @@ static spi_slave_interface_config_t slvcfg = {
 
 image_buffer_t* spi_get_data_ptr(void) {
 	// Wait for the next buffer to be filled in case it isn't.
-	if(image_buff_curr->state == EMPTY) {
-		xEventGroupWaitBits(spi_event_group, BUFF_FILLED, true, false, portMAX_DELAY);
+	if(image_buff_curr->state == IMG_BUFF_EMPTY) {
+		xEventGroupWaitBits(spi_event_group, EVT_IMG_BUFF_FILLED, true, false, portMAX_DELAY);
 	}
-	xEventGroupClearBits(spi_event_group, BUFF_FILLED); // This bit remain set if the buffer was already filled, so clear it.
+	xEventGroupClearBits(spi_event_group, EVT_IMG_BUFF_FILLED); // This bit remain set if the buffer was already filled, so clear it.
 	
 	image_buff_last = image_buff_curr;
 	if(image_buff_curr == image_buff1) {
@@ -74,9 +75,9 @@ image_buffer_t* spi_get_data_ptr(void) {
 	} else {
 		image_buff_curr = image_buff1;
 	}
-	image_buff_curr->state = EMPTY;
+	image_buff_curr->state = IMG_BUFF_EMPTY;
 	
-	xEventGroupSetBits(spi_event_group, BUFF_FILL_NEXT); // Tell the SPI task to fill the next buffer.
+	xEventGroupSetBits(spi_event_group, EVT_IMG_BUFF_FILL_NEXT); // Tell the SPI task to fill the next buffer.
 	
 	return image_buff_last;
 
@@ -201,22 +202,22 @@ void spi_task(void *pvParameter) {
 				spi_state = 5;
 				break;
 				
-			case 5: // Reading all image but the last section.
+			case 5: // Reading the last section.
 				ret = spi_slave_transmit(VSPI_HOST, &transaction, portMAX_DELAY);
 				assert(ret==ESP_OK);
 				if(transaction.trans_len == 0) {
 					break;
 				} else if(transaction.trans_len == remainingBytes*8) {
-					image_buff_curr->state = FILLED;
+					image_buff_curr->state = IMG_BUFF_FILLED;
 					spi_state = 6;
-					xEventGroupSetBits(spi_event_group, BUFF_FILLED);
+					xEventGroupSetBits(spi_event_group, EVT_IMG_BUFF_FILLED);
 				} else {
 					spi_state = 0;
 				}				
 				break;				
 				
 			case 6: // Waiting next request.
-				xEventGroupWaitBits(spi_event_group, BUFF_FILL_NEXT, true, false, portMAX_DELAY);
+				xEventGroupWaitBits(spi_event_group, EVT_IMG_BUFF_FILL_NEXT, true, false, portMAX_DELAY);
 				spi_state = 0;
 				break;
 				
@@ -228,8 +229,8 @@ void spi_task(void *pvParameter) {
 				break;
 			
 			case 7: // Dummy receive.
-				if(xEventGroupGetBits(spi_event_group) & BUFF_FILL_NEXT) {
-					xEventGroupClearBits(spi_event_group, BUFF_FILL_NEXT);
+				if(xEventGroupGetBits(spi_event_group) & EVT_IMG_BUFF_FILL_NEXT) {
+					xEventGroupClearBits(spi_event_group, EVT_IMG_BUFF_FILL_NEXT);
 					spi_state = 0;
 				}				
 				ret = spi_slave_transmit(VSPI_HOST, &transaction, portMAX_DELAY);
@@ -279,7 +280,7 @@ void spi_init(void) {
 
 	image_buff_last = image_buff1;
 	image_buff_curr = image_buff2;
-	image_buff_curr->state = EMPTY;
+	image_buff_curr->state = IMG_BUFF_EMPTY;
 	
 	spi_event_group = xEventGroupCreate();
 	
