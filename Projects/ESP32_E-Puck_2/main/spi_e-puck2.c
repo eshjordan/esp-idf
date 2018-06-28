@@ -220,23 +220,6 @@ void spi_task(void *pvParameter) {
 				xEventGroupWaitBits(spi_event_group, EVT_IMG_BUFF_FILL_NEXT, true, false, portMAX_DELAY);
 				spi_state = 0;
 				break;
-				
-			/*
-			case 6: // Prepare for dummy receive.
-				transaction.rx_buffer = spi_rx_buff;
-				transaction.trans_len = 0;				
-				spi_state = 7;
-				break;
-			
-			case 7: // Dummy receive.
-				if(xEventGroupGetBits(spi_event_group) & EVT_IMG_BUFF_FILL_NEXT) {
-					xEventGroupClearBits(spi_event_group, EVT_IMG_BUFF_FILL_NEXT);
-					spi_state = 0;
-				}				
-				ret = spi_slave_transmit(VSPI_HOST, &transaction, portMAX_DELAY);
-				assert(ret==ESP_OK);		
-				break;
-			*/	
 		}
 		
 	}	

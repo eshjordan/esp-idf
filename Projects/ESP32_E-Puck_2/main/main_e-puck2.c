@@ -1,7 +1,7 @@
 /*
 
 File    : main_e-puck2.c
-Author  : Eliot Ferragni
+Author  : Eliot Ferragni, Stefano Morgani
 Date    : 12 november 2017
 REV 1.0
 

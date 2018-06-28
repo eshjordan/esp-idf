@@ -1,7 +1,7 @@
 /*
 
 File    : button_E-Puck_2.c
-Author  : Eliot Ferragni
+Author  : Eliot Ferragni, Stefano Morgani
 Date    : 22 november 2017
 REV 1.0
 

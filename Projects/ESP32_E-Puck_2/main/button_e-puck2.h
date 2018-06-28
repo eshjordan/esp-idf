@@ -1,7 +1,7 @@
 /*
 
 File    : button_E-Puck_2.h
-Author  : Eliot Ferragni
+Author  : Eliot Ferragni, Stefano Morgani
 Date    : 22 november 2017
 REV 1.0
 
@@ -24,6 +24,9 @@ uint8_t button_is_pressed(void);
  */
 void button_init(void);
 
+/**
+ * @brief This task is used to measure the button press time (tick is 200 ms).
+ */
 void button_task(void *pvParameter);
 
 #endif /* BUTTON_E_PUCK2_H */

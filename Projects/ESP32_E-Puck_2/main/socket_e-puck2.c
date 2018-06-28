@@ -29,7 +29,6 @@ Functions to configure and use the socket to exchange data through WiFi.
 
 const int CONNECTED_BIT = BIT0;
 const int DISCONNECTED_BIT = BIT1;
-const int DATA_READY_BIT = BIT2;
 
 /* FreeRTOS event group to signal when we are connected & ready to send data */
 static EventGroupHandle_t socket_event_group;
@@ -67,10 +66,9 @@ void socket_task(void *pvParameter) {
 	uint32_t remaining_bytes = 0;
 	unsigned int packet_id = 0;
     EventBits_t evg_bits;
-	uint8_t to_recv = 0;
 	int16_t len = 0;
 	sensors_buffer_t* sensors_buff = NULL;
-	uint8_t actuators_buff[8]; // Packet id (1) + speed left (2) + speed right (2) + led0 (1) + led2 (1) + led4 (1)
+	uint8_t actuators_buff[9], actuators_buff_last[9]; // Packet id (1) + speed left (2) + speed right (2) + led0 (1) + led2 (1) + led4 (1)	
 	uint8_t header[1];
 	uint8_t conn_error = 0;
 	
@@ -124,45 +122,38 @@ void socket_task(void *pvParameter) {
     		    printf("socket_server: connection established\n");
     		    conn_state = 3;
 				conn_error = 0;
+				memset(actuators_buff_last, 0, 9);
 				break;
 				
 			case 3: // Receive commands (new actuators values).				
-				to_recv = 9; // Packet id (1) + img start/stop (1) + speed left (2) + speed right (2) + led0 (1) + led2 (1) + led4 (1)
-				while (to_recv > 0) {
-					len = recv(client_sock, &actuators_buff[(9 - to_recv)], to_recv, 0);
-					if (len > 0) {
-						to_recv -= len;
-					} else if (len < 0) {
+				len = recv(client_sock, &actuators_buff[0], 9, MSG_DONTWAIT);
+				if(len < 0) {
+					if(get_socket_error_code(client_sock) != 11) { // When error code is 11, it means that no data was available, so continue normally with the next state, otherwise terminate the connection.
 						show_socket_error_reason("recv_cmd", client_sock);
-						conn_error = 1;
+						conn_state = 2;
 						break;
 					}
-					//printf("len=%d\r\n", len);
+				} else if(len == 9) {
+					memcpy(actuators_buff_last, actuators_buff, 9);					
 				}
-				//printf("req=%d\n", actuators_buff[1]);				
-				if(conn_error == 0) {
-					// Check id = 0x03??
-					uart_set_actuators_state(actuators_buff);
-					if(actuators_buff[1] == 0x00) {
-						conn_state = 6;
-					} else if(actuators_buff[1]&0x01) {
-						conn_state = 4; // Send image first.
-					} else if(actuators_buff[1]&0x02) {
-						conn_state = 5; // Send only sensors.
-					}
-				} else {
-					conn_state = 2;
+							
+				// Check id == 0x80 needed??
+				uart_set_actuators_state(actuators_buff_last);
+				if(actuators_buff_last[1] == 0x00) {
+					conn_state = 6;
+				} else if(actuators_buff_last[1]&0x01) {
+					conn_state = 4; // Send image first.
+				} else if(actuators_buff_last[1]&0x02) {
+					conn_state = 5; // Send only sensors.
 				}
+				
 				break;				
 				
 			case 4: // Exchanging image.
-				rgb_led2_gpio_set(1, 0, 1);
-				img_buff = spi_get_data_ptr();		
-				rgb_led2_gpio_set(1, 1, 1);				
+				img_buff = spi_get_data_ptr();						
     		    num_packets = MAX_BUFF_SIZE/SPI_PACKET_MAX_SIZE;
     		    remaining_bytes = MAX_BUFF_SIZE%SPI_PACKET_MAX_SIZE;
-				//rgb_update_led2(0, 0, 100);
-				rgb_led2_gpio_set(1, 1, 0);
+				rgb_led2_gpio_set(1, 1, 0); // Turn on blue.
 				header[0] = 0x01;
     			if( send(client_sock, header, 1, 0) < 0) { // Send id=0x01
     				show_socket_error_reason("send_image_header", client_sock);
@@ -183,9 +174,8 @@ void socket_task(void *pvParameter) {
     					conn_error = 1;
     				}
 					//printf("%d)%d\r\n", packet_id, len);
-    			}
-				//rgb_update_led2(0, 0, 0);		
-				rgb_led2_gpio_set(1, 1, 1);
+    			}	
+				rgb_led2_gpio_set(1, 1, 1); // Turn off all.
 				if(conn_error == 0) {
 					if(actuators_buff[1]&0x02) { // Send also sensors.
 						conn_state = 5;
@@ -198,10 +188,9 @@ void socket_task(void *pvParameter) {
 				}
 				break;
 				
-			case 5: // Send sensors values.
-				rgb_led2_gpio_set(0, 1, 1);
+			case 5: // Send sensors values.			
 				sensors_buff = uart_get_data_ptr();
-				rgb_led2_gpio_set(1, 1, 1);
+				rgb_led2_gpio_set(1, 1, 0); // Turn on blue.
 				header[0] = 0x02;
     			if( send(client_sock, header, 1, 0) < 0) { // Send id=0x02
     				show_socket_error_reason("send_sensor_header", client_sock);
@@ -213,13 +202,13 @@ void socket_task(void *pvParameter) {
     				conn_state = 2;
 					break;
     			}
-				rgb_led2_gpio_set(1, 1, 1);
+				rgb_led2_gpio_set(1, 1, 1); // Turn off all.
 				conn_state = 3;
 				break;
 				
-			case 6:
-				header[0] = 0x04;
-    			if( send(client_sock, header, 1, 0) < 0) { // Send id=0x04
+			case 6: // Send empty packet (only id with no payload).
+				header[0] = 0x03;
+    			if( send(client_sock, header, 1, 0) < 0) { // Send id=0x03
     				show_socket_error_reason("send_empty_header", client_sock);
     				conn_state = 2;
 					break;
@@ -240,10 +229,6 @@ void socket_set_event_connected(void) {
 
 void socket_set_event_disconnected(void) {
 	xEventGroupSetBits(socket_event_group, DISCONNECTED_BIT);
-}
-
-void socket_set_event_data_ready(void) {
-	xEventGroupSetBits(socket_event_group, DATA_READY_BIT);
 }
 
 void socket_init(void) {

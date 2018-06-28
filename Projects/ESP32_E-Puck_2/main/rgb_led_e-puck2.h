@@ -1,7 +1,7 @@
 /*
 
 File    : RGB_LED_E-Puck.h
-Author  : Eliot Ferragni
+Author  : Eliot Ferragni, Stefano Morgani
 Date    : 18 october 2017
 REV 1.0
 
