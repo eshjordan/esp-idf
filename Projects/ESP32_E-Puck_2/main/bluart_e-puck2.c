@@ -43,6 +43,32 @@ static esp_err_t void_set_level(gpio_num_t gpio_num, uint32_t level){
 	return ESP_OK;
 }
 
+/*
+ * Same as void_set_level() but in the case where the two bluart share the same status pin, Then we indicate a 
+ * connected status if one of the two is connected.
+ * Use the pin to use in the structure of the 413 bluart and a random pin for the 407. Only the first really used.
+ * The other is only here to know who called the function
+ */
+static esp_err_t shared_set_level(gpio_num_t gpio_num, uint32_t level){
+	(void)gpio_num;
+	(void)level;
+	static int8_t status_413 = BLUART_NOT_CONNECTED;
+	static int8_t status_407 = BLUART_NOT_CONNECTED;
+
+	if(gpio_num == BLUART_413_CONNECTION_STATUS_PIN){
+		status_413 = level;
+	}else if(gpio_num == BLUART_407_CONNECTION_STATUS_PIN){
+		status_407 = level;
+	}
+
+	if((status_413 == BLUART_NOT_CONNECTED) && (status_407 == BLUART_NOT_CONNECTED)){
+		gpio_set_level(BLUART_413_CONNECTION_STATUS_PIN, BLUART_NOT_CONNECTED);
+	}else{
+		gpio_set_level(BLUART_413_CONNECTION_STATUS_PIN, BLUART_CONNECTED);
+	}
+	return ESP_OK;
+}
+
 //uart config of the bluetooth-uart translator instance with the 413
 uart_config_t uart_413_config = {
 	.baud_rate 	= BLUART_413_UART_BAUDRATE,
@@ -90,7 +116,7 @@ bluart_config_t bluart_channel[NB_BLUART] = {
 		.gpio_status_config		= &gpio_413_config,	
 		.gpio_status_pin		= BLUART_413_CONNECTION_STATUS_PIN,
 
-		.gpio_set_level_func 	= &gpio_set_level,
+		.gpio_set_level_func 	= &shared_set_level,
 		.uart_to_bluetooth_func = &bluart_413_uart_to_bluetooth_task,
 		.bluetooth_to_uart_func = &bluart_413_bluetooth_to_uart_task,
 	},
@@ -103,9 +129,9 @@ bluart_config_t bluart_channel[NB_BLUART] = {
 
 		.uart_config 			= &uart_407_config,			
 		.gpio_status_config		= NULL,	//no pin used
-		.gpio_status_pin		= 0,	//ignored
+		.gpio_status_pin		= BLUART_407_CONNECTION_STATUS_PIN,
 
-		.gpio_set_level_func 	= &void_set_level, //must point to a void function to avoid modifying a gpio
+		.gpio_set_level_func 	= &shared_set_level,
 		.uart_to_bluetooth_func = &bluart_407_uart_to_bluetooth_task,
 		.bluetooth_to_uart_func = &bluart_407_bluetooth_to_uart_task,
 	}
@@ -121,6 +147,12 @@ void bluart_init(void){
 	    uart_set_pin(bluart->uart_port, 
 	    	bluart->uart_tx_pin, bluart->uart_rx_pin, 
 	    	UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+
+	    //the UART connected to the 407 must have its tx pin in OpenDrain mode. But the opendrain doesn't work...
+	    // if(bluart->gpio_status_config == NULL){
+	    // 	gpio_set_direction(bluart->uart_tx_pin, GPIO_MODE_OUTPUT_OD);
+	    // }
+
 
 	    //circular buffer for tx and rx and no event queue
 	    uart_driver_install(bluart->uart_port, BLUART_UART_BUFFER_SIZE, BLUART_UART_BUFFER_SIZE, 0, NULL, 0);
