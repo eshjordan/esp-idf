@@ -33,13 +33,15 @@ sensors_buffer_t* uart_rx_buff_curr;
 static EventGroupHandle_t uart_event_group;
 
 void uart_set_actuators_state(uint8_t *buff) {
-	uart_tx_buff[9] = buff[2]; // Left speed LSB
-	uart_tx_buff[10] = buff[3]; // Left speed MSB
-	uart_tx_buff[11] = buff[4];	// Right speed LSB
-	uart_tx_buff[12] = buff[5]; // Right speed MSB
-	uart_tx_buff[15] = buff[6]; // LED1
-	uart_tx_buff[18] = buff[7];	// LED3
-	uart_tx_buff[21] = buff[8]; // LED5
+	uart_tx_buff[2] = buff[2]; // Behaviors/others
+	uart_tx_buff[3] = buff[3]; // Left speed / left steps LSB
+	uart_tx_buff[4] = buff[4]; // Left speed / left steps MSB
+	uart_tx_buff[5] = buff[5]; // Right speed / right steps LSB
+	uart_tx_buff[6] = buff[6]; // Right speed / right steps MSB
+	uart_tx_buff[7] = buff[7]; // LEDs
+	uart_tx_buff[8] = buff[20];	// Sound.
+	
+	rgb_update_all(&buff[8]);
 }
 
 sensors_buffer_t *uart_get_data_ptr(void) {
@@ -74,25 +76,13 @@ void advsercom_task(void *pvParameter) {
 	uint8_t red_value = 0;
 	uint16_t speed_value = 100;
 	uint8_t flush_byte = 0;
+	uint8_t temp = 0;
 	
 	// Prepare the requests based on the asercom protocol.
 	memset(uart_tx_buff, 0, UART_TX_BUFF_SIZE);
-	uart_tx_buff[0]=-'A';	// Accelerometer request.
-	uart_tx_buff[1]=-'N';	// Proximity sensors request.
-	uart_tx_buff[2]=-'O';	// Ambient light request.
-	uart_tx_buff[3]=-0x0C;	// Microphones request (4 x mic).
-	uart_tx_buff[4]=-'b';	// Battery raw value.
-	uart_tx_buff[5]=-'g';	// Gyro raw value.
-	uart_tx_buff[6]=-0x0D;	// ToF sensor value.
-	uart_tx_buff[7]=-0x0E;	// Micro sd state.
-	uart_tx_buff[8]=-'D'; // Set motor speed.				
-	uart_tx_buff[13]=-'L';
-	uart_tx_buff[14]=0;
-	uart_tx_buff[16]=-'L';
-	uart_tx_buff[17]=2;
-	uart_tx_buff[19]=-'L';
-	uart_tx_buff[20]=4;			
-	uart_tx_buff[22]=0;	
+	uart_tx_buff[0]=-0x08;	// All sensors request.
+	uart_tx_buff[1]=-0x09;	// All actuators set command.		
+	uart_tx_buff[9]=0;	// Terminator.
 	
 	while(1) {
 		
@@ -101,7 +91,7 @@ void advsercom_task(void *pvParameter) {
 				// Send the requests based on asercom protocol.
 				// Beware: from various tests resulted that at most 24 bytes are correctly sent to the F407, 
 				// if you try sending more data than this, then the data are corrupted. To be analysed deeper...
-				len = uart_tx_chars(UART_407, (char*)&uart_tx_buff[0], 23);
+				len = uart_tx_chars(UART_407, (char*)&uart_tx_buff[0], UART_TX_BUFF_SIZE);
 				uart_wait_tx_done(UART_407, portMAX_DELAY);					
 				uart_state = 1;						
 				break;
@@ -125,9 +115,12 @@ void advsercom_task(void *pvParameter) {
 				// If all is ok, mark the buffer as ready.
 				if(len==RESPONSE_SIZE && flush_tot_len==0) {
 				
-					uart_rx_buff_curr->data[UART_RX_BUFF_SIZE-1] = button_is_pressed(); // Set the button state directly from here because it's logically more correct since the button is connected to the ESP32 (instead of requesting the state from the F407).
+					temp = uart_rx_buff_curr->data[UART_RX_BUFF_SIZE-2];				
+					uart_rx_buff_curr->data[UART_RX_BUFF_SIZE-2] = button_is_pressed(); // Set the button state directly from here because it's logically more correct since the button is connected to the ESP32 (instead of requesting the state from the F407).
 																						// Moreover the state of the button is only updated through SPI if there is a WiFi connection opened and the camera image is streamed,
 																						// so its state would be updated only if also the camera is requested, that is not the correct behaviour.
+					
+					uart_rx_buff_curr->data[UART_RX_BUFF_SIZE-1] = temp; // Put the empty byte (reserved for future usage) at the end of the packet.
 				
 					uart_rx_buff_curr->state = SENSORS_BUFF_FILLED;
 					xEventGroupSetBits(uart_event_group, EVT_SENSORS_BUFF_FILLED);

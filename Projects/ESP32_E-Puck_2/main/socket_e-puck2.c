@@ -16,6 +16,7 @@ Functions to configure and use the socket to exchange data through WiFi.
 
 #include "lwip/sockets.h"
 
+#include "socket_e-puck2.h"
 #include "main_e-puck2.h"
 #include "spi_e-puck2.h"
 #include "esp_log.h"
@@ -68,7 +69,7 @@ void socket_task(void *pvParameter) {
     EventBits_t evg_bits;
 	int16_t len = 0;
 	sensors_buffer_t* sensors_buff = NULL;
-	uint8_t actuators_buff[9], actuators_buff_last[9]; // Packet id (1) + speed left (2) + speed right (2) + led0 (1) + led2 (1) + led4 (1)	
+	uint8_t actuators_buff[ACTUATORS_BUFF_LEN], actuators_buff_last[ACTUATORS_BUFF_LEN]; // Packet id (1) + behavior/others (1) + speed left (2) + speed right (2) + LEDs (1) + RGB LEDs (12) + sound (1)	
 	uint8_t header[1];
 	uint8_t conn_error = 0;
 	
@@ -122,19 +123,19 @@ void socket_task(void *pvParameter) {
     		    printf("socket_server: connection established\n");
     		    conn_state = 3;
 				conn_error = 0;
-				memset(actuators_buff_last, 0, 9);
+				memset(actuators_buff_last, 0, ACTUATORS_BUFF_LEN);
 				break;
 				
 			case 3: // Receive commands (new actuators values).				
-				len = recv(client_sock, &actuators_buff[0], 9, MSG_DONTWAIT);
+				len = recv(client_sock, &actuators_buff[0], ACTUATORS_BUFF_LEN, MSG_DONTWAIT);
 				if(len < 0) {
 					if(get_socket_error_code(client_sock) != 11) { // When error code is 11, it means that no data was available, so continue normally with the next state, otherwise terminate the connection.
 						show_socket_error_reason("recv_cmd", client_sock);
 						conn_state = 2;
 						break;
 					}
-				} else if(len == 9) {
-					memcpy(actuators_buff_last, actuators_buff, 9);					
+				} else if(len == ACTUATORS_BUFF_LEN) {
+					memcpy(actuators_buff_last, actuators_buff, ACTUATORS_BUFF_LEN);					
 				}
 							
 				// Check id == 0x80 needed??

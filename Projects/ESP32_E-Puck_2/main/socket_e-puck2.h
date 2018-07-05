@@ -11,7 +11,7 @@ Functions to configure and use the socket to exchange data through WiFi.
 #ifndef SOCKET_E_PUCK_2_H
 #define SOCKET_E_PUCK_2_H
 
-//#define BUF_SIZE (1024)
+#define ACTUATORS_BUFF_LEN 21
 
 #define SOCKET_TASK_STACK_SIZE	2048
 #define SOCKET_TASK_PRIO		5
