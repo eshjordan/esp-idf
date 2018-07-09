@@ -12,8 +12,8 @@ Functions to configure and use the UART communication between the ESP32 and both
 #define UART_E_PUCK_2_H
 
 #define UART_TX_BUFF_SIZE 10
-#define UART_RX_BUFF_SIZE 98
-#define RESPONSE_SIZE 97
+#define UART_RX_BUFF_SIZE 104
+#define RESPONSE_SIZE 103
 
 #define ECHO_TASK_STACK_SIZE	1024
 #define ECHO_TASK_PRIO			10

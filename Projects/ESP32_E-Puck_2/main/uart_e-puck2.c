@@ -80,8 +80,8 @@ void advsercom_task(void *pvParameter) {
 	
 	// Prepare the requests based on the asercom protocol.
 	memset(uart_tx_buff, 0, UART_TX_BUFF_SIZE);
-	uart_tx_buff[0]=-0x08;	// All sensors request.
-	uart_tx_buff[1]=-0x09;	// All actuators set command.		
+	uart_tx_buff[0]=-0x08;	// (0xF8) All sensors request.
+	uart_tx_buff[1]=-0x09;	// (0xF7) All actuators set command.		
 	uart_tx_buff[9]=0;	// Terminator.
 	
 	while(1) {
@@ -105,7 +105,7 @@ void advsercom_task(void *pvParameter) {
 				flush_len = 0;
 				flush_tot_len = 0;
 				while(1) {
-					flush_len = uart_read_bytes(UART_407, &flush_byte, 1, 20/portTICK_RATE_MS);
+					flush_len = uart_read_bytes(UART_407, &flush_byte, 1, 5/portTICK_RATE_MS);
 					if(flush_len == 0) {
 						break;
 					}
@@ -126,6 +126,8 @@ void advsercom_task(void *pvParameter) {
 					xEventGroupSetBits(uart_event_group, EVT_SENSORS_BUFF_FILLED);
 					
 					xEventGroupWaitBits(uart_event_group, EVT_SENSORS_BUFF_FILL_NEXT, true, false, portMAX_DELAY);
+				} else {
+					vTaskDelay(1000 / portTICK_PERIOD_MS); // Add a pause otherwise the data received by the F407 would be corrupted when the ESP32 and F407 aren't sync.
 				}
 				
 				uart_state = 0;
