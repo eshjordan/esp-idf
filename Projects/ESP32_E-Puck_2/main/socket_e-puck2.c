@@ -118,6 +118,7 @@ void socket_task(void *pvParameter) {
     		    if (client_sock < 0) {
     		        show_socket_error_reason("accept_server", client_sock);
     		        close(server_sock);
+					conn_state = 1;
     		        break;
     		    }
     		    printf("socket_server: connection established\n");

@@ -47,8 +47,11 @@ void uart_set_actuators_state(uint8_t *buff) {
 sensors_buffer_t *uart_get_data_ptr(void) {
 	// Wait for the next buffer to be filled in case it isn't.
 	if(uart_rx_buff_curr->state == SENSORS_BUFF_EMPTY) {
+		//rgb_led2_gpio_set(0, 0, 0);
+		//printf("wait\r\n");
 		xEventGroupWaitBits(uart_event_group, EVT_SENSORS_BUFF_FILLED, true, false, portMAX_DELAY);
 	}
+	//printf("get filled\r\n");
 	xEventGroupClearBits(uart_event_group, EVT_SENSORS_BUFF_FILLED); // This bit remain set if the buffer was already filled, so clear it.
 	
 	uart_rx_buff_last = uart_rx_buff_curr;
@@ -60,6 +63,7 @@ sensors_buffer_t *uart_get_data_ptr(void) {
 	uart_rx_buff_curr->state = SENSORS_BUFF_EMPTY;
 	
 	xEventGroupSetBits(uart_event_group, EVT_SENSORS_BUFF_FILL_NEXT); // Tell the SPI task to fill the next buffer.
+	//printf("set fill next\r\n");
 	
 	return uart_rx_buff_last;
 }
@@ -88,16 +92,23 @@ void advsercom_task(void *pvParameter) {
 		
 		switch(uart_state) {
 			case 0: // Send requests and commands.
+				//rgb_led2_gpio_set(0, 0, 1);	
 				// Send the requests based on asercom protocol.
 				// Beware: from various tests resulted that at most 24 bytes are correctly sent to the F407, 
 				// if you try sending more data than this, then the data are corrupted. To be analysed deeper...
 				len = uart_tx_chars(UART_407, (char*)&uart_tx_buff[0], UART_TX_BUFF_SIZE);
-				uart_wait_tx_done(UART_407, portMAX_DELAY);					
+				//printf("sending...\r\n");
+				//uart_wait_tx_done(UART_407, portMAX_DELAY);	
+				if(uart_wait_tx_done(UART_407, 100/portTICK_RATE_MS) != ESP_OK) {
+					//printf("error on tx done!\r\n");
+					break;
+				}
 				uart_state = 1;						
+				//printf("sent=(%d)\r\n", len);
 				break;
 				
 			case 1: // Receive sensors data.	
-
+				//rgb_led2_gpio_set(0, 1, 0);
 				// Read the expected bytes from the requests previously made.
 				len = uart_read_bytes(UART_407, uart_rx_buff_curr->data, RESPONSE_SIZE, 50/portTICK_RATE_MS);
 					
@@ -112,6 +123,9 @@ void advsercom_task(void *pvParameter) {
 					flush_tot_len += flush_len;
 				}
 				
+				//printf("flush=(%d)\r\n", flush_tot_len);
+				//printf("len=(%d)\r\n", len);
+				
 				// If all is ok, mark the buffer as ready.
 				if(len==RESPONSE_SIZE && flush_tot_len==0) {
 				
@@ -124,8 +138,9 @@ void advsercom_task(void *pvParameter) {
 				
 					uart_rx_buff_curr->state = SENSORS_BUFF_FILLED;
 					xEventGroupSetBits(uart_event_group, EVT_SENSORS_BUFF_FILLED);
-					
+					//printf("set filled\r\n");					
 					xEventGroupWaitBits(uart_event_group, EVT_SENSORS_BUFF_FILL_NEXT, true, false, portMAX_DELAY);
+					//printf("get fill next\r\n");
 				} else {
 					vTaskDelay(1000 / portTICK_PERIOD_MS); // Add a pause otherwise the data received by the F407 would be corrupted when the ESP32 and F407 aren't sync.
 				}
