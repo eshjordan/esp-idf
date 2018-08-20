@@ -71,7 +71,7 @@ static void initialize_console()
 void app_main(void)
 {
     esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES) {
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
@@ -135,7 +135,7 @@ void app_main(void)
         } else if (err == ESP_OK && ret != ESP_OK) {
             printf("Command returned non-zero error code: 0x%x\n", ret);
         } else if (err != ESP_OK) {
-            printf("Internal error: 0x%x\n", err);
+            printf("Internal error: %s\n", esp_err_to_name(err));
         }
         /* linenoise allocates line buffer on the heap, so need to free it */
         linenoiseFree(line);

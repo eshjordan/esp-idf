@@ -1,16 +1,10 @@
-// Copyright 2015-2017 Espressif Systems (Shanghai) PTE LTD
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+/*
+   This example code is in the Public Domain (or CC0 licensed, at your option.)
 
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+   Unless required by applicable law or agreed to in writing, this
+   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+   CONDITIONS OF ANY KIND, either express or implied.
+*/
 
 #include <stdint.h>
 #include <string.h>
@@ -42,7 +36,7 @@ static const esp_spp_mode_t esp_spp_mode = ESP_SPP_MODE_CB;
 static struct timeval time_new, time_old;
 static long data_num = 0;
 
-static const esp_spp_sec_t sec_mask = ESP_SPP_SEC_NONE;
+static const esp_spp_sec_t sec_mask = ESP_SPP_SEC_AUTHENTICATE;
 static const esp_spp_role_t role_master = ESP_SPP_ROLE_MASTER;
 
 static esp_bd_addr_t peer_bd_addr;
@@ -196,6 +190,27 @@ static void esp_bt_gap_cb(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *pa
         case ESP_BT_GAP_RMT_SRVC_REC_EVT:
             ESP_LOGI(SPP_TAG, "ESP_BT_GAP_RMT_SRVC_REC_EVT");
             break;
+#ifdef CONFIG_BT_SSP_ENABLE
+        case ESP_BT_GAP_AUTH_CMPL_EVT:{
+            if (param->auth_cmpl.stat == ESP_BT_STATUS_SUCCESS) {
+                ESP_LOGI(SPP_TAG, "authentication success: %s", param->auth_cmpl.device_name);
+                esp_log_buffer_hex(SPP_TAG, param->auth_cmpl.bda, ESP_BD_ADDR_LEN);
+            } else {
+                ESP_LOGE(SPP_TAG, "authentication failed, status:%d", param->auth_cmpl.stat);
+            }
+            break;
+        }
+        case ESP_BT_GAP_CFM_REQ_EVT:
+            ESP_LOGI(SPP_TAG, "ESP_BT_GAP_CFM_REQ_EVT Please compare the numeric value: %d", param->cfm_req.num_val);
+            esp_bt_gap_ssp_confirm_reply(param->cfm_req.bda, true);
+            break;
+        case ESP_BT_GAP_KEY_NOTIF_EVT:
+            ESP_LOGI(SPP_TAG, "ESP_BT_GAP_KEY_NOTIF_EVT passkey:%d", param->key_notif.passkey);
+            break;
+        case ESP_BT_GAP_KEY_REQ_EVT:
+            ESP_LOGI(SPP_TAG, "ESP_BT_GAP_KEY_REQ_EVT Please enter passkey!");
+            break;
+#endif ///CONFIG_BT_SSP_ENABLE
         default:
             break;
     }
@@ -208,7 +223,7 @@ void app_main()
     }
 
     esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES) {
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
@@ -216,39 +231,45 @@ void app_main()
 
 
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
-    if (esp_bt_controller_init(&bt_cfg) != ESP_OK) {
-        ESP_LOGE(SPP_TAG, "%s initialize controller failed\n", __func__);
+    if ((ret = esp_bt_controller_init(&bt_cfg)) != ESP_OK) {
+        ESP_LOGE(SPP_TAG, "%s initialize controller failed: %s\n", __func__, esp_err_to_name(ret));
         return;
     }
 
-    if (esp_bt_controller_enable(ESP_BT_MODE_CLASSIC_BT) != ESP_OK) {
-        ESP_LOGE(SPP_TAG, "%s enable controller failed\n", __func__);
+    if ((ret = esp_bt_controller_enable(ESP_BT_MODE_CLASSIC_BT)) != ESP_OK) {
+        ESP_LOGE(SPP_TAG, "%s enable controller failed: %s\n", __func__, esp_err_to_name(ret));
         return;
     }
 
-    if (esp_bluedroid_init() != ESP_OK) {
-        ESP_LOGE(SPP_TAG, "%s initialize bluedroid failed\n", __func__);
+    if ((ret = esp_bluedroid_init()) != ESP_OK) {
+        ESP_LOGE(SPP_TAG, "%s initialize bluedroid failed: %s\n", __func__, esp_err_to_name(ret));
         return;
     }
 
-    if (esp_bluedroid_enable() != ESP_OK) {
-        ESP_LOGE(SPP_TAG, "%s enable bluedroid failed\n", __func__);
+    if ((ret = esp_bluedroid_enable()) != ESP_OK) {
+        ESP_LOGE(SPP_TAG, "%s enable bluedroid failed: %s\n", __func__, esp_err_to_name(ret));
         return;
     }
 
-    if (esp_bt_gap_register_callback(esp_bt_gap_cb) != ESP_OK) {
-        ESP_LOGE(SPP_TAG, "%s gap register failed\n", __func__);
+    if ((ret = esp_bt_gap_register_callback(esp_bt_gap_cb)) != ESP_OK) {
+        ESP_LOGE(SPP_TAG, "%s gap register failed: %s\n", __func__, esp_err_to_name(ret));
         return;
     }
 
-    if (esp_spp_register_callback(esp_spp_cb) != ESP_OK) {
-        ESP_LOGE(SPP_TAG, "%s spp register failed\n", __func__);
+    if ((ret = esp_spp_register_callback(esp_spp_cb)) != ESP_OK) {
+        ESP_LOGE(SPP_TAG, "%s spp register failed: %s\n", __func__, esp_err_to_name(ret));
         return;
     }
 
-    if (esp_spp_init(esp_spp_mode) != ESP_OK) {
-        ESP_LOGE(SPP_TAG, "%s spp init failed\n", __func__);
+    if ((ret = esp_spp_init(esp_spp_mode)) != ESP_OK) {
+        ESP_LOGE(SPP_TAG, "%s spp init failed: %s\n", __func__, esp_err_to_name(ret));
         return;
     }
+
+#ifdef CONFIG_BT_SSP_ENABLE
+    esp_bt_sp_param_t param_type = ESP_BT_SP_IOCAP_MODE;
+    esp_bt_io_cap_t iocap = ESP_BT_IO_CAP_IO;
+    esp_bt_gap_set_security_param(param_type, &iocap, sizeof(uint8_t));
+#endif ///CONFIG_BT_SSP_ENABLE
 }
 

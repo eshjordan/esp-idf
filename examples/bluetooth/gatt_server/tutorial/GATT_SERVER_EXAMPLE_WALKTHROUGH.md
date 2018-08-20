@@ -44,7 +44,7 @@ The entry point to this example is the app_main() function:
 
     // Initialize NVS.
     ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES) {
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
@@ -57,7 +57,7 @@ The entry point to this example is the app_main() function:
         return;
     }
 
-    ret = esp_bt_controller_enable(ESP_BT_MODE_BTDM);
+    ret = esp_bt_controller_enable(ESP_BT_MODE_BLE);
     if (ret) {
         ESP_LOGE(GATTS_TAG, "%s enable controller failed\n", __func__);
         return;
@@ -98,7 +98,7 @@ The entry point to this example is the app_main() function:
         ESP_LOGE(GATTS_TAG, "set local  MTU failed, error code = %x", local_mtu_ret);
     }
     return;
-} 
+}
 ```
 The main function starts by initializing the non-volatile storage library. This library allows to save key-value pairs in flash memory and is used by some components such as the Wi-Fi library to save the SSID and password:
 
@@ -113,11 +113,13 @@ The main function also initializes the BT controller by first creating a BT cont
 esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
 ret = esp_bt_controller_init(&bt_cfg);
 ```
-Next, the controller is enabled in Dual Mode (BLE + BT Classic).
+
+Next, the controller is enabled in BLE Mode. 
 
 ```c
-ret = esp_bt_controller_enable(ESP_BT_MODE_BTDM);
+ret = esp_bt_controller_enable(ESP_BT_MODE_BLE);
 ```
+>The controller should be enabled in `ESP_BT_MODE_BTDM`, if you want to use the dual mode (BLE + BT).
 
 There are four Bluetooth modes supported:
 
@@ -142,10 +144,10 @@ The functions `gatts_event_handler()` and `gap_event_handler()` handle all the e
 
 ## APPLICATION PROFILES
 
-The GATT Server example application is organized by using Application Profiles as shown in Fig 1. Each Application Profile describes a way to group functionalities that are designed for one client application, such as a mobile app running on a smartphone or tablet. In this way, a single design, enabled by different Application Profiles, can behave differently when used by different smartphone apps, allowing the server to react differently according to the client app that is being used. In practice, each profile is seen by the client as an independent BLE service. It is up to the client to discriminate the services that it is interested in.
+The GATT Server example application is organized by using Application Profiles as shown in the figure below. Each Application Profile describes a way to group functionalities that are designed for one client application, such as a mobile app running on a smartphone or tablet. In this way, a single design, enabled by different Application Profiles, can behave differently when used by different smartphone apps, allowing the server to react differently according to the client app that is being used. In practice, each profile is seen by the client as an independent BLE service. It is up to the client to discriminate the services that it is interested in.
 
-![](image/GATT SERVER FIGURE 1.png)
-<p align="center">Fig.1. Application Profiles are used to organize a BLE application in order to implement different functionality for different clients.</p> 
+<div align="center"><img src="image/GATT_Server_Figure_1.png" width = "400" alt="Application Profiles are used to organize a BLE application in order to implement different functionality for different clients." align=center /> </div>
+
 
 Each profile is defined as a struct where the struct members depend on the services and characteristics that are implemented in that Application Profile. The members also include a GATT interface, Application ID, Connection ID and a callback function to handle profile events. In this example, each profile is composed by:
 
@@ -194,7 +196,7 @@ static struct gatts_profile_inst gl_profile_tab[PROFILE_NUM] = {
     },
 };
 ```
-Finally, the Application Profiles are registered using the Application ID, which is an user-assigned number to identify each profile. In this way, multiple Application Profiles can run in one server. 
+Finally, the Application Profiles are registered using the Application ID, which is an user-assigned number to identify each profile. In this way, multiple Application Profiles can run in one server.
 
 ```c
 esp_ble_gatts_app_register(PROFILE_A_APP_ID);
@@ -291,13 +293,13 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
 ```
 ## GAP Event Handler
 
-Once the advertising data have been set, the GAP event `ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT` is triggered. For the case of raw advertising data set, the event triggered is `ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT`. Additionally when the raw scan response data is set, `ESP_GAP_BLE_SCAN_RSP_DATA_RAW_SET_COMPLETE_EVT` event is triggered. 
+Once the advertising data have been set, the GAP event `ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT` is triggered. For the case of raw advertising data set, the event triggered is `ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT`. Additionally when the raw scan response data is set, `ESP_GAP_BLE_SCAN_RSP_DATA_RAW_SET_COMPLETE_EVT` event is triggered.
 
 ```c
 static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
 {   
     switch (event) {
-    #ifdef CONFIG_SET_RAW_ADV_DATA
+#ifdef CONFIG_SET_RAW_ADV_DATA
     case ESP_GAP_BLE_ADV_DATA_RAW_SET_COMPLETE_EVT:
          adv_config_done &= (~adv_config_flag);
          if (adv_config_done==0){
@@ -331,18 +333,17 @@ In any case, the server can start advertising using the `esp_ble_gap_start_adver
 ```c
 /// Advertising parameters
 typedef struct {
-    uint16_t adv_int_min; 
+    uint16_t adv_int_min;
     /*!< Minimum advertising interval for undirected and low duty cycle directed advertising.
  					Range: 0x0020 to 0x4000
  					Default: N = 0x0800 (1.28 second)
 					Time = N * 0.625 msec
 					Time Range: 20 ms to 10.24 sec */
-    uint16_t adv_int_max; 
-    /*!< Maximum advertising interval for undirected and low duty
-					cycle directed advertising. 
-					Range: 0x0020 to 0x4000 
+    uint16_t adv_int_max;
+    /*!< Maximum advertising interval for undirected and low duty cycle directed advertising.
+					Range: 0x0020 to 0x4000
 					Default: N = 0x0800 (1.28 second)
-					Time = N * 0.625 msec 
+					Time = N * 0.625 msec
 					Time Range: 20 ms to 10.24 sec */
     esp_ble_adv_type_t adv_type;            /*!< Advertising type */
     esp_ble_addr_type_t own_addr_type;      /*!< Owner bluetooth device address type */
@@ -350,7 +351,7 @@ typedef struct {
     esp_ble_addr_type_t peer_addr_type;     /*!< Peer device bluetooth device address type */
     esp_ble_adv_channel_t channel_map;      /*!< Advertising channel map */
     esp_ble_adv_filter_t adv_filter_policy; /*!< Advertising filter policy */
-} 
+}
 esp_ble_adv_params_t;
 ```
 
@@ -390,11 +391,13 @@ If the advertising started successfully, an `ESP_GAP_BLE_ADV_START_COMPLETE_EVT`
 
 When an Application Profile is registered, an `ESP_GATTS_REG_EVT` event is triggered. The parameters of the `ESP_GATTS_REG_EVT` are:
 
-* `esp_gatt_status_t status;　/*!< Operation status */`
-* `uint16_t app_id;　　　　　　　/*!< Application id which input in register API */`
+```c
+esp_gatt_status_t status;  /*!< Operation status */`
+uint16_t app_id;           /*!< Application id which input in register API */`
+```
 
 In addition to the previous parameters, the event also contains the GATT interface assigned by the BLE stack. The event is captured by the `gatts_event_handler()`, which used to store the generated interface in the profile table, and then the event is forwarded to the corresponding profile event handler.
- 
+
 ```c
 static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param)
 {
@@ -424,7 +427,7 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
     } while (0);
 }
 ```
- 
+
 ## Creating Services
 
 The register event is also used to create a profile attributes table by using the `esp_ble_gatts_create_attr_tab()` function, which takes an `esp_gatts_attr_db_t` type structure that has all the information of the service table. The way to create this table is:
@@ -448,7 +451,7 @@ The handles are:
 3. Characteristic value handle
 4. Characteristic descriptor handle
 
-The service is defined as a primary service with a UUID length of 16 bits. The service ID is initialized with instance ID = 0 and UUID defined by `GATTS_SERVICE_UUID_TEST_A`. 
+The service is defined as a primary service with a UUID length of 16 bits. The service ID is initialized with instance ID = 0 and UUID defined by `GATTS_SERVICE_UUID_TEST_A`.
 
 The service instance ID can be used to differentiate multiple services with the same UUID. In this example, since there is only one service for each Application Profiles and the services have different UUIDs, the service instance ID can be defined as 0 in both profile A and B. However if there was only one Application Profile with two services using the same UUID, then it would be necessary to use different instance IDs to refer to one service or the other.
 
@@ -480,7 +483,7 @@ case ESP_GATTS_CREATE_EVT:
      gl_profile_tab[PROFILE_A_APP_ID].service_handle = param->create.service_handle;
      gl_profile_tab[PROFILE_A_APP_ID].char_uuid.len = ESP_UUID_LEN_16;
      gl_profile_tab[PROFILE_A_APP_ID].char_uuid.uuid.uuid16 = GATTS_CHAR_UUID_TEST_A;  
-     
+
      esp_ble_gatts_start_service(gl_profile_tab[PROFILE_A_APP_ID].service_handle);
      a_property = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_NOTIFY;
      esp_err_t add_char_ret =  
@@ -541,10 +544,12 @@ Finally, the characteristic is configured in a way that it is required to send a
 
 Adding a characteristic to a service triggers an `ESP_GATTS_ADD_CHAR_EVT` event, which returns the handle generated by the stack for the characteristic just added. The event includes the following parameters:
 
-* `esp_gatt_status_t status;　　　　　/*!< Operation status */`
-* `uint16_t attr_handle;　　　　　　　/*!< Characteristic attribute handle */`
-* `uint16_t service_handle;　　　　　/*!< Service attribute handle */`
-* `esp_bt_uuid_t char_uuid;　　　　　/*!< Characteristic uuid */`
+```c
+esp_gatt_status_t status;          /*!< Operation status */
+uint16_t attr_handle;	           /*!< Characteristic attribute handle */
+uint16_t service_handle;           /*!< Service attribute handle */
+esp_bt_uuid_t char_uuid;           /*!< Characteristic uuid */
+```
 
 The attribute handle returned by the event is stored in the profile table and the characteristic descriptor length and UUID are set as well. The characteristic length and value are read using the `esp_ble_gatts_get_attr_value()` function, and then printed for information purposes. Finally, the characteristic description is added using the `esp_ble_gatts_add_char_descr()` function. The parameters used are the service handle, the descriptor UUID, write and read permissions, an initial value and the auto response setting. The initial value for the characteristic descriptor can be a NULL pointer and the auto response parameter is set to NULL as well, which means that requests that require responses have to be replied manually.
 
@@ -641,7 +646,7 @@ The `esp_ble_gap_update_conn_params()` function triggers a GAP event `ESP_GAP_BL
 
 ```c
     case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT:
-         ESP_LOGI(GATTS_TAG, "update connetion params status = %d, min_int = %d, max_int = %d,  
+         ESP_LOGI(GATTS_TAG, "update connection params status = %d, min_int = %d, max_int = %d,
                   conn_int = %d,latency = %d, timeout = %d",
                   param->update_conn_params.status,
                   param->update_conn_params.min_int,
@@ -655,14 +660,16 @@ The `esp_ble_gap_update_conn_params()` function triggers a GAP event `ESP_GAP_BL
 ## Managing Read Events
 
 Now that the services and characteristics are created and started, the program can receive read and write events. The read operations are represented by the `ESP_GATTS_READ_EVT` event, which has the following parameters:
-	
-* `uint16_t conn_id;　　　　　/*!< Connection id */`
-* `uint32_t trans_id;　　　　　/*!< Transfer id */`
-* `esp_bd_addr_t bda;　　　　　/*!< The bluetooth device address which been read */`
-* `uint16_t handle;　　　　　　/*!< The attribute handle */`
-* `uint16_t offset;　　　　　　/*!< Offset of the value, if the value is too long */`
-* `bool is_long;　　　　　　　　/*!< The value is too long or not */`
-* `bool need_rsp;　　　　　　　/*!< The read operation need to do response */`
+
+```c
+uint16_t conn_id;          /*!< Connection id */
+uint32_t trans_id;         /*!< Transfer id */
+esp_bd_addr_t bda;         /*!< The bluetooth device address which been read */
+uint16_t handle;           /*!< The attribute handle */
+uint16_t offset;           /*!< Offset of the value, if the value is too long */
+bool is_long;              /*!< The value is too long or not */
+bool need_rsp;             /*!< The read operation need to do response */
+```
 
 In this example, a response is constructed with dummy data and sent back to the host using the same handle given by the event. In addition to the response, the GATT interface, the connection ID and the transfer ID are also included as parameters in the `esp_ble_gatts_send_response()` function. This function is necessary if the auto response byte is set to NULL when creating the characteristic or descriptor.
 
@@ -690,17 +697,19 @@ case ESP_GATTS_READ_EVT: {
 
 The write events are represented by the `ESP_GATTS_WRITE_EVT` event, which has the following parameters:
 
-* `uint16_t conn_id;　　　　　/*!< Connection id */`
-* `uint32_t trans_id;　　　　/*!< Transfer id */`
-* `esp_bd_addr_t bda;　　　　/*!< The bluetooth device address which been written */`
-* `uint16_t handle;　　　　　/*!< The attribute handle */`
-* `uint16_t offset;　　　　　/*!< Offset of the value, if the value is too long */`
-* `bool need_rsp;　　　　　　/*!< The write operation need to do response */`
-* `bool is_prep;　　　　　　　/*!< This write operation is prepare write */`
-* `uint16_t len;　　　　　　　/*!< The write attribute value length */`
-* `uint8_t *value;　　　　　　/*!< The write attribute value */`
+```c
+uint16_t conn_id;         /*!< Connection id */
+uint32_t trans_id;        /*!< Transfer id */
+esp_bd_addr_t bda;        /*!< The bluetooth device address which been written */
+uint16_t handle;          /*!< The attribute handle */
+uint16_t offset;          /*!< Offset of the value, if the value is too long */
+bool need_rsp;            /*!< The write operation need to do response */
+bool is_prep;             /*!< This write operation is prepare write */
+uint16_t len;             /*!< The write attribute value length */
+uint8_t *value;           /*!< The write attribute value */
+```
 
-There are two types of write events implemented in this example, write characteristic value and write long characteristic value. The first type of write is used when the characteristic value can fit in one Attribute Protocol Maximum Transmission Unit (ATT MTU), which is usually 23 bytes long. The second type is used when the attribute to write is longer than what can be sent in one single ATT message by dividing the data into multiple chunks using Prepare Write Responses, after which an Executive Write Request is used to confirm or cancel the complete write request. This behavior is defined in the [Bluetooth Specification Version 4.2](https://www.bluetooth.com/specifications/bluetooth-core-specification), Vol 3, Part G, section 4.9. The write long characteristic message flow is shown in Fig. 2.
+There are two types of write events implemented in this example, write characteristic value and write long characteristic value. The first type of write is used when the characteristic value can fit in one Attribute Protocol Maximum Transmission Unit (ATT MTU), which is usually 23 bytes long. The second type is used when the attribute to write is longer than what can be sent in one single ATT message by dividing the data into multiple chunks using Prepare Write Responses, after which an Executive Write Request is used to confirm or cancel the complete write request. This behavior is defined in the [Bluetooth Specification Version 4.2](https://www.bluetooth.com/specifications/bluetooth-core-specification), Vol 3, Part G, section 4.9. The write long characteristic message flow is shown in the figure below.
 
 When a write event is triggered, this example prints logging messages, and then executes the `example_write_event_env()` function.
 
@@ -748,13 +757,12 @@ case ESP_GATTS_WRITE_EVT: {
              }
         }
     }
-    example_write_event_env(gatts_if, &a_prepare_write_env, param); 
+    example_write_event_env(gatts_if, &a_prepare_write_env, param);
     break;
 }
 ```
 
-![](image/GATT SERVER FIGURE 2.jpg)
- <p align="center">Fig.2. Message flow for Write Long Characteristic</p> 
+<div align="center"> <img src="image/GATT_Server_Figure_2.png" width = "650" alt="Message flow for Write Long Characteristic" align=center /> </div> 
 
 The `example_write_event_env()` function contains the logic for the write long characteristic procedure:
 
@@ -773,7 +781,7 @@ void example_write_event_env(esp_gatt_if_t gatts_if, prepare_type_env_t *prepare
             } else {
                 if(param->write.offset > PREPARE_BUF_MAX_SIZE) {
                     status = ESP_GATT_INVALID_OFFSET;
-                } 
+                }
                 else if ((param->write.offset + param->write.len) > PREPARE_BUF_MAX_SIZE) {
                     status = ESP_GATT_INVALID_ATTR_LEN;
                 }
@@ -803,7 +811,7 @@ void example_write_event_env(esp_gatt_if_t gatts_if, prepare_type_env_t *prepare
             esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, status, NULL);
         }
     }
-} 
+}
 ```
 
 When the client sends a Write Request or a Prepare Write Request, the server shall respond. However, if the client sends a Write Without Response command, the server does not need to reply back a response. This is checked in the write procedure by examining the value of the `write.need_rsp parameter`. If a response is needed, the procedure continues doing the response preparation, if not present, the client does not need a response and therefore the procedure is ended.
@@ -859,7 +867,7 @@ If the buffer is not NULL, which means initialization completed, the procedure t
 else {
 	if(param->write.offset > PREPARE_BUF_MAX_SIZE) {
 		status = ESP_GATT_INVALID_OFFSET;
-	} 
+	}
 	else if ((param->write.offset + param->write.len) > PREPARE_BUF_MAX_SIZE) {
 		 status = ESP_GATT_INVALID_ATTR_LEN;
 	}
@@ -916,7 +924,7 @@ void example_exec_write_event_env(prepare_type_env_t *prepare_write_env, esp_ble
         free(prepare_write_env->prepare_buf);
         prepare_write_env->prepare_buf = NULL;
     }
-    prepare_write_env->prepare_len = 0;
+####     prepare_write_env->prepare_len = 0;
 }
 ```
 
@@ -944,5 +952,3 @@ prepare_write_env->prepare_len = 0;
 
 ## Conclusion
 In this document, we have gone through the GATT SERVER example code describing each section. The application is designed around the concept of Application Profiles. In addition, the procedures that this example uses to register event handlers are explained. The events follow a sequence of configuration steps, such as defining advertising parameters, updating connection parameters and creating services and characteristics. Finally, the way in which read and write events are handled, including Write Long characteristics by dividing the write into chunks that can fit the Attribute Protocol message is explained.
-
-

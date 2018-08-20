@@ -2,7 +2,7 @@
 
 ## Introduction
 
-In this document, a description of the security GATT Server BLE example for the ESP32 is presented. The security configuration enables a GATT Server acting as a slave device to bond with a master and establish an encrypted link between them. This functionality is defined by the [Bluetooth Specification version 4.2](https://www.bluetooth.com/specifications/bluetooth-core-specification) and implemented on the ESP-IDF BLE stack, specifically on the Security Manager Protocol (SMP) API. 
+In this document, a description of the security GATT Server BLE example for the ESP32 is presented. The security configuration enables a GATT Server acting as a slave device to bond with a master and establish an encrypted link between them. This functionality is defined by the [Bluetooth Specification version 4.2](https://www.bluetooth.com/specifications/bluetooth-core-specification) and implemented on the ESP-IDF BLE stack, specifically on the Security Manager Protocol (SMP) API.
 
 BLE security involves three interrelated concepts: pairing, bonding and encryption. Pairing concerns with the exchange of security features and types of keys needed. In addition, the pairing procedure takes care of the generation and exchange of shared keys. The core specification defines the legacy pairing and Secure Connections pairing (introduced in Bluetooth 4.2), which are both supported by ESP32. Once the exchange of shared keys is completed, a temporary encrypted link is established to exchange short term and long term keys. Bonding refers to storing the exchanged keys for subsequent connections so that they do not have to be transmitted again. Finally, encryption pertains to the ciphering of plain text data using the AES-128 engine and the shared keys. Server attributes may also be defined to allow only encrypted write and read messages. At any point of the communication, a slave device can always ask to start encryption by issuing a security request to the other peer device, which returns a security response by calling an API.
 
@@ -30,18 +30,17 @@ In code, these parameters are defined as follows:
 	The possible values for *IO Capabilities* are:
 
 	```c
-	ESP_IO_CAP_OUT		0   /*!< DisplayOnly */
-	ESP_IO_CAP_IO		1   /*!< DisplayYesNo */ 
-	ESP_IO_CAP_IN		2   /*!< KeyboardOnly */
-	ESP_IO_CAP_NONE	    3   /*!< NoInputNoOutput */
-	ESP_IO_CAP_KBDISP	4   /*!< Keyboard display */
+	ESP_IO_CAP_OUT         0   /*!< DisplayOnly */
+	ESP_IO_CAP_IO          1   /*!< DisplayYesNo */
+	ESP_IO_CAP_IN          2   /*!< KeyboardOnly */
+	ESP_IO_CAP_NONE        3   /*!< NoInputNoOutput */
+	ESP_IO_CAP_KBDISP      4   /*!< Keyboard display */
 	```
 
 * *Authorization Request*:
 
 	```c
-	esp_ble_auth_req_t auth_req = ESP_LE_AUTH_BOND; 
-//bonding with peer device after authentication
+	esp_ble_auth_req_t auth_req = ESP_LE_AUTH_BOND; //bonding with peer device after authentication
 	```
 
 	The possible values for *Authorization Request* are a combination of Bonding, MITM protection and Secure Connections requests:
@@ -74,7 +73,7 @@ In code, these parameters are defined as follows:
 
 	```c
 	uint8_t rsp_key = ESP_BLE_ENC_KEY_MASK | ESP_BLE_ID_KEY_MASK;
-```
+	```
 
 	The responder distributes the LTK and IRK keys by the setting the *EncKey* and *IdKey* masks.
 
@@ -88,7 +87,7 @@ In code, these parameters are defined as follows:
 	esp_ble_gap_set_security_param(ESP_BLE_SM_SET_RSP_KEY, &rsp_key, sizeof(uint8_t));
 	```
 
-This information is enough for the BLE stack to perform the pairing process, including pairing confirmation and key generation. The procedure is invisible to the user and executed automatically by the stack.
+	This information is enough for the BLE stack to perform the pairing process, including pairing confirmation and key generation. The procedure is invisible to the user and executed automatically by the stack.
 
 ## Connecting and Bonding to a Peer Device
 
@@ -109,7 +108,7 @@ The types of encryptions available are:
 
 The difference between `ESP_BLE_SEC_ENCRYPT` and `ESP_BLE_SEC_ENCRYPT_NO_MITM` lies in the fact that a previous connection might have a security level that needs to be upgraded, therefore requires to exchange keys again.
 
-In this example, the I/O capabilities are set to *No Input No Output*, therefore the *Just Works* pairing method, which doesn't not require the generation of a random 6-digit passkey, is used(For details, please refer to the the table below.) The user may modify the example to set the I/O capabilities to use other than *No Input No Output*. Therefore, depending on the I/O capabilities of the remote device, a passkey might be generated on the ESP32 which is presented to the user with the `ESP_GAP_BLE_PASSKEY_NOTIF_EVT`:
+In this example, the I/O capabilities are set to *No Input No Output*, therefore the *Just Works* pairing method, which doesn't not require the generation of a random 6-digit passkey, is used (For details, please refer to the the table below). The user may modify the example to set the I/O capabilities to use other than *No Input No Output*. Therefore, depending on the I/O capabilities of the remote device, a passkey might be generated on the ESP32 which is presented to the user with the `ESP_GAP_BLE_PASSKEY_NOTIF_EVT`:
 
 ```c
 case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:    
@@ -121,6 +120,14 @@ case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
 
 The combination of input and output capabilities that determine which algorithm is used are:
 
+|                        | Display Only   | Display Yes/No | Keyboard Only  | No Input No Output | Keyboard Display|
+| :--                    | :------------- | :------------- | :------------- | :----------------- | :-------------- |
+| **Display Only**       | Just Works     | Just Works     | Passkey Entry  | Just Works         | Passkey Entry   |
+| **Display Yes/No**     | Just Works     | Just Works     | Passkey Entry  | Just Works         | Passkey Entry   |
+| **Keyboard Only**      | Passkey Entry  | Passkey Entry  | Passkey Entry  | Just Works         | Passkey Entry   |
+| **No Input No Output** | Just Works     | Just Works     | Just Works     | Just Works         | Just Works      |
+| **Keyboard Display**   | Passkey Entry  | Passkey Entry  | Passkey Entry  | Just Works         | Passkey Entry   |
+
 
 ## Exchanging Keys
 
@@ -128,7 +135,7 @@ When the client connects to the server and the pairing is done successfully, the
 
 * Local device LTK
 * Local device IRK
-* Local device CSRK 
+* Local device CSRK
 * Peer device LTK
 * Peer device IRK
 
@@ -192,8 +199,8 @@ When creating the services table, each attribute can have permissions to read or
     [HRS_IDX_BOBY_SENSOR_LOC_VAL]   = {
     {ESP_GATT_AUTO_RSP},  
     {ESP_UUID_LEN_16,  
-    (uint8_t *)&body_sensor_location_uuid, 
-    ESP_GATT_PERM_READ_ENCRYPTED, 
+    (uint8_t *)&body_sensor_location_uuid,
+    ESP_GATT_PERM_READ_ENCRYPTED,
     sizeof(uint8_t),  
     sizeof(body_sensor_loc_val),  
     (uint8_t *)body_sensor_loc_val}
@@ -217,7 +224,7 @@ When creating the services table, each attribute can have permissions to read or
 During the communication between a master and a slave device, the slave might request to start encryption at any moment by issuing a security request command. This command will trigger an `ESP_GAP_BLE_SEC_REQ_EVT` event on the master, which will reply a positive (true) security response to the peer device to accept the request or a negative (false) one to reject the request. In this example, this event is used to reply a start encryption response by using the `esp_ble_gap_security_rsp()` API call.
 
 ```c
-	case ESP_GAP_BLE_SEC_REQ_EVT:
+case ESP_GAP_BLE_SEC_REQ_EVT:
      /* send the positive (true) security response to the peer device to accept the security request.
      If not accept the security request, should sent the security response with negative(false) accept value*/
      esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true);
@@ -226,4 +233,3 @@ During the communication between a master and a slave device, the slave might re
 ## Conclusion
 
 In this document, a review of the security aspects of the GATT Server has been realized. BLE security encompasses Pairing, Bonding and Encryption. In order to establish a secured link between a master and a slave device, security parameters that define the capabilities and features each device possess are set. The combination of features and capabilities of the peer devices results in the selection of the appropriate pairing method which the BLE stack then executes. Immediately, the required keys are generated and exchanged, and the encryption of subsequent messages is started using the AES-128 engine and these keys. These steps trigger different events that are managed by the GATT and GAP event handlers which can be used to print useful information such as the types of keys exchanged and the pairing status. In addition, attribute permissions are appointed to allow only encrypted read and write events when needed. The rest of the Security GATT server functionalities such as defining services and characteristics are implemented in the same way as presented in the GATT Server example.
-
