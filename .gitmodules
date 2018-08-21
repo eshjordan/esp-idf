@@ -4,7 +4,7 @@
 
 [submodule "components/esptool_py/esptool"]
 	path = components/esptool_py/esptool
-	url = https://github.com/espressif/esptool.git
+	url = https://github.com/e-puck2/esptool.git
 
 [submodule "components/bt/lib"]
 	path = components/bt/lib
