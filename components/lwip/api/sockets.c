@@ -186,6 +186,12 @@ static void sockaddr_to_ipaddr_port(const struct sockaddr* sockaddr, ip_addr_t* 
 
 #define NUM_SOCKETS MEMP_NUM_NETCONN
 
+#if !defined IOV_MAX
+#define IOV_MAX 0xFFFF
+#elif IOV_MAX > 0xFFFF
+#error "IOV_MAX larger than supported by LwIP"
+#endif /* IOV_MAX */
+
 /** This is overridable for the rare case where more than 255 threads
  * select on the same socket...
  */
@@ -491,7 +497,7 @@ lwip_socket_thread_cleanup(void)
  * @param s externally used socket index
  * @return struct lwip_sock for the socket or NULL if not found
  */
-static struct lwip_sock *
+static struct lwip_sock * ESP_IRAM_ATTR
 get_socket(int s)
 {
   struct lwip_sock *sock;
@@ -962,7 +968,7 @@ lwip_listen(int s, int backlog)
   return 0;
 }
 
-int
+int ESP_IRAM_ATTR
 lwip_recvfrom(int s, void *mem, size_t len, int flags,
               struct sockaddr *from, socklen_t *fromlen)
 {
@@ -1075,7 +1081,8 @@ lwip_recvfrom(int s, void *mem, size_t len, int flags,
 
     /* Check to see from where the data was.*/
     if (done) {
-#if !SOCKETS_DEBUG
+/* enabling the UDP fix for ESP32 below when SOCKET_DEBUG is off */
+#if !SOCKETS_DEBUG && !ESP_LWIP
       if (from && fromlen)
 #endif /* !SOCKETS_DEBUG */
       {
@@ -1194,6 +1201,71 @@ lwip_send(int s, const void *data, size_t size, int flags)
   sock_set_errno(sock, err_to_errno(err));
 
   return (err == ERR_OK ? (int)written : -1);
+}
+
+ssize_t
+lwip_recvmsg(int s, struct msghdr *message, int flags)
+{
+  struct lwip_sock *sock;
+  int i;
+  ssize_t buflen;
+
+  LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_recvmsg(%d, message=%p, flags=0x%x)\n", s, (void *)message, flags));
+  LWIP_ERROR("lwip_recvmsg: invalid message pointer", message != NULL, return ERR_ARG;);
+  LWIP_ERROR("lwip_recvmsg: unsupported flags", (flags & ~(MSG_PEEK|MSG_DONTWAIT)) == 0,
+             set_errno(EOPNOTSUPP); return -1;);
+
+  if ((message->msg_iovlen <= 0) || (message->msg_iovlen > IOV_MAX)) {
+    set_errno(EMSGSIZE);
+    return -1;
+  }
+
+  sock = get_socket(s);
+  if (!sock) {
+    return -1;
+  }
+
+  /* check for valid vectors */
+  buflen = 0;
+  for (i = 0; i < message->msg_iovlen; i++) {
+    if ((message->msg_iov[i].iov_base == NULL) || ((ssize_t)message->msg_iov[i].iov_len <= 0) ||
+        ((size_t)(ssize_t)message->msg_iov[i].iov_len != message->msg_iov[i].iov_len) ||
+        ((ssize_t)(buflen + (ssize_t)message->msg_iov[i].iov_len) <= 0)) {
+      sock_set_errno(sock, ERR_VAL);
+      return -1;
+    }
+    buflen = (ssize_t)(buflen + (ssize_t)message->msg_iov[i].iov_len);
+  }
+
+  int recv_flags = flags;
+  message->msg_flags = 0;
+  /* recv the data */
+  buflen = 0;
+  for (i = 0; i < message->msg_iovlen; i++) {
+    /* try to receive into this vector's buffer */
+    ssize_t recvd_local = lwip_recvfrom(s, message->msg_iov[i].iov_base, message->msg_iov[i].iov_len, recv_flags, NULL, NULL);
+    if (recvd_local > 0) {
+      /* sum up received bytes */
+      buflen += recvd_local;
+    }
+    if ((recvd_local < 0) || (recvd_local < (int)message->msg_iov[i].iov_len) ||
+        (flags & MSG_PEEK)) {
+      /* returned prematurely (or peeking, which might actually be limitated to the first iov) */
+      if (buflen <= 0) {
+        /* nothing received at all, propagate the error */
+        buflen = recvd_local;
+      }
+      break;
+    }
+    /* pass MSG_DONTWAIT to lwip_recv_tcp() to prevent waiting for more data */
+    recv_flags |= MSG_DONTWAIT;
+  }
+  if (buflen > 0) {
+    /* reset socket error since we have received something */
+    sock_set_errno(sock, 0);
+  }
+
+  return buflen;
 }
 
 int
@@ -1340,7 +1412,7 @@ lwip_sendmsg(int s, const struct msghdr *msg, int flags)
 #endif /* LWIP_UDP || LWIP_RAW */
 }
 
-int
+int ESP_IRAM_ATTR
 lwip_sendto(int s, const void *data, size_t size, int flags,
        const struct sockaddr *to, socklen_t tolen)
 {
@@ -1817,7 +1889,7 @@ return_copy_fdsets:
  * Callback registered in the netconn layer for each socket-netconn.
  * Processes recvevent (data available) and wakes up tasks waiting for select.
  */
-static void
+static void ESP_IRAM_ATTR
 event_callback(struct netconn *conn, enum netconn_evt evt, u16_t len)
 {
   int s;
@@ -3159,7 +3231,7 @@ static void lwip_socket_drop_registered_memberships(int s)
 
 #if ESP_THREAD_SAFE
 
-int
+int ESP_IRAM_ATTR
 lwip_sendto_r(int s, const void *data, size_t size, int flags,
        const struct sockaddr *to, socklen_t tolen)
 {
@@ -3176,7 +3248,7 @@ lwip_send_r(int s, const void *data, size_t size, int flags)
   LWIP_API_UNLOCK();
 }
 
-int
+int ESP_IRAM_ATTR
 lwip_recvfrom_r(int s, void *mem, size_t len, int flags,
               struct sockaddr *from, socklen_t *fromlen)
 {
@@ -3233,6 +3305,14 @@ lwip_connect_r(int s, const struct sockaddr *name, socklen_t namelen)
 {
   LWIP_API_LOCK();
   __ret = lwip_connect(s, name, namelen);
+  LWIP_API_UNLOCK();
+}
+
+int
+lwip_recvmsg_r(int s, struct msghdr *msg, int flags)
+{
+  LWIP_API_LOCK();
+  __ret = lwip_recvmsg(s, msg, flags);
   LWIP_API_UNLOCK();
 }
 

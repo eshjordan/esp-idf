@@ -55,19 +55,6 @@ IRAM_ATTR static void *dram_alloc_to_iram_addr(void *addr, size_t len)
     return (void *)(iptr + 1);
 }
 
-/* return all possible capabilities (across all priorities) for a given heap */
-inline static uint32_t get_all_caps(const heap_t *heap)
-{
-    if (heap->heap == NULL) {
-        return 0;
-    }
-    uint32_t all_caps = 0;
-    for (int prio = 0; prio < SOC_MEMORY_TYPE_NO_PRIOS; prio++) {
-        all_caps |= heap->caps[prio];
-    }
-    return all_caps;
-}
-
 bool heap_caps_match(const heap_t *heap, uint32_t caps)
 {
     return heap->heap != NULL && ((get_all_caps(heap) & caps) == caps);
@@ -88,9 +75,16 @@ IRAM_ATTR void *heap_caps_malloc( size_t size, uint32_t caps )
         if ((caps & MALLOC_CAP_8BIT) || (caps & MALLOC_CAP_DMA)) {
             return NULL;
         }
-        //If any, EXEC memory should be 32-bit aligned, so round up to the next multiple of 4.
+        caps |= MALLOC_CAP_32BIT; // IRAM is 32-bit accessible RAM
+    }
+
+    if (caps & MALLOC_CAP_32BIT) {
+        /* 32-bit accessible RAM should allocated in 4 byte aligned sizes
+         * (Future versions of ESP-IDF should possibly fail if an invalid size is requested)
+         */
         size = (size + 3) & (~3);
     }
+
     for (int prio = 0; prio < SOC_MEMORY_TYPE_NO_PRIOS; prio++) {
         //Iterate over heaps and check capabilities at this priority
         heap_t *heap;
@@ -309,7 +303,7 @@ IRAM_ATTR void *heap_caps_realloc( void *ptr, size_t size, int caps)
     if (new_p != NULL) {
         size_t old_size = multi_heap_get_allocated_size(heap->heap, ptr);
         assert(old_size > 0);
-        memcpy(new_p, ptr, old_size);
+        memcpy(new_p, ptr, MIN(size, old_size));
         heap_caps_free(ptr);
         return new_p;
     }
@@ -318,12 +312,18 @@ IRAM_ATTR void *heap_caps_realloc( void *ptr, size_t size, int caps)
 
 IRAM_ATTR void *heap_caps_calloc( size_t n, size_t size, uint32_t caps)
 {
-    void *r;
-    r = heap_caps_malloc(n*size, caps);
-    if (r != NULL) {
-        bzero(r, n*size);
+    void *result;
+    size_t size_bytes;
+
+    if (__builtin_mul_overflow(n, size, &size_bytes)) {
+        return NULL;
     }
-    return r;
+
+    result = heap_caps_malloc(size_bytes, caps);
+    if (result != NULL) {
+        bzero(result, size_bytes);
+    }
+    return result;
 }
 
 size_t heap_caps_get_free_size( uint32_t caps )
