@@ -206,8 +206,10 @@ class SerialReader(StoppableThread):
         if not self.serial.is_open:
             self.serial.baudrate = self.baud
             self.serial.rts = True  # Force an RTS reset on open
+            self.serial.dtr = False #Added because Windows doens't update RTS flag alone
             self.serial.open()
             self.serial.rts = False
+            self.serial.dtr = False #Added because Windows doens't update RTS flag alone
         try:
             while self.alive:
                 data = self.serial.read(self.serial.in_waiting or 1)
@@ -448,8 +450,10 @@ class Monitor(object):
             red_print(self.get_help_text())
         elif c == CTRL_R:  # Reset device via RTS
             self.serial.setRTS(True)
+            self.serial.setDTR(False) #Added because Windows doens't update RTS flag alone
             time.sleep(0.2)
             self.serial.setRTS(False)
+            self.serial.setDTR(False) #Added because Windows doens't update RTS flag alone
             self.output_enable(True)
         elif c == CTRL_F:  # Recompile & upload
             self.run_make("flash")
@@ -743,7 +747,15 @@ if os.name == 'nt':
                             self._output_write(self.matched) # not an ANSI color code, display verbatim
                         self.matched = b''
                 else:
-                    self._output_write(b)
+                    try:
+                        self.output.write(b)
+                    except IOError:
+                        # Windows 10 bug since the Fall Creators Update, sometimes writing to console randomly fails
+                        # (but usually succeeds the second time, it seems.) Ref https://github.com/espressif/esp-idf/issues/1136
+                        try:
+                            self.output.write(b)
+                        except IOError:
+                            pass
                     self.matched = b''
 
         def flush(self):
