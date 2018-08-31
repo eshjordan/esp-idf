@@ -58,7 +58,8 @@ function to process requests, decode URLs, serve files, etc. etc.
 
 #include "http_server.h"
 #include "wifi_manager.h"
-
+#include "uart_e-puck2.h"
+#include "socket_e-puck2.h"
 
 EventGroupHandle_t http_server_event_group;
 EventBits_t uxBits;
@@ -72,6 +73,10 @@ extern const uint8_t code_js_start[] asm("_binary_code_js_start");
 extern const uint8_t code_js_end[] asm("_binary_code_js_end");
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[] asm("_binary_index_html_end");
+extern const uint8_t monitor_html_start[] asm("_binary_monitor_html_start");
+extern const uint8_t monitor_html_end[] asm("_binary_monitor_html_end");
+extern const uint8_t monitor_js_start[] asm("_binary_monitor_js_start");
+extern const uint8_t monitor_js_end[] asm("_binary_monitor_js_end");
 
 
 /* const http headers stored in ROM */
@@ -84,6 +89,8 @@ const static char http_404_hdr[] = "HTTP/1.1 404 Not Found\nContent-Length: 0\n\
 const static char http_503_hdr[] = "HTTP/1.1 503 Service Unavailable\nContent-Length: 0\n\n";
 const static char http_ok_json_no_cache_hdr[] = "HTTP/1.1 200 OK\nContent-type: application/json\nCache-Control: no-store, no-cache, must-revalidate, max-age=0\nPragma: no-cache\n\n";
 
+
+uint8_t actuators_buff_last[ACTUATORS_BUFF_LEN] = {0};
 
 void http_server_set_event_start(){
 	xEventGroupSetBits(http_server_event_group, HTTP_SERVER_START_BIT_0 );
@@ -251,8 +258,68 @@ void http_server_netconn_serve(struct netconn *conn) {
 					netconn_write(conn, http_400_hdr, sizeof(http_400_hdr) - 1, NETCONN_NOCOPY);
 				}
 
-			}
-			else{
+			} else if(strstr(line, "POST /command.json ")) {
+				bool found = false;
+				int len = 0;
+				char *command = NULL;
+				command = http_server_get_header(save_ptr, "X-Command: ", &len);
+
+				if(command) {
+					if(strstr(command, "forward")) {
+						actuators_buff_last[3] = 0xFF;
+						actuators_buff_last[4] = 0x00;
+						actuators_buff_last[5] = 0xFF;
+						actuators_buff_last[6] = 0x00;
+						uart_set_actuators_state(actuators_buff_last);
+						uart_get_data_ptr();
+					}
+					if(strstr(command, "backward")) {
+						actuators_buff_last[3] = 0x00;
+						actuators_buff_last[4] = 0xFF;
+						actuators_buff_last[5] = 0x00;
+						actuators_buff_last[6] = 0xFF;
+						uart_set_actuators_state(actuators_buff_last);
+						uart_get_data_ptr();
+					}	
+					if(strstr(command, "left")) {
+						actuators_buff_last[3] = 0x00;
+						actuators_buff_last[4] = 0xFF;
+						actuators_buff_last[5] = 0xFF;
+						actuators_buff_last[6] = 0x00;
+						uart_set_actuators_state(actuators_buff_last);
+						uart_get_data_ptr();
+					}
+					if(strstr(command, "right")) {
+						actuators_buff_last[3] = 0xFF;
+						actuators_buff_last[4] = 0x00;
+						actuators_buff_last[5] = 0x00;
+						actuators_buff_last[6] = 0xFF;
+						uart_set_actuators_state(actuators_buff_last);
+						uart_get_data_ptr();
+					}
+					if(strstr(command, "stop")) {
+						actuators_buff_last[3] = 0x00;
+						actuators_buff_last[4] = 0x00;
+						actuators_buff_last[5] = 0x00;
+						actuators_buff_last[6] = 0x00;
+						uart_set_actuators_state(actuators_buff_last);
+						uart_get_data_ptr();
+					}
+					netconn_write(conn, http_ok_json_no_cache_hdr, sizeof(http_ok_json_no_cache_hdr) - 1, NETCONN_NOCOPY); //200ok
+					found = true;
+				}
+
+				if(!found){
+					/* bad request the authentification header is not complete/not the correct format */
+					netconn_write(conn, http_400_hdr, sizeof(http_400_hdr) - 1, NETCONN_NOCOPY);
+				}				
+			} else if(strstr(line, "GET /monitor.html ")) {
+				netconn_write(conn, http_html_hdr, sizeof(http_html_hdr) - 1, NETCONN_NOCOPY);
+				netconn_write(conn, monitor_html_start, monitor_html_end - monitor_html_start, NETCONN_NOCOPY);
+			} else if(strstr(line, "GET /monitor.js ")) {
+				netconn_write(conn, http_js_hdr, sizeof(http_js_hdr) - 1, NETCONN_NOCOPY);
+				netconn_write(conn, monitor_js_start, monitor_js_end - monitor_js_start, NETCONN_NOCOPY);
+			} else{
 				netconn_write(conn, http_400_hdr, sizeof(http_400_hdr) - 1, NETCONN_NOCOPY);
 			}
 		}
