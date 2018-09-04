@@ -29,6 +29,7 @@ Firmware to be run on the ESP32 of the e-puck2
 #include "utility.h"
 #include "nvs_flash.h"
 #include "socket_e-puck2.h"
+#include "ble_spp_server_demo.h"
 
 extern int btstack_main(void);
 
@@ -41,16 +42,16 @@ void app_main(void)
   spi_init();
   robot_read_id();
   ESP_ERROR_CHECK( nvs_flash_init() );
-  socket_init();
+//  socket_init();
  
   // Start the HTTP Server task.
-  xTaskCreatePinnedToCore(&http_server, "http_server", 2048, NULL, 4, NULL, CORE_1);
+//  xTaskCreatePinnedToCore(&http_server, "http_server", 2048, NULL, 4, NULL, CORE_1);
   
   // WiFi configuration task.
-  xTaskCreatePinnedToCore(&wifi_manager, "wifi_manager", 4096, NULL, 4, NULL, CORE_1);
+//  xTaskCreatePinnedToCore(&wifi_manager, "wifi_manager", 4096, NULL, 4, NULL, CORE_1);
 
   // WiFi stream task.
-  xTaskCreatePinnedToCore(&socket_task, "socket_task", 4096, NULL, 5, NULL, CORE_1);
+//  xTaskCreatePinnedToCore(&socket_task, "socket_task", 4096, NULL, 5, NULL, CORE_1);
 
   // SPI communication task.
   xTaskCreatePinnedToCore(spi_task, "spi_task", SPI_TASK_STACK_SIZE, NULL, SPI_TASK_PRIO, NULL, CORE_1);
@@ -60,4 +61,7 @@ void app_main(void)
   
   // RGB handling task.
   xTaskCreatePinnedToCore(rgb_task, "rgb_task", 2048, NULL, 4, NULL, CORE_0);  
+  
+  ble_spp_sever_demo_init();
+  
 }

@@ -51,5 +51,6 @@ void uart_set_actuators_state(uint8_t *buff);
  */
 sensors_buffer_t *uart_get_data_ptr(void);
 
+void uart_set_motors_state(uint8_t *buff);
 
 #endif /* UART_E_PUCK_2_H */

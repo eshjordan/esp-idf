@@ -18,6 +18,7 @@ Functions to configure and use the UART communication between the ESP32 and both
 #include "rgb_led_e-puck2.h"
 #include "utility.h"
 #include "button_e-puck2.h"
+#include "ble_spp_server_demo.h"
 
 #define UART_407 UART_NUM_1
 
@@ -31,8 +32,17 @@ sensors_buffer_t* uart_rx_buff_last;
 sensors_buffer_t* uart_rx_buff_curr;
 
 static EventGroupHandle_t uart_event_group;
+SemaphoreHandle_t xMutex;
+
+void uart_set_motors_state(uint8_t *buff) {
+	uart_tx_buff[3] = buff[0]; // Left speed / left steps LSB
+	uart_tx_buff[4] = buff[1]; // Left speed / left steps MSB
+	uart_tx_buff[5] = buff[2]; // Right speed / right steps LSB
+	uart_tx_buff[6] = buff[3]; // Right speed / right steps MSB
+}
 
 void uart_set_actuators_state(uint8_t *buff) {
+	xSemaphoreTake(xMutex, portMAX_DELAY);
 	uart_tx_buff[2] = buff[2]; // Behaviors/others
 	uart_tx_buff[3] = buff[3]; // Left speed / left steps LSB
 	uart_tx_buff[4] = buff[4]; // Left speed / left steps MSB
@@ -40,6 +50,7 @@ void uart_set_actuators_state(uint8_t *buff) {
 	uart_tx_buff[6] = buff[6]; // Right speed / right steps MSB
 	uart_tx_buff[7] = buff[7]; // LEDs
 	uart_tx_buff[8] = buff[20];	// Sound.
+	xSemaphoreGive(xMutex);
 	
 	rgb_update_all(&buff[8]);
 }
@@ -96,6 +107,7 @@ void advsercom_task(void *pvParameter) {
 				// Send the requests based on asercom protocol.
 				// Beware: from various tests resulted that at most 24 bytes are correctly sent to the F407, 
 				// if you try sending more data than this, then the data are corrupted. To be analysed deeper...
+				xSemaphoreTake(xMutex, portMAX_DELAY);
 				len = uart_tx_chars(UART_407, (char*)&uart_tx_buff[0], UART_TX_BUFF_SIZE);
 				//printf("sending...\r\n");
 				//uart_wait_tx_done(UART_407, portMAX_DELAY);	
@@ -103,6 +115,7 @@ void advsercom_task(void *pvParameter) {
 					//printf("error on tx done!\r\n");
 					break;
 				}
+				xSemaphoreGive(xMutex);
 				uart_state = 1;						
 				//printf("sent=(%d)\r\n", len);
 				break;
@@ -136,11 +149,15 @@ void advsercom_task(void *pvParameter) {
 					
 					uart_rx_buff_curr->data[UART_RX_BUFF_SIZE-1] = temp; // Put the empty byte (reserved for future usage) at the end of the packet.
 				
-					uart_rx_buff_curr->state = SENSORS_BUFF_FILLED;
-					xEventGroupSetBits(uart_event_group, EVT_SENSORS_BUFF_FILLED);
+					uart_rx_buff_curr->state = SENSORS_BUFF_FILLED;					
+//					xEventGroupSetBits(uart_event_group, EVT_SENSORS_BUFF_FILLED);
 					//printf("set filled\r\n");					
-					xEventGroupWaitBits(uart_event_group, EVT_SENSORS_BUFF_FILL_NEXT, true, false, portMAX_DELAY);
+//					xEventGroupWaitBits(uart_event_group, EVT_SENSORS_BUFF_FILL_NEXT, true, false, portMAX_DELAY);
 					//printf("get fill next\r\n");
+					
+					send_indicate(&uart_rx_buff_curr->data[37], 16);
+					vTaskDelay(50 / portTICK_PERIOD_MS);					
+					
 				} else {
 					vTaskDelay(1000 / portTICK_PERIOD_MS); // Add a pause otherwise the data received by the F407 would be corrupted when the ESP32 and F407 aren't sync.
 				}
@@ -191,6 +208,7 @@ void uart_init(void) {
 	uart_rx_buff_curr->state = SENSORS_BUFF_EMPTY;	
 	
 	uart_event_group = xEventGroupCreate();
+	xMutex = xSemaphoreCreateMutex();
 	
 	xTaskCreatePinnedToCore(&advsercom_task, "advsercom_task", 2048, NULL, 4, NULL, CORE_0);	
 }
