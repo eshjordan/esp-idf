@@ -59,7 +59,9 @@ function to process requests, decode URLs, serve files, etc. etc.
 #include "http_server.h"
 #include "wifi_manager.h"
 #include "uart_e-puck2.h"
+#include "spi_e-puck2.h"
 #include "socket_e-puck2.h"
+#include "TinyPngOut.h"
 
 EventGroupHandle_t http_server_event_group;
 EventBits_t uxBits;
@@ -88,7 +90,29 @@ const static char http_400_hdr[] = "HTTP/1.1 400 Bad Request\nContent-Length: 0\
 const static char http_404_hdr[] = "HTTP/1.1 404 Not Found\nContent-Length: 0\n\n";
 const static char http_503_hdr[] = "HTTP/1.1 503 Service Unavailable\nContent-Length: 0\n\n";
 const static char http_ok_json_no_cache_hdr[] = "HTTP/1.1 200 OK\nContent-type: application/json\nCache-Control: no-store, no-cache, must-revalidate, max-age=0\nPragma: no-cache\n\n";
+const static char http_bmp_hdr[] = "HTTP/1.1 200 OK\nContent-type: image/bmp\n\n";
+const static char http_png_hdr[] = "HTTP/1.1 200 OK\nContent-type: image/png\n\n";
 
+
+// BMP Header for QQVGA image.
+uint8_t bmp_header[54] = {
+	0x42, 0x4D,					// ID field = BM
+    0x46, 0xE1, 0x00, 0x00,		// Size of BMP file 160*120*3+70=57670 bytes
+    0x00, 0x00, 0x00, 0x00,		// Reserved
+    0x46, 0x00, 0x00, 0x00,		// Offset where the pixel array can be found = 70
+    // DIB Header
+    0x28, 0x00, 0x00, 0x00,		// Number of bytes in the DIB header (from this point) 40 bytes
+    0xA0, 0x00, 0x00, 0x00,		// Width of the bitmap in pixel 160
+    0x78, 0x00, 0x00, 0x00,		// Height of the bitmap in  pixel 120
+    0x01, 0x00,					// Plane
+    0x18, 0x00,					// 24 bits number of bits pr pixels
+    0x00, 0x00, 0x00, 0x00,		// BI_RGB => no compression
+	0x00, 0x00, 0x00, 0x00,		// Raw image size, can be left 0 for BI_RGB
+    0x00, 0x00, 0x02, 0x00,		// pixels/meter horizontal
+    0x00, 0x00, 0x00, 0x00,		// pixels/meter vertical
+    0x00, 0x00, 0x00, 0x00,		// Number of colors in the palette
+    0x00, 0x00, 0x00, 0x00		// 0 means all color are important
+};
 
 uint8_t actuators_buff_last[ACTUATORS_BUFF_LEN] = {0};
 
@@ -155,7 +179,13 @@ void http_server_netconn_serve(struct netconn *conn) {
 	u16_t buflen;
 	err_t err;
 	const char new_line[2] = "\n";
-
+	image_buffer_t* img_buff = NULL;
+	int16_t row = 0, col = 0;
+	uint16_t index_src = 0, index_dst = 0;
+	uint8_t row_pixels[3*160];
+	struct TinyPngOut pngout;
+	enum TinyPngOut_Status status;
+  
 	err = netconn_recv(conn, &inbuf);
 	if (err == ERR_OK) {
 
@@ -319,8 +349,49 @@ void http_server_netconn_serve(struct netconn *conn) {
 			} else if(strstr(line, "GET /monitor.js ")) {
 				netconn_write(conn, http_js_hdr, sizeof(http_js_hdr) - 1, NETCONN_NOCOPY);
 				netconn_write(conn, monitor_js_start, monitor_js_end - monitor_js_start, NETCONN_NOCOPY);
+			} else if(strstr(line, "GET /image.bmp ")) {
+				netconn_write(conn, http_bmp_hdr, sizeof(http_bmp_hdr) - 1, NETCONN_NOCOPY);
+				img_buff = spi_get_data_ptr();
+				img_buff = spi_get_data_ptr(); // Get an updated image.		
+				netconn_write(conn, bmp_header, 54, NETCONN_NOCOPY);
+				index_src = 0;
+				for (row=119; row>=0; row--) {
+					index_dst = 0;
+					index_src = row*160*2;
+					for(col=0; col<160; col++) {
+						row_pixels[index_dst++] = (uint8_t)((img_buff->data[index_src+1]&0x1F)<<3); // Blue.
+						row_pixels[index_dst++] = (uint8_t)((img_buff->data[index_src]&0x07)<<5) | (uint8_t)((img_buff->data[index_src+1]&0xE0)>>3); // Green.
+						row_pixels[index_dst++] = (uint8_t)(img_buff->data[index_src] & 0xF8); // Red.
+						index_src += 2;
+					}
+					netconn_write(conn, row_pixels, 480, NETCONN_NOCOPY);
+				}
+				//printf("http_server_netconn_serve: GET /image.bmp sent\n");
+			} else if(strstr(line, "GET /image.png ")) {			
+				netconn_write(conn, http_png_hdr, sizeof(http_png_hdr) - 1, NETCONN_NOCOPY);
+				img_buff = spi_get_data_ptr();
+				img_buff = spi_get_data_ptr(); // Get an updated image.					
+				status = TinyPngOut_init(&pngout, (uint32_t)160, (uint32_t)120, conn);	// Also write png header...
+				if (status != TINYPNGOUT_OK) {
+					printf("TinyPngOut_init error = %d\r\n", status);
+				}
+				index_src = 0;
+				index_dst = 0;
+				for (row=0; row<120; row++) {
+					index_dst = 0;
+					for(col=0; col<160; col++) {
+						row_pixels[index_dst++] = (uint8_t)(img_buff->data[index_src] & 0xF8); // Red.
+						row_pixels[index_dst++] = (uint8_t)((img_buff->data[index_src]&0x07)<<5) | (uint8_t)((img_buff->data[index_src+1]&0xE0)>>3); // Green.
+						row_pixels[index_dst++] = (uint8_t)((img_buff->data[index_src+1]&0x1F)<<3); // Blue.
+						index_src += 2;
+					}
+					status = TinyPngOut_write(&pngout, row_pixels, (size_t)160);
+					if (status != TINYPNGOUT_OK) {
+						printf("TinyPngOut_write error = %d\r\n", status);
+					}
+				}
 			} else{
-				netconn_write(conn, http_400_hdr, sizeof(http_400_hdr) - 1, NETCONN_NOCOPY);
+				netconn_write(conn, http_400_hdr, sizeof(http_400_hdr) - 1, NETCONN_NOCOPY);				
 			}
 		}
 		else{
