@@ -237,7 +237,8 @@ void rgb_init(void){
 void rgb_set_intensity(rgb_led_name_t rgb_led, led_name_t led, uint8_t intensity, uint16_t time_ms){
 
   if(intensity > RGB_MAX_INTENSITY){
-    intensity = RGB_MAX_INTENSITY;
+    //intensity = RGB_MAX_INTENSITY;
+	return; // If the intensity is out of range then do nothing.
   }
   uint32_t value = (RGB_MAX_INTENSITY - intensity) * RGB_MAX_DUTY / RGB_MAX_INTENSITY; 
   if(ledc_set_fade_with_time(led_config[rgb_led][led].speed_mode,

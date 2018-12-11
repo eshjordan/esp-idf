@@ -62,20 +62,23 @@ static spi_slave_interface_config_t slvcfg = {
     //.post_trans_cb=my_post_trans_cb
 };
 
-image_buffer_t* spi_get_data_ptr(void) {
-	// Wait for the next buffer to be filled in case it isn't.
-	if(image_buff_curr->state == IMG_BUFF_EMPTY) {
-		xEventGroupWaitBits(spi_event_group, EVT_IMG_BUFF_FILLED, true, false, portMAX_DELAY);
+image_buffer_t* spi_get_data_ptr(unsigned char wait_buff) {
+
+	if(wait_buff) {
+		// Wait for the next buffer to be filled in case it isn't.
+		if(image_buff_curr->state == IMG_BUFF_EMPTY) {
+			xEventGroupWaitBits(spi_event_group, EVT_IMG_BUFF_FILLED, true, false, portMAX_DELAY);
+		}
+		xEventGroupClearBits(spi_event_group, EVT_IMG_BUFF_FILLED); // This bit remain set if the buffer was already filled, so clear it.
+		
+		image_buff_last = image_buff_curr;
+		if(image_buff_curr == image_buff1) {
+			image_buff_curr = image_buff2;
+		} else {
+			image_buff_curr = image_buff1;
+		}
+		image_buff_curr->state = IMG_BUFF_EMPTY;
 	}
-	xEventGroupClearBits(spi_event_group, EVT_IMG_BUFF_FILLED); // This bit remain set if the buffer was already filled, so clear it.
-	
-	image_buff_last = image_buff_curr;
-	if(image_buff_curr == image_buff1) {
-		image_buff_curr = image_buff2;
-	} else {
-		image_buff_curr = image_buff1;
-	}
-	image_buff_curr->state = IMG_BUFF_EMPTY;
 	
 	xEventGroupSetBits(spi_event_group, EVT_IMG_BUFF_FILL_NEXT); // Tell the SPI task to fill the next buffer.
 	
@@ -165,7 +168,7 @@ void spi_task(void *pvParameter) {
 				if(transaction.trans_len == 0) {
 					break;
 				} else if(transaction.trans_len == 12*8) {
-					//rgb_update_all(spi_rx_buff); // The RGB LEDs state is changed through WiFi.
+					rgb_update_all(spi_rx_buff);
 					spi_state = 2;
 				} else {
 					spi_state = 0;

@@ -41,7 +41,9 @@ void spi_init(void);
 
 /**
  * @brief Return the pointer to the most recent SPI data received from the STM32.
+ *
+ * @param wait_buff If 1 then this function blocks until the next image buffer is filled.
  */
-image_buffer_t* spi_get_data_ptr(void);
+image_buffer_t* spi_get_data_ptr(unsigned char wait_buff);
 
 #endif /* SPI_E_PUCK_2_H */

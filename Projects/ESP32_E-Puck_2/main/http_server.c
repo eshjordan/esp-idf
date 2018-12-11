@@ -351,8 +351,8 @@ void http_server_netconn_serve(struct netconn *conn) {
 				netconn_write(conn, monitor_js_start, monitor_js_end - monitor_js_start, NETCONN_NOCOPY);
 			} else if(strstr(line, "GET /image.bmp ")) {
 				netconn_write(conn, http_bmp_hdr, sizeof(http_bmp_hdr) - 1, NETCONN_NOCOPY);
-				img_buff = spi_get_data_ptr();
-				img_buff = spi_get_data_ptr(); // Get an updated image.		
+				img_buff = spi_get_data_ptr(1);
+				img_buff = spi_get_data_ptr(1); // Get an updated image.		
 				netconn_write(conn, bmp_header, 54, NETCONN_NOCOPY);
 				index_src = 0;
 				for (row=119; row>=0; row--) {
@@ -369,8 +369,8 @@ void http_server_netconn_serve(struct netconn *conn) {
 				//printf("http_server_netconn_serve: GET /image.bmp sent\n");
 			} else if(strstr(line, "GET /image.png ")) {			
 				netconn_write(conn, http_png_hdr, sizeof(http_png_hdr) - 1, NETCONN_NOCOPY);
-				img_buff = spi_get_data_ptr();
-				img_buff = spi_get_data_ptr(); // Get an updated image.					
+				img_buff = spi_get_data_ptr(1);
+				img_buff = spi_get_data_ptr(1); // Get an updated image.					
 				status = TinyPngOut_init(&pngout, (uint32_t)160, (uint32_t)120, conn);	// Also write png header...
 				if (status != TINYPNGOUT_OK) {
 					printf("TinyPngOut_init error = %d\r\n", status);
