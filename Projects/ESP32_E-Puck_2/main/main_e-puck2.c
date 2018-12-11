@@ -1,8 +1,8 @@
 /*
 
 File    : main_e-puck2.c
-Author  : Eliot Ferragni
-Date    : 12 november 2017
+Author  : Eliot Ferragni, Stefano Morgani
+Date    : 6 December 2018
 REV 1.0
 
 Firmware to be run on the ESP32 of the e-puck2
@@ -52,6 +52,9 @@ void app_main(void)
   // SPI communication task.
   xTaskCreatePinnedToCore(spi_task, "spi_task", SPI_TASK_STACK_SIZE, NULL, SPI_TASK_PRIO, NULL, CORE_1);
 
+  // RGB handling task.
+  xTaskCreatePinnedToCore(rgb_task, "rgb_task", 2048, NULL, 4, NULL, CORE_0);    
+  
   //btstack works as a loop called from the main. So every other task should be created before the call
   //of this function
   //main runs always on core 0
