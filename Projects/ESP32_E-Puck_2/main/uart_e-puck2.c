@@ -43,16 +43,8 @@ void uart_set_motors_state(uint8_t *buff) {
 
 void uart_set_actuators_state(uint8_t *buff) {
 	xSemaphoreTake(xMutex, portMAX_DELAY);
-	uart_tx_buff[2] = buff[2]; // Behaviors/others
-	uart_tx_buff[3] = buff[3]; // Left speed / left steps LSB
-	uart_tx_buff[4] = buff[4]; // Left speed / left steps MSB
-	uart_tx_buff[5] = buff[5]; // Right speed / right steps LSB
-	uart_tx_buff[6] = buff[6]; // Right speed / right steps MSB
-	uart_tx_buff[7] = buff[7]; // LEDs
-	uart_tx_buff[8] = buff[20];	// Sound.
+	memcpy(&uart_tx_buff[2], &buff[2], 19);
 	xSemaphoreGive(xMutex);
-	
-	rgb_update_all(&buff[8]);
 }
 
 sensors_buffer_t *uart_get_data_ptr(void) {
@@ -97,7 +89,7 @@ void advsercom_task(void *pvParameter) {
 	memset(uart_tx_buff, 0, UART_TX_BUFF_SIZE);
 	uart_tx_buff[0]=-0x08;	// (0xF8) All sensors request.
 	uart_tx_buff[1]=-0x09;	// (0xF7) All actuators set command.		
-	uart_tx_buff[9]=0;	// Terminator.
+	uart_tx_buff[UART_TX_BUFF_SIZE-1]=0;	// Terminator.
 	
 	while(1) {
 		

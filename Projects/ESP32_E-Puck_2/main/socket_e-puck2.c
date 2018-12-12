@@ -152,7 +152,7 @@ void socket_task(void *pvParameter) {
 				break;				
 				
 			case 4: // Exchanging image.
-				img_buff = spi_get_data_ptr();						
+				img_buff = spi_get_data_ptr(1);						
     		    num_packets = MAX_BUFF_SIZE/SPI_PACKET_MAX_SIZE;
     		    remaining_bytes = MAX_BUFF_SIZE%SPI_PACKET_MAX_SIZE;
 				rgb_led2_gpio_set(1, 1, 0); // Turn on blue.
@@ -190,7 +190,8 @@ void socket_task(void *pvParameter) {
 				}
 				break;
 				
-			case 5: // Send sensors values.			
+			case 5: // Send sensors values.	
+				spi_get_data_ptr(0); // This is needed to update the RGB LEDs state when the image isn't exchanged.
 				sensors_buff = uart_get_data_ptr();
 				rgb_led2_gpio_set(1, 1, 0); // Turn on blue.
 				header[0] = 0x02;
@@ -209,6 +210,7 @@ void socket_task(void *pvParameter) {
 				break;
 				
 			case 6: // Send empty packet (only id with no payload).
+				spi_get_data_ptr(0); // This is needed to update the RGB LEDs state when the image isn't exchanged.
 				header[0] = 0x03;
     			if( send(client_sock, header, 1, 0) < 0) { // Send id=0x03
     				show_socket_error_reason("send_empty_header", client_sock);
