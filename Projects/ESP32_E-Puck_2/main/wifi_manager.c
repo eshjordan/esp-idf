@@ -390,6 +390,9 @@ esp_err_t wifi_manager_event_handler(void *ctx, system_event_t *event)
 		break;
 
     case SYSTEM_EVENT_STA_START:
+		#if WIFI_MANAGER_DEBUG
+			printf("SYSTEM_EVENT_STA_START\n");
+		#endif
         break;
 
 	case SYSTEM_EVENT_STA_GOT_IP:
@@ -650,7 +653,13 @@ void wifi_manager( void * pvParameters ){
 	for(;;){
 
 		/* actions that can trigger: request a connection, a scan, or a disconnection */
+		#if WIFI_MANAGER_DEBUG
+			printf("waiting action...\n");
+		#endif
 		uxBits = xEventGroupWaitBits(wifi_manager_event_group, WIFI_MANAGER_REQUEST_STA_CONNECT_BIT | WIFI_MANAGER_REQUEST_WIFI_SCAN | WIFI_MANAGER_REQUEST_WIFI_DISCONNECT, pdFALSE, pdFALSE, portMAX_DELAY );
+		#if WIFI_MANAGER_DEBUG
+			printf("action received = %d\n", uxBits);
+		#endif
 		if(uxBits & WIFI_MANAGER_REQUEST_WIFI_DISCONNECT){
 			/* user requested a disconnect, this will in effect disconnect the wifi but also erase NVS memory*/
 
@@ -695,6 +704,10 @@ void wifi_manager( void * pvParameters ){
 			/* first thing: if the esp32 is already connected to a access point: disconnect */
 			if( (uxBits & WIFI_MANAGER_WIFI_CONNECTED_BIT) == (WIFI_MANAGER_WIFI_CONNECTED_BIT) ){
 
+				#if WIFI_MANAGER_DEBUG
+					printf("already connected, disconnect...\n");
+				#endif	
+			
 				xEventGroupClearBits(wifi_manager_event_group, WIFI_MANAGER_STA_DISCONNECT_BIT);
 				ESP_ERROR_CHECK(esp_wifi_disconnect());
 
@@ -711,7 +724,13 @@ void wifi_manager( void * pvParameters ){
 			 * or it's a failure and we get a SYSTEM_EVENT_STA_DISCONNECTED with a reason code.
 			 * Note that the reason code is not exploited. For all intent and purposes a failure is a failure.
 			 */
+			#if WIFI_MANAGER_DEBUG
+				printf("waiting event...\n");
+			#endif
 			uxBits = xEventGroupWaitBits(wifi_manager_event_group, WIFI_MANAGER_WIFI_CONNECTED_BIT | WIFI_MANAGER_STA_DISCONNECT_BIT, pdFALSE, pdFALSE, portMAX_DELAY );
+			#if WIFI_MANAGER_DEBUG
+				printf("event received = %d\n", uxBits);
+			#endif
 
 			if(uxBits & (WIFI_MANAGER_WIFI_CONNECTED_BIT | WIFI_MANAGER_STA_DISCONNECT_BIT)){
 
@@ -725,7 +744,10 @@ void wifi_manager( void * pvParameters ){
 
 					/* only save the config if the connection was successful! */
 					if(uxBits & WIFI_MANAGER_WIFI_CONNECTED_BIT){
-
+						#if WIFI_MANAGER_DEBUG
+							printf("connected!\n");
+						#endif
+					
 						/* generate the connection info with success */
 						wifi_manager_generate_ip_info_json( UPDATE_CONNECTION_OK );
 
@@ -760,14 +782,22 @@ void wifi_manager( void * pvParameters ){
 							}
 						}
 						*/
+
+						/* finally: release the connection request bit */
+						xEventGroupClearBits(wifi_manager_event_group, WIFI_MANAGER_REQUEST_STA_CONNECT_BIT);						
 					}
 					else{
-
-						/* failed attempt to connect regardles of the reason */
+						#if WIFI_MANAGER_DEBUG
+							printf("not connected!\n");
+						#endif
+					
+						/* failed attempt to connect regardless of the reason */
 						wifi_manager_generate_ip_info_json( UPDATE_FAILED_ATTEMPT );
 
 						/* otherwise: reset the config */
-						memset(wifi_manager_config_sta, 0x00, sizeof(wifi_config_t));
+						//memset(wifi_manager_config_sta, 0x00, sizeof(wifi_config_t));
+						
+						xEventGroupClearBits(wifi_manager_event_group, WIFI_MANAGER_STA_DISCONNECT_BIT);
 					}
 					wifi_manager_unlock_json_buffer();
 				}
@@ -775,16 +805,22 @@ void wifi_manager( void * pvParameters ){
 					/* Even if someone were to furiously refresh a web resource that needs the json mutex,
 					 * it seems impossible that this thread cannot obtain the mutex. Abort here is reasonnable.
 					 */
+					#if WIFI_MANAGER_DEBUG
+						printf("cannot get json mutex...\n");
+					#endif
 					abort();
 				}
 			}
 			else{
 				/* hit portMAX_DELAY limit ? */
+				#if WIFI_MANAGER_DEBUG
+					printf("something strange happened...\n");
+				#endif
 				abort();
 			}
 
 			/* finally: release the connection request bit */
-			xEventGroupClearBits(wifi_manager_event_group, WIFI_MANAGER_REQUEST_STA_CONNECT_BIT);
+			//xEventGroupClearBits(wifi_manager_event_group, WIFI_MANAGER_REQUEST_STA_CONNECT_BIT);
 		}
 		else if(uxBits & WIFI_MANAGER_REQUEST_WIFI_SCAN){
 
