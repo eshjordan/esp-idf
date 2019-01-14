@@ -116,6 +116,13 @@ TEST_CASE("(SD) stat returns correct values", "[fatfs][test_env=UT_T1_SDMODE]")
     test_teardown();
 }
 
+TEST_CASE("(SD) utime sets modification time", "[fatfs][test_env=UT_T1_SDMODE]")
+{
+    test_setup();
+    test_fatfs_utime("/sdcard/utime.txt", "/sdcard");
+    test_teardown();
+}
+
 TEST_CASE("(SD) unlink removes a file", "[fatfs][test_env=UT_T1_SDMODE]")
 {
     test_setup();
@@ -167,9 +174,7 @@ TEST_CASE("(SD) write/read speed test", "[fatfs][sd][test_env=UT_T1_SDMODE][time
 
     const size_t buf_size = 16 * 1024;
     uint32_t* buf = (uint32_t*) calloc(1, buf_size);
-    for (size_t i = 0; i < buf_size / 4; ++i) {
-        buf[i] = esp_random();
-    }
+    esp_fill_random(buf, buf_size);
     const size_t file_size = 1 * 1024 * 1024;
 
     speed_test(buf, 4 * 1024, file_size, true);

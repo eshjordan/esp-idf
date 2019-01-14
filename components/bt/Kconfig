@@ -6,6 +6,68 @@ config BT_ENABLED
     help
         Select this option to enable Bluetooth and show the submenu with Bluetooth configuration choices.
 
+menu "Bluetooth controller"
+    visible if BT_ENABLED
+
+choice BTDM_CONTROLLER_MODE
+    prompt "Bluetooth controller mode (BR/EDR/BLE/DUALMODE)"
+    depends on BT_ENABLED
+    help
+        Specify the bluetooth controller mode (BR/EDR, BLE or dual mode).
+
+config BTDM_CONTROLLER_MODE_BLE_ONLY
+    bool "BLE Only"
+
+config BTDM_CONTROLLER_MODE_BR_EDR_ONLY
+    bool "BR/EDR Only"
+
+config BTDM_CONTROLLER_MODE_BTDM
+    bool "Bluetooth Dual Mode"
+
+endchoice
+
+config BTDM_CONTROLLER_BLE_MAX_CONN
+    int "BLE Max Connections"
+    depends on BTDM_CONTROLLER_MODE_BLE_ONLY || BTDM_CONTROLLER_MODE_BTDM
+    default 3
+    range 1 9
+    help
+        BLE maximum connections of bluetooth controller.
+        Each connection uses 1KB static DRAM whenever the BT controller is enabled.
+
+config BTDM_CONTROLLER_BR_EDR_MAX_ACL_CONN
+    int "BR/EDR ACL Max Connections"
+    depends on BTDM_CONTROLLER_MODE_BR_EDR_ONLY || BTDM_CONTROLLER_MODE_BTDM
+    default 2
+    range 1 7
+    help
+        BR/EDR ACL maximum connections of bluetooth controller.
+        Each connection uses 1.2KB static DRAM whenever the BT controller is enabled.
+
+config BTDM_CONTROLLER_BR_EDR_MAX_SYNC_CONN
+    int "BR/EDR Sync(SCO/eSCO) Max Connections"
+    depends on BTDM_CONTROLLER_MODE_BR_EDR_ONLY || BTDM_CONTROLLER_MODE_BTDM
+    default 0
+    range 0 3
+    help
+        BR/EDR Synchronize maximum connections of bluetooth controller.
+        Each connection uses 2KB static DRAM whenever the BT controller is enabled.
+
+config BTDM_CONTROLLER_BLE_MAX_CONN_EFF
+    int
+    default BTDM_CONTROLLER_BLE_MAX_CONN if BTDM_CONTROLLER_MODE_BLE_ONLY || BTDM_CONTROLLER_MODE_BTDM
+    default 0
+
+config BTDM_CONTROLLER_BR_EDR_MAX_ACL_CONN_EFF
+    int
+    default BTDM_CONTROLLER_BR_EDR_MAX_ACL_CONN if BTDM_CONTROLLER_MODE_BR_EDR_ONLY || BTDM_CONTROLLER_MODE_BTDM
+    default 0
+
+config BTDM_CONTROLLER_BR_EDR_MAX_SYNC_CONN_EFF
+    int
+    default BTDM_CONTROLLER_BR_EDR_MAX_SYNC_CONN if BTDM_CONTROLLER_MODE_BR_EDR_ONLY || BTDM_CONTROLLER_MODE_BTDM
+    default 0
+
 choice BTDM_CONTROLLER_PINNED_TO_CORE_CHOICE
     prompt "The cpu core which bluetooth controller run"
     depends on BT_ENABLED && !FREERTOS_UNICORE
@@ -62,6 +124,7 @@ config BT_HCI_UART_BAUDRATE
     default 921600
     help
         UART Baudrate for HCI. Please use standard baudrate.
+
 endmenu
 
 menu "MODEM SLEEP Options"
@@ -70,10 +133,9 @@ menu "MODEM SLEEP Options"
 config BTDM_CONTROLLER_MODEM_SLEEP
     bool "Bluetooth modem sleep"
     depends on BT_ENABLED
-    default n
+    default y
     help
         Enable/disable bluetooth controller low power mode.
-        Note that currently there is problem in the combination use of bluetooth modem sleep and Dynamic Frequency Scaling(DFS). So do not enable DFS if bluetooth modem sleep is in use.
 
 choice BTDM_MODEM_SLEEP_MODE
     prompt "Bluetooth Modem sleep mode"
@@ -84,11 +146,13 @@ choice BTDM_MODEM_SLEEP_MODE
 config BTDM_MODEM_SLEEP_MODE_ORIG
     bool "ORIG Mode(sleep with low power clock)"
     help
-        ORIG mode is a deep sleep mode that can be used for dual mode controller. In this mode, bluetooth controller sleeps between BR/EDR frames and BLE events. A low power clock is used to maintain bluetooth reference clock.
+        ORIG mode is a bluetooth sleep mode that can be used for dual mode controller. In this mode, bluetooth controller
+        sleeps between BR/EDR frames and BLE events. A low power clock is used to maintain bluetooth reference clock.
 config BTDM_MODEM_SLEEP_MODE_EVED
-    bool "EVED Mode "
+    bool "EVED Mode(For internal test only)"
     help
-        This mode is for BLE only.
+        EVED mode is for BLE only and is only for internal test. Do not use it for production. this mode is not compatible
+        with DFS nor light sleep
 endchoice
 
 choice BTDM_LOW_POWER_CLOCK
@@ -99,10 +163,94 @@ choice BTDM_LOW_POWER_CLOCK
 
 config BTDM_LPCLK_SEL_MAIN_XTAL
     bool "Main crystal"
+    help
+        Main crystal can be used as low power clock for bluetooth modem sleep. If this option is selected, bluetooth
+        modem sleep can work under Dynamic Frequency Scaling(DFS) enabled, but cannot work when light sleep is enabled.
+        Main crystal has a relatively better performance than other bluetooth low power clock sources.
 config BTDM_LPCLK_SEL_EXT_32K_XTAL
     bool "External 32kHz crystal"
     depends on ESP32_RTC_CLOCK_SOURCE_EXTERNAL_CRYSTAL
 endchoice
+
+endmenu
+
+config BLE_SCAN_DUPLICATE
+    bool "BLE Scan Duplicate Options"
+    depends on (BTDM_CONTROLLER_MODE_BTDM || BTDM_CONTROLLER_MODE_BLE_ONLY)
+    default y
+    help
+        This select enables parameters setting of BLE scan duplicate.
+
+choice SCAN_DUPLICATE_TYPE
+    prompt "Scan Duplicate Type"
+    default SCAN_DUPLICATE_BY_DEVICE_ADDR
+    depends on BLE_SCAN_DUPLICATE
+    help
+        Scan duplicate have three ways. one is "Scan Duplicate By Device Address", This way is to use advertiser address
+        filtering. The adv packet of the same address is only allowed to be reported once. Another way is "Scan Duplicate
+        By Device Address And Advertising Data". This way is to use advertising data and device address filtering. All
+        different adv packets with the same address are allowed to be reported. The last way is "Scan Duplicate By Advertising
+        Data". This way is to use advertising data filtering. All same advertising data only allow to be reported once even though
+        they are from different devices.
+
+config SCAN_DUPLICATE_BY_DEVICE_ADDR
+    bool "Scan Duplicate By Device Address"
+    help
+        This way is to use advertiser address filtering. The adv packet of the same address is only allowed to be reported once
+
+config SCAN_DUPLICATE_BY_ADV_DATA
+    bool "Scan Duplicate By Advertising Data"
+    help
+    This way is to use advertising data filtering. All same advertising data only allow to be reported once even though
+    they are from different devices.
+
+config SCAN_DUPLICATE_BY_ADV_DATA_AND_DEVICE_ADDR
+    bool "Scan Duplicate By Device Address And Advertising Data"
+    help
+    This way is to use advertising data and device address filtering. All different adv packets with the same address are
+    allowed to be reported.
+endchoice
+
+config SCAN_DUPLICATE_TYPE
+    int
+    depends on BLE_SCAN_DUPLICATE
+    default 0 if SCAN_DUPLICATE_BY_DEVICE_ADDR
+    default 1 if SCAN_DUPLICATE_BY_ADV_DATA
+    default 2 if SCAN_DUPLICATE_BY_ADV_DATA_AND_DEVICE_ADDR
+    default 0
+
+config DUPLICATE_SCAN_CACHE_SIZE
+    int "Maximum number of devices in scan duplicate filter"
+    depends on BLE_SCAN_DUPLICATE
+    range 10 1000
+    default 200
+    help
+        Maximum number of devices which can be recorded in scan duplicate filter.
+        When the maximum amount of device in the filter is reached, the cache will be refreshed.
+
+config BLE_MESH_SCAN_DUPLICATE_EN
+    bool "Special duplicate scan mechanism for BLE Mesh scan"
+    depends on BLE_SCAN_DUPLICATE
+    default n
+    help
+        This enables the BLE scan duplicate for special BLE Mesh scan.
+
+config MESH_DUPLICATE_SCAN_CACHE_SIZE
+    int "Maximum number of Mesh adv packets in scan duplicate filter"
+    depends on BLE_MESH_SCAN_DUPLICATE_EN
+    range 10 1000
+    default 200
+    help
+        Maximum number of adv packets which can be recorded in duplicate scan cache for BLE Mesh.
+        When the maximum amount of device in the filter is reached, the cache will be refreshed.
+
+config BTDM_CONTROLLER_FULL_SCAN_SUPPORTED
+    bool "BLE full scan feature supported"
+    depends on BTDM_CONTROLLER_MODE_BLE_ONLY
+    default n
+    help
+        The full scan function is mainly used to provide BLE scan performance.
+        This is required for scenes with high scan performance requirements, such as BLE Mesh scenes.
 
 endmenu
 
@@ -141,6 +289,13 @@ config BTC_TASK_STACK_SIZE
     help
         This select btc task stack size
 
+config BTU_TASK_STACK_SIZE
+    int "Bluetooth Bluedroid Host Stack task stack size"
+    depends on BLUEDROID_ENABLED
+    default 4096
+    help
+        This select btu task stack size
+
 config BLUEDROID_MEM_DEBUG
     bool "Bluedroid memory debug"
     depends on BLUEDROID_ENABLED
@@ -154,11 +309,6 @@ config CLASSIC_BT_ENABLED
     default n
     help
         For now this option needs "SMP_ENABLE" to be set to yes
-
-config BT_SSP_ENABLE
-   bool "Enable Secure Simple Pairing"
-   depends on CLASSIC_BT_ENABLED
-   default CLASSIC_BT_ENABLED
 
 config A2DP_ENABLE
     bool "A2DP"
@@ -211,30 +361,63 @@ config HFP_AUDIO_DATA_PATH_HCI
         This enables the Serial Port Profile
 endchoice
 
+config BT_SSP_ENABLED
+    bool "Secure Simple Pairing"
+    depends on CLASSIC_BT_ENABLED
+    default y
+    help
+        This enables the Secure Simple Pairing. If disable this option, Bluedroid will only support Legacy Pairing
+
 config GATTS_ENABLE
     bool "Include GATT server module(GATTS)"
-    depends on BLUEDROID_ENABLED
+    depends on BLUEDROID_ENABLED && (BTDM_CONTROLLER_MODE_BTDM || BTDM_CONTROLLER_MODE_BLE_ONLY)
     default y
     help
         This option can be disabled when the app work only on gatt client mode
 
+choice GATTS_SEND_SERVICE_CHANGE_MODE
+    prompt "GATTS Service Change Mode"
+    default GATTS_SEND_SERVICE_CHANGE_AUTO
+    depends on GATTS_ENABLE
+    help
+        Service change indication mode for GATT Server.
+
+config GATTS_SEND_SERVICE_CHANGE_MANUAL
+    bool "GATTS manually send service change indication"
+    help
+        Manually send service change indication through API esp_ble_gatts_send_service_change_indication()
+
+config GATTS_SEND_SERVICE_CHANGE_AUTO
+    bool "GATTS automatically send service change indication"
+    help
+        Let Bluedroid handle the service change indication internally
+
+endchoice
+
+config GATTS_SEND_SERVICE_CHANGE_MODE
+    int
+    depends on GATTS_ENABLE
+    default 0 if GATTS_SEND_SERVICE_CHANGE_AUTO
+    default 1 if GATTS_SEND_SERVICE_CHANGE_MANUAL
+    default 0
+
 config GATTC_ENABLE
     bool "Include GATT client module(GATTC)"
-    depends on BLUEDROID_ENABLED
+    depends on BLUEDROID_ENABLED && (BTDM_CONTROLLER_MODE_BTDM || BTDM_CONTROLLER_MODE_BLE_ONLY)
     default y
     help
         This option can be close when the app work only on gatt server mode
 
 config GATTC_CACHE_NVS_FLASH
     bool "Save gattc cache data to nvs flash"
-    depends on GATTC_ENABLE
+    depends on GATTC_ENABLE && (BTDM_CONTROLLER_MODE_BTDM || BTDM_CONTROLLER_MODE_BLE_ONLY)
     default n
     help
         This select can save gattc cache data to nvs flash
 
 config BLE_SMP_ENABLE
    bool "Include BLE security module(SMP)"
-   depends on BLUEDROID_ENABLED
+   depends on BLUEDROID_ENABLED && (BTDM_CONTROLLER_MODE_BTDM || BTDM_CONTROLLER_MODE_BLE_ONLY)
    default y
    help
        This option can be close when the app not used the ble security connect.
@@ -1014,41 +1197,9 @@ config BLE_HOST_QUEUE_CONGESTION_CHECK
     depends on BLUEDROID_ENABLED
     default n
     help
-        When scanning and scan duplicate is not enabled, if there are a lot of adv packets around or application layer 
-        handling adv packets is slow, it will cause the controller memory to run out. if enabled, adv packets will be 
+        When scanning and scan duplicate is not enabled, if there are a lot of adv packets around or application layer
+        handling adv packets is slow, it will cause the controller memory to run out. if enabled, adv packets will be
         lost when host queue is congested.
-
-config BLE_SCAN_DUPLICATE
-    bool "BLE Scan Duplicate Options "
-    depends on BLUEDROID_ENABLED
-    default y
-    help
-        This select enables parameters setting of BLE scan duplicate.
-
-config DUPLICATE_SCAN_CACHE_SIZE
-    int "Maximum number of devices in scan duplicate filter"
-    depends on BLE_SCAN_DUPLICATE
-    range 10 1000
-    default 50
-    help
-        Maximum number of devices which can be recorded in scan duplicate filter.
-        When the maximum amount of device in the filter is reached, the cache will be refreshed.
-
-config BLE_MESH_SCAN_DUPLICATE_EN
-    bool "Special duplicate scan mechanism for BLE Mesh scan"
-    depends on BLE_SCAN_DUPLICATE
-    default n
-    help
-        This enables the BLE scan duplicate for special BLE Mesh scan.
-
-config MESH_DUPLICATE_SCAN_CACHE_SIZE
-    int "Maximum number of Mesh adv packets in scan duplicate filter"
-    depends on BLE_MESH_SCAN_DUPLICATE_EN
-    range 10 1000
-    default 100
-    help
-        Maximum number of adv packets which can be recorded in duplicate scan cache for BLE Mesh.
-        When the maximum amount of device in the filter is reached, the cache will be refreshed.
 
 config SMP_ENABLE
    bool
@@ -1058,7 +1209,7 @@ config SMP_ENABLE
 # Memory reserved at start of DRAM for Bluetooth stack
 config BT_RESERVE_DRAM
     hex
-    default 0x10000 if BT_ENABLED
+    default 0xdb5c if BT_ENABLED
     default 0
 
 endmenu

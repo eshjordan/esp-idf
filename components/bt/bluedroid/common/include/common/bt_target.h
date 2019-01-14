@@ -88,6 +88,10 @@
 #endif
 #endif  /* CONFIG_HFP_HF_ENABLE */
 
+#if CONFIG_BT_SSP_ENABLED
+#define BT_SSP_INCLUDED             TRUE
+#endif /* CONFIG_BT_SSP_ENABLED */
+
 #endif /* #if CONFIG_CLASSIC_BT_ENABLED */
 
 #ifndef CLASSIC_BT_INCLUDED
@@ -128,12 +132,6 @@
 #define SMP_INCLUDED              FALSE
 #define BLE_PRIVACY_SPT           FALSE
 #endif  /* CONFIG_SMP_ENABLE */
-
-#if (CONFIG_BT_SSP_ENABLE)
-#define BT_SSP_INCLUDED              TRUE
-#else
-#define BT_SSP_INCLUDED              FALSE
-#endif  /* CONFIG_BT_SSP_ENABLE */
 
 #if (CONFIG_BT_ACL_CONNECTIONS)
 #define MAX_ACL_CONNECTIONS  CONFIG_BT_ACL_CONNECTIONS
@@ -323,6 +321,12 @@
 #define SCAN_QUEUE_CONGEST_CHECK  CONFIG_BLE_HOST_QUEUE_CONGESTION_CHECK
 #endif
 
+#ifndef CONFIG_GATTS_SEND_SERVICE_CHANGE_MODE
+#define GATTS_SEND_SERVICE_CHANGE_MODE GATTS_SEND_SERVICE_CHANGE_AUTO
+#else
+#define GATTS_SEND_SERVICE_CHANGE_MODE CONFIG_GATTS_SEND_SERVICE_CHANGE_MODE
+#endif
+
 /* This feature is used to eanble interleaved scan*/
 #ifndef BTA_HOST_INTERLEAVE_SEARCH
 #define BTA_HOST_INTERLEAVE_SEARCH FALSE//FALSE
@@ -360,6 +364,9 @@
 // idle state for FTS, OPS connections
 #ifndef BTA_FTS_OPS_IDLE_TO_SNIFF_DELAY_MS
 #define BTA_FTS_OPS_IDLE_TO_SNIFF_DELAY_MS 7000
+#endif
+#ifndef BTA_FTC_OPS_IDLE_TO_SNIFF_DELAY_MS
+#define BTA_FTC_OPS_IDLE_TO_SNIFF_DELAY_MS 5000
 #endif
 
 //------------------End added from bdroid_buildcfg.h---------------------
@@ -616,9 +623,18 @@
 */
 #define BTA_DM_COD_LOUDSPEAKER {0x2C, 0x04, 0x14}
 
+/*
+* {SERVICE_CLASS, MAJOR_CLASS, MINOR_CLASS}
+*
+* SERVICE_CLASS:0x00 None
+* MAJOR_CLASS:0x1f - Uncategorized: device code not specified
+* MINOR_CLASS:0x00 - None
+*/
+#define BTA_DM_COD_UNCLASSIFIED {0x00, 0x1f, 0x00}
+
 /* Default class of device */
 #ifndef BTA_DM_COD
-#define BTA_DM_COD BTA_DM_COD_LOUDSPEAKER
+#define BTA_DM_COD BTA_DM_COD_UNCLASSIFIED
 #endif
 
 /* The number of SCO links. */
@@ -997,7 +1013,7 @@
 #endif
 
 #ifndef BTM_BLE_ADV_TX_POWER
-#define BTM_BLE_ADV_TX_POWER {-21, -15, -7, 1, 9}
+#define BTM_BLE_ADV_TX_POWER {-12, -9, -6, -3, 0, 3, 6, 9}
 #endif
 
 

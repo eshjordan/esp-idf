@@ -181,6 +181,7 @@ typedef UINT16 tBTA_SEC;
 /* Ignore for Discoverable, Connectable only for LE modes */
 #define BTA_DM_LE_IGNORE           0xFF00
 
+#define BTA_APP_ID_1               1    /* PM example profile 1 */
 #define BTA_APP_ID_PAN_MULTI    0xFE    /* app id for pan multiple connection */
 #define BTA_ALL_APP_ID          0xFF
 
@@ -397,6 +398,8 @@ typedef struct {
     UINT8                   flag;
     UINT8                   tx_power;
 } tBTA_BLE_ADV_DATA;
+
+typedef void (tBTA_UPDATE_DUPLICATE_EXCEPTIONAL_LIST_CMPL_CBACK) (tBTA_STATUS status, uint8_t subcode, uint32_t length, uint8_t *device_info);
 
 typedef void (tBTA_SET_ADV_DATA_CMPL_CBACK) (tBTA_STATUS status);
 
@@ -765,6 +768,7 @@ typedef struct {
     UINT8           fail_reason;        /* The HCI reason/error code for when success=FALSE */
     tBLE_ADDR_TYPE  addr_type;          /* Peer device address type */
     tBT_DEVICE_TYPE dev_type;
+    UINT8           auth_mode;
 } tBTA_DM_AUTH_CMPL;
 
 
@@ -1217,6 +1221,10 @@ typedef UINT8 tBTA_DM_PM_ACTION;
 #define BTA_DM_PM_SNIFF_A2DP_IDX      BTA_DM_PM_SNIFF
 #endif
 
+#ifndef BTA_DM_PM_SNIFF_JV_IDX
+#define BTA_DM_PM_SNIFF_JV_IDX      BTA_DM_PM_SNIFF
+#endif
+
 #ifndef BTA_DM_PM_SNIFF_HD_IDLE_IDX
 #define BTA_DM_PM_SNIFF_HD_IDLE_IDX   BTA_DM_PM_SNIFF2
 #endif
@@ -1572,6 +1580,18 @@ extern void BTA_DmBondCancel(BD_ADDR bd_addr);
 
 /*******************************************************************************
 **
+** Function         BTA_DMSetPinType
+**
+** Description      This function sets pin type as BTM_PIN_TYPE_FIXED or BTM_PIN_TYPE_VARIABLE
+**
+**
+** Returns          void
+**
+*******************************************************************************/
+extern void BTA_DMSetPinType (UINT8 pin_type, UINT8 *pin_code, UINT8 pin_code_len);
+
+/*******************************************************************************
+**
 ** Function         BTA_DmPinReply
 **
 ** Description      This function provides a PIN when one is requested by DM
@@ -1598,6 +1618,22 @@ extern void BTA_DmPinReply(BD_ADDR bd_addr, BOOLEAN accept, UINT8 pin_len,
 **
 *******************************************************************************/
 extern void BTA_DmLocalOob(void);
+
+/*******************************************************************************
+**
+** Function         BTA_DmOobReply
+**
+**                  This function is called to provide the OOB data for
+**                  SMP in response to BTM_LE_OOB_REQ_EVT
+**
+** Parameters:      bd_addr     - Address of the peer device
+**                  len         - length of simple pairing Randomizer  C
+**                  p_value     - simple pairing Randomizer  C.
+**
+** Returns          void
+**
+*******************************************************************************/
+extern void BTA_DmOobReply(BD_ADDR bd_addr, UINT8 len, UINT8 *p_value);
 #endif /* BTM_OOB_INCLUDED */
 
 /*******************************************************************************
@@ -1814,6 +1850,22 @@ extern void BTA_DmBlePasskeyReply(BD_ADDR bd_addr, BOOLEAN accept, UINT32 passke
 
 /*******************************************************************************
 **
+** Function         BTA_DmBleSetStaticPasskey
+**
+** Description      Set BLE SMP static passkey.
+**
+** Parameters:      add              - add static passkey when add is true
+**                                     clear static passkey when add is false
+**                  passkey          - static passkey value
+**
+**
+** Returns          void
+**
+*******************************************************************************/
+extern void BTA_DmBleSetStaticPasskey(bool add, uint32_t passkey);
+
+/*******************************************************************************
+**
 ** Function         BTA_DmBleConfirmReply
 **
 ** Description      Send BLE SMP SC user confirmation reply.
@@ -1836,12 +1888,13 @@ extern void BTA_DmBleConfirmReply(BD_ADDR bd_addr, BOOLEAN accept);
 **
 ** Parameters:      bd_addr          - BD address of the peer
 **                  dev_type         - Remote device's device type.
+**                  auth_mode        - auth mode
 **                  addr_type        - LE device address type.
 **
 ** Returns          void
 **
 *******************************************************************************/
-extern void BTA_DmAddBleDevice(BD_ADDR bd_addr, tBLE_ADDR_TYPE addr_type,
+extern void BTA_DmAddBleDevice(BD_ADDR bd_addr, tBLE_ADDR_TYPE addr_type, int auth_mode,
                                tBT_DEVICE_TYPE dev_type);
 
 
@@ -2093,6 +2146,7 @@ extern void BTA_DmBleScan(BOOLEAN start, UINT32 duration,
 extern void BTA_DmBleStopAdvertising(void);
 
 extern void BTA_DmSetRandAddress(BD_ADDR rand_addr, tBTA_SET_RAND_ADDR_CBACK *p_set_rand_addr_cback);
+extern void BTA_DmClearRandAddress(void);
 
 #endif
 
@@ -2172,6 +2226,22 @@ extern void BTA_DmBleSetAdvConfigRaw (UINT8 *p_raw_adv, UINT32 raw_adv_len,
 
 /*******************************************************************************
 **
+** Function         BTA_DmBleSetLongAdv
+**
+** Description      This function is called to set long Advertising data
+**
+** Parameters       adv_data : long advertising data.
+**                  adv_data_len : long advertising data length.
+**                  p_adv_data_cback : set long adv data complete callback.
+**
+** Returns          None
+**
+*******************************************************************************/
+void BTA_DmBleSetLongAdv (UINT8 *adv_data, UINT32 adv_data_len,
+                            tBTA_SET_ADV_DATA_CMPL_CBACK *p_adv_data_cback);
+
+/*******************************************************************************
+**
 ** Function         BTA_DmBleSetScanRsp
 **
 ** Description      This function is called to override the BTA scan response.
@@ -2200,6 +2270,24 @@ extern void BTA_DmBleSetScanRsp (tBTA_BLE_AD_MASK data_mask,
 *******************************************************************************/
 extern void BTA_DmBleSetScanRspRaw (UINT8 *p_raw_scan_rsp, UINT32 raw_scan_rsp_len,
                                     tBTA_SET_ADV_DATA_CMPL_CBACK *p_scan_rsp_data_cback);
+
+/*******************************************************************************
+**
+** Function         BTA_DmUpdateDuplicateExceptionalList
+**
+** Description      This function is called to update duplicate scan exceptional list
+**
+** Parameters       subcode : add, remove or clean duplicate scan exceptional list.
+**                  type : device info type.
+**                  device_info:  device info
+**                  p_update_duplicate_ignore_list_cback :  update complete callback.
+**
+** Returns          None
+**
+*******************************************************************************/
+extern void BTA_DmUpdateDuplicateExceptionalList(UINT8 subcode, UINT32 type, 
+                                                BD_ADDR device_info, 
+                                                tBTA_UPDATE_DUPLICATE_EXCEPTIONAL_LIST_CMPL_CBACK p_update_duplicate_exceptional_list_cback);
 
 /*******************************************************************************
 **

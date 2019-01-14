@@ -2192,9 +2192,10 @@ void gatt_end_operation(tGATT_CLCB *p_clcb, tGATT_STATUS status, void *p_data)
         (*p_disc_cmpl_cb)(conn_id, disc_type, status);
     } else if (p_cmpl_cb && op) {
         (*p_cmpl_cb)(conn_id, op, status, &cb_data);
-    } else
+    } else {
         GATT_TRACE_WARNING ("gatt_end_operation not sent out op=%d p_disc_cmpl_cb:%p p_cmpl_cb:%p",
                             operation, p_disc_cmpl_cb, p_cmpl_cb);
+    }
 }
 
 /*******************************************************************************
@@ -2258,6 +2259,7 @@ void gatt_cleanup_upon_disc(BD_ADDR bda, UINT16 reason, tBT_TRANSPORT transport)
         GATT_TRACE_DEBUG ("exit gatt_cleanup_upon_disc ");
         BTM_Recovery_Pre_State();
     }
+    gatt_delete_dev_from_srv_chg_clt_list(bda);
 }
 /*******************************************************************************
 **

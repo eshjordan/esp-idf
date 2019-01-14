@@ -1,12 +1,13 @@
-API Guides
+API 指南
 **********
 
 .. toctree::
    :maxdepth: 1
 
-   General Notes <general-notes>
-   Build System <build-system>
-   Error Handling <error-handling>
+   一般注意事项 <general-notes>
+   编译系统 <build-system>
+   编译系统 (CMake) <build-system-cmake>
+   错误处理 <error-handling>
    Fatal Errors <fatal-errors>
    Deep Sleep Wake Stubs <deep-sleep-stub>
    ESP32 Core Dump <core_dump>
@@ -16,14 +17,18 @@ API Guides
    High Level Interrupts <hlinterrupts>
    JTAG Debugging <jtag-debugging/index>
    Bootloader <bootloader>
-   Partition Tables <partition-tables>
+   分区表 <partition-tables>
    Secure Boot <../security/secure-boot>
    ULP Coprocessor <ulp>
-   Unit Testing <unit-tests>
+   ULP Coprocessor (CMake) <ulp-cmake>
+   单元测试 <unit-tests>
+   单元测试 (CMake) <unit-tests-cmake>
    Application Level Tracing <app_trace>
-   Console Component <console>
+   控制台终端组件 <console>
    ROM debug console <romconsole>
+   RF Calibration <RF_calibration>
    WiFi Driver <wifi>
-   Mesh Stack <mesh>
+   ESP-MESH <mesh>
    BluFi <blufi>
    External SPI-connected RAM <external-ram>
+   Linker Script Generation <linker-script-generation>

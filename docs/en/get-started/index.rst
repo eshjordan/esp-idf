@@ -117,17 +117,22 @@ Get ESP-IDF
 
 Besides the toolchain (that contains programs to compile and build the application), you also need ESP32 specific API / libraries. They are provided by Espressif in `ESP-IDF repository <https://github.com/espressif/esp-idf>`_.
 
-.. include:: /_build/inc/git-clone.inc
+To obtain a local copy: open terminal, navigate to the directory you want to put ESP-IDF, and clone the repository using ``git clone`` command:
+
+.. include:: /_build/inc/git-clone-bash.inc
+
+ESP-IDF will be downloaded into ``~/esp/esp-idf``.
 
 Consult :doc:`/versions` for information about which version of ESP-IDF to use in a given situation.
+
+.. include:: /_build/inc/git-clone-notes.inc
 
 .. note::
 
     Do not miss the ``--recursive`` option. If you have already cloned ESP-IDF without this option, run another command to get all the submodules::
 
-        cd ~/esp/esp-idf
+        cd esp-idf
         git submodule update --init --recursive
-
 
 .. _get-started-setup-path:
 
@@ -136,6 +141,22 @@ Setup Path to ESP-IDF
 
 The toolchain programs access ESP-IDF using ``IDF_PATH`` environment variable. This variable should be set up on your PC, otherwise projects will not build. Setting may be done manually, each time PC is restarted. Another option is to set up it permanently by defining ``IDF_PATH`` in user profile. To do so, follow instructions specific to :ref:`Windows <add-idf_path-to-profile-windows>` , :ref:`Linux and MacOS <add-idf_path-to-profile-linux-macos>` in section :doc:`add-idf_path-to-profile`.
 
+.. _get-started-get-packages:
+
+Install the Required Python Packages
+====================================
+
+Python packages required by ESP-IDF are located in the ``$IDF_PATH/requirements.txt`` file. You can install them by running::
+
+    python -m pip install --user -r $IDF_PATH/requirements.txt
+
+.. note::
+
+    Please invoke that version of the Python interpreter which you will be using with ESP-IDF. The version of the
+    interpreter can be checked by running command ``python --version`` and depending on the result, you might want to
+    use ``python2``, ``python2.7`` or similar instead of ``python``, e.g.::
+
+        python2.7 -m pip install --user -r $IDF_PATH/requirements.txt
 
 .. _get-started-start-project:
 
@@ -202,6 +223,11 @@ Here are couple of tips on navigation and use of ``menuconfig``:
 .. note::
 
     If you are **Arch Linux** user, navigate to ``SDK tool configuration`` and change the name of ``Python 2 interpreter`` from ``python`` to ``python2``.
+
+
+.. attention::
+
+    When using ESP32-DevKitC board with ESP32-SOLO-1 module, enable single core mode (:ref:`CONFIG_FREERTOS_UNICORE`) in menuconfig before flashing example applications.
 
 
 .. _get-started-build-flash:
@@ -286,7 +312,7 @@ To exit the monitor use shortcut ``Ctrl+]``.
         e���)(Xn@�y.!��(�PW+)��Hn9a؅/9�!�t5��P�~�k��e�ea�5�jA
         ~zY��Y(1�,1�� e���)(Xn@�y.!Dr�zY(�jpi�|�+z5Ymvp
 
-    or monitor fails shortly after upload, your board is likely using 26MHz crystal, while the ESP-IDF assumes default of 40MHz. Exit the monitor, go back to the :ref:`menuconfig <get-started-configure>`, change :envvar:`CONFIG_ESP32_XTAL_FREQ_SEL` to 26MHz, then :ref:`build and flash <get-started-build-flash>` the application again. This is found under ``make menuconfig`` under Component config --> ESP32-specific --> Main XTAL frequency.
+    or monitor fails shortly after upload, your board is likely using 26MHz crystal, while the ESP-IDF assumes default of 40MHz. Exit the monitor, go back to the :ref:`menuconfig <get-started-configure>`, change :ref:`CONFIG_ESP32_XTAL_FREQ_SEL` to 26MHz, then :ref:`build and flash <get-started-build-flash>` the application again. This is found under ``make menuconfig`` under Component config --> ESP32-specific --> Main XTAL frequency.
 
 To execute ``make flash`` and ``make monitor`` in one go, type ``make flash monitor``. Check section :doc:`IDF Monitor <idf-monitor>` for handy shortcuts and more details on using this application.
 
@@ -294,6 +320,33 @@ That's all what you need to get started with ESP32!
 
 Now you are ready to try some other :idf:`examples`, or go right to developing your own applications.
 
+
+Environment Variables
+=====================
+
+Some environment variables can be specified whilst calling ``make`` allowing users to **override arguments without needing to reconfigure them using** ``make menuconfig``.
+
++-----------------+--------------------------------------------------------------+
+| Variables       | Description & Usage                                          |
++=================+==============================================================+
+| ``ESPPORT``     | Overrides the serial port used in ``flash`` and ``monitor``. |
+|                 |                                                              |
+|                 | Examples: ``make flash ESPPORT=/dev/ttyUSB1``,               |
+|                 | ``make monitor ESPPORT=COM1``                                |
++-----------------+--------------------------------------------------------------+
+| ``ESPBAUD``     | Overrides the serial baud rate when flashing the ESP32.      |
+|                 |                                                              |
+|                 | Example: ``make flash ESPBAUD=9600``                         |
++-----------------+--------------------------------------------------------------+
+| ``MONITORBAUD`` | Overrides the serial baud rate used when monitoring.         |
+|                 |                                                              |
+|                 | Example: ``make monitor MONITORBAUD=9600``                   |
++-----------------+--------------------------------------------------------------+
+
+.. note::
+    Users can export environment variables (e.g. ``export ESPPORT=/dev/ttyUSB1``).
+    All subsequent calls of ``make`` within the same terminal session will use 
+    the exported value given that the variable is not simultaneously overridden.
 
 Updating ESP-IDF
 ================

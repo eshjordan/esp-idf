@@ -18,10 +18,6 @@ Eclipse IDE 是一个可视化的集成开发环境，可用于编写、编译�
 
 * 运行 Eclipse Installer，选择 “Eclipse for C/C++ Development”（有的版本也可能显示为 CDT）。
 
-Windows 用户
-============
-
-在 Windows 平台上使用 Eclipse IDE 的用户，请参考 :ref:`Windows 用户的 Eclipse IDE 使用指南 <eclipse-windows-setup>`。
 
 配置 Eclipse IDE
 =================
@@ -51,7 +47,7 @@ Windows 用户
 
 * 再次点击 “Add...”，并在 “IDF_PATH” 中输入 ESP-IDF 所在的完整安装路径。
 
-* 选择 “PATH” 环境变量，不要改变默认值。如果 Xtensa 工具链的路径尚不在 “PATH” 列表中，则应将该路径 (``something/xtensa-esp32-elf/bin``) 增加至列表。
+* 选择 “PATH” 环境变量，不要改变默认值。如果 Xtensa 工具链的路径尚不在 “PATH” 列表中，则应将该路径 (``something/xtensa-esp32-elf/bin``) 增加至列表，工具链的典型路径类似于 ``/home/user-name/esp/xtensa-esp32-elf/bin``。请注意您需要在附加路径前添加冒号 ``:``。Windows 用户需要将 ``C:\msys32\mingw32\bin;C:\msys32\opt\xtensa-esp32-elf\bin;C:\msys32\usr\bin`` 添加到 ``PATH`` 环境变量的靠前位置（如果您将 msys32 安装到了其它目录，则需要更改对应的路径以匹配您的本地环境）。
 
 * 在 macOS 平台上，增加一个 “PYTHONPATH” 环境变量，并将其设置为 ``/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/site-packages``， 保证系统中预先安装的 Python （需安装 pyserial 模块）可以覆盖 Eclipse 内置的任何 Python。
 
@@ -59,7 +55,7 @@ Windows 用户
 
 	* 点击 “Providers” 选项卡。
 	
-		* 从 “Providers” 列表中选择 “CDT Cross GCC Built-in Compiler Settings”，将 “Command to get compiler specs” 修改为 ``xtensa-esp32-elf-gcc ${FLAGS} -E -P -v -dD "${INPUTS}"``
+		* 从 “Providers” 列表中选择 “CDT Cross GCC Built-in Compiler Settings”，将 “Command to get compiler specs” 修改为 ``xtensa-esp32-elf-gcc ${FLAGS} -std=c++11 -E -P -v -dD "${INPUTS}"``
 		
 		* 从 “Providers” 列表中选择 “CDT GCC Build Output Parser”，将 “Compiler command pattern” 修改为 ``xtensa-esp32-elf-(gcc|g\+\+|c\+\+|cc|cpp|clang)``
 
@@ -74,6 +70,10 @@ Windows 用户
 .. note::
 
     取消选中 “Allow heuristic resolution of includes”。因为启用此选项时，有时会导致 Eclipse 无法找到正确的头文件目录。
+
+点击 “C/C++ Build” -> “Behavior” 属性页。
+
+* 选中 “Enable parallel build” 以启用多任务并行构建。
 
 .. _eclipse-build-project:
 
@@ -108,14 +108,6 @@ Windows 用户
 注意，您将需要通过 ``make menuconfig``，设置串行端口和其他烧录选项。``make menuconfig`` 仍需通过命令行操作（请见平台的对应指南）。
 
 如有需要，请按照相同步骤添加 ``bootloader`` 和 ``partition_table``。
-
-相关文档
---------
-
-.. toctree::
-    :maxdepth: 1
-
-    eclipse-setup-windows
 
 
 .. _eclipse.org: https://www.eclipse.org/

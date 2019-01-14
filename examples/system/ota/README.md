@@ -55,10 +55,10 @@ openssl req -x509 -newkey rsa:2048 -keyout ca_key.pem -out ca_cert.pem -days 365
 
 ```
 
-Copy the certificate to OTA example directory:
+Copy the certificate to `server_certs` directory inside OTA example directory:
 
 ```
-cp ca_cert.pem $IDF_PATH/examples/system/ota/server_certs/ca_cert.pem
+cp ca_cert.pem /path/to/ota/example/server_certs/
 ```
 
 
@@ -97,8 +97,8 @@ It allows to run the newly loaded app from a factory partition.
 make flash
 ```
 
-After first update, if you want to return back to factory app (or the first OTA partition, if factory partition is not present) then use the command `make erase_ota`. 
-It erases ota_data partition to initial.
+After first update, if you want to return back to factory app (or the first OTA partition, if factory partition is not present) then use the command `make erase_otadata`. 
+It erases the ota_data partition to initial state. **Take note that this assumes that the partition table of this project is the one that is on the device**.
 
 ### Step 5: Run the OTA Example
 
