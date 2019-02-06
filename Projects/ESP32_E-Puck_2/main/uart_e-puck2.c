@@ -98,6 +98,9 @@ void advsercom_task(void *pvParameter) {
 				// Send the requests based on asercom protocol.
 				// Beware: from various tests resulted that at most 24 bytes are correctly sent to the F407, 
 				// if you try sending more data than this, then the data are corrupted. To be analysed deeper...
+				//if(uart_tx_buff[UART_TX_BUFF_SIZE-2]!=0) {
+				//	printf("wrong cmd %d!\r\n", uart_tx_buff[UART_TX_BUFF_SIZE-2]);
+				//}
 				len = uart_tx_chars(UART_407, (char*)&uart_tx_buff[0], UART_TX_BUFF_SIZE);
 				//printf("sending...\r\n");
 				//uart_wait_tx_done(UART_407, portMAX_DELAY);	

@@ -9,6 +9,7 @@ Functions to configure and use the socket to exchange data through WiFi.
 */
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -72,6 +73,10 @@ void socket_task(void *pvParameter) {
 	uint8_t actuators_buff[ACTUATORS_BUFF_LEN], actuators_buff_last[ACTUATORS_BUFF_LEN]; // Packet id (1) + behavior/others (1) + speed left (2) + speed right (2) + LEDs (1) + RGB LEDs (12) + sound (1)	
 	uint8_t header[1];
 	uint8_t conn_error = 0;
+	uint8_t valid_cmd_received = 0;
+	int rx_bytes_not_read = 0;
+	int16_t bytes_sent = 0;
+	uint16_t num_cmd_packets = 0;
 	
 	while(1) {
 		evg_bits = xEventGroupGetBits(socket_event_group);
@@ -113,6 +118,7 @@ void socket_task(void *pvParameter) {
 			case 2: // Wait connection from a peer.
 				//rgb_update_led2(0, 100, 0);
 				rgb_led2_gpio_set(1, 0, 1);
+				valid_cmd_received = 0;
     		    printf("socket_server: waiting for connection\n");
     		    client_sock = accept(server_sock, (struct sockaddr *)&client_addr, &client_addr_len);
     		    if (client_sock < 0) {
@@ -125,9 +131,36 @@ void socket_task(void *pvParameter) {
     		    conn_state = 3;
 				conn_error = 0;
 				memset(actuators_buff_last, 0, ACTUATORS_BUFF_LEN);
+				
+				/*
+				int n;
+				unsigned int m = sizeof(n);
+				getsockopt(client_sock, SOL_SOCKET, SO_RCVBUF,(void *)&n, &m);
+				printf("rx buff size = %d\r\n", n);
+				getsockopt(client_sock, SOL_SOCKET, SO_SNDBUF,(void *)&n, &m);
+				printf("tx buff size = %d\r\n", n);
+				*/
 				break;
 				
-			case 3: // Receive commands (new actuators values).				
+			case 3: // Receive commands (new actuators values).	
+				ioctl(client_sock, FIONREAD, &rx_bytes_not_read );
+				//printf("rx state = %d\r\n", rx_bytes_not_read);
+				
+				if(rx_bytes_not_read >= ACTUATORS_BUFF_LEN*5) { // Flush the input buffer to keep the robot responsive to recent commands.
+					//printf("flushing rx...\r\n");
+					num_cmd_packets = rx_bytes_not_read/ACTUATORS_BUFF_LEN;
+					if((num_cmd_packets*ACTUATORS_BUFF_LEN) == rx_bytes_not_read) {	// Keep the last command valid.
+						for(int i=0; i<(num_cmd_packets-1); i++) {
+							recv(client_sock, &actuators_buff[0], ACTUATORS_BUFF_LEN, MSG_DONTWAIT);
+						}
+					} else { // The new command is partially received, so keep it and remove all the previous ones.
+						//printf("b");
+						for(int i=0; i<num_cmd_packets; i++) {
+							recv(client_sock, &actuators_buff[0], ACTUATORS_BUFF_LEN, MSG_DONTWAIT);
+						}
+					}
+				}	
+				
 				len = recv(client_sock, &actuators_buff[0], ACTUATORS_BUFF_LEN, MSG_DONTWAIT);
 				if(len < 0) {
 					if(get_socket_error_code(client_sock) != 11) { // When error code is 11, it means that no data was available, so continue normally with the next state, otherwise terminate the connection.
@@ -135,20 +168,32 @@ void socket_task(void *pvParameter) {
 						conn_state = 2;
 						break;
 					}
-				} else if(len == ACTUATORS_BUFF_LEN) {
+				} else if((len==ACTUATORS_BUFF_LEN) && (actuators_buff[0]==0x80)) {
+					valid_cmd_received = 1;
 					memcpy(actuators_buff_last, actuators_buff, ACTUATORS_BUFF_LEN);					
-				}
-							
-				// Check id == 0x80 needed??
-				uart_set_actuators_state(actuators_buff_last);
-				if(actuators_buff_last[1] == 0x00) {
-					conn_state = 6;
-				} else if(actuators_buff_last[1]&0x01) {
-					conn_state = 4; // Send image first.
-				} else if(actuators_buff_last[1]&0x02) {
-					conn_state = 5; // Send only sensors.
+				} else {
+					//printf("received only %d bytes, wait for the remaining\r\n", len);
+					len += recv(client_sock, &actuators_buff[len], ACTUATORS_BUFF_LEN-len, MSG_WAITALL);
+					memcpy(actuators_buff_last, actuators_buff, ACTUATORS_BUFF_LEN);
 				}
 				
+				//printf("tx state = %d, %d\r\n", get_snd_buf(client_sock), get_snd_queuelen(client_sock));
+								
+				if(valid_cmd_received == 1) { // Wait for at least the first command before sending back anything.
+					//printf("cmd len = %d (%X)\n", len, actuators_buff[0]);
+					//if(actuators_buff[ACTUATORS_BUFF_LEN-1]!=0) {
+					//	printf("aaaahhh!!!\r\n");
+					//}
+					// Check id == 0x80 needed??
+					uart_set_actuators_state(actuators_buff_last);
+					if(actuators_buff_last[1] == 0x00) {
+						conn_state = 6;
+					} else if(actuators_buff_last[1]&0x01) {
+						conn_state = 4; // Send image first.
+					} else if(actuators_buff_last[1]&0x02) {
+						conn_state = 5; // Send only sensors.
+					}
+				}				
 				break;				
 				
 			case 4: // Exchanging image.
@@ -190,7 +235,7 @@ void socket_task(void *pvParameter) {
 				}
 				break;
 				
-			case 5: // Send sensors values.	
+			case 5: // Send sensors values.
 				spi_get_data_ptr(0); // This is needed to update the RGB LEDs state when the image isn't exchanged.
 				sensors_buff = uart_get_data_ptr();
 				rgb_led2_gpio_set(1, 1, 0); // Turn on blue.
@@ -199,12 +244,19 @@ void socket_task(void *pvParameter) {
     				show_socket_error_reason("send_sensor_header", client_sock);
     				conn_state = 2;
 					break;
-    			}				
-    			if( send(client_sock, &(sensors_buff->data[0]), UART_RX_BUFF_SIZE, 0) < 0) {
+    			}	
+				//printf("Send data\r\n");
+				bytes_sent = send(client_sock, &(sensors_buff->data[0]), UART_RX_BUFF_SIZE, 0);				
+    			if(bytes_sent < 0) {
     				show_socket_error_reason("send_sensor_data", client_sock);
     				conn_state = 2;
 					break;
     			}
+				if(bytes_sent < UART_RX_BUFF_SIZE) {
+					//printf("sent only %d bytes\r\n", bytes_sent);
+				} else {
+					//printf("sent\r\n");
+				}
 				rgb_led2_gpio_set(1, 1, 1); // Turn off all.
 				conn_state = 3;
 				break;
