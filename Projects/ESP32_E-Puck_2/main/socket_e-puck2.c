@@ -197,7 +197,9 @@ void socket_task(void *pvParameter) {
 				break;				
 				
 			case 4: // Exchanging image.
-				img_buff = spi_get_data_ptr(1);						
+				//rgb_led2_gpio_set(0, 1, 1); // Turn on red.
+				img_buff = spi_get_data_ptr(1);				
+				//rgb_led2_gpio_set(1, 1, 1); // Turn off all.			
     		    num_packets = MAX_BUFF_SIZE/SPI_PACKET_MAX_SIZE;
     		    remaining_bytes = MAX_BUFF_SIZE%SPI_PACKET_MAX_SIZE;
 				rgb_led2_gpio_set(1, 1, 0); // Turn on blue.
