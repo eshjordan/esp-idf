@@ -291,22 +291,22 @@ void rgb_task(void *pvParameter) {
 		event_bits = xEventGroupWaitBits(rgb_event_group, UPDATE_ALL_RGB_LEDS | UPDATE_LED2, true, false, portMAX_DELAY);
 		if(event_bits & UPDATE_ALL_RGB_LEDS) {
 			// At the moment the LED2 is used for WiFi status feedback.
-			//rgb_set_intensity(LED2, RED_LED, rgb_value[0][0], 0);
-			//rgb_set_intensity(LED2, GREEN_LED, rgb_value[0][1], 0);
-			//rgb_set_intensity(LED2, BLUE_LED, rgb_value[0][2], 0);
-			rgb_set_intensity(LED4, RED_LED, rgb_value[1][0], 0);
-			rgb_set_intensity(LED4, GREEN_LED, rgb_value[1][1], 0);
-			rgb_set_intensity(LED4, BLUE_LED, rgb_value[1][2], 0);
-			rgb_set_intensity(LED6, RED_LED, rgb_value[2][0], 0);
-			rgb_set_intensity(LED6, GREEN_LED, rgb_value[2][1], 0);
-			rgb_set_intensity(LED6, BLUE_LED, rgb_value[2][2], 0);
-			rgb_set_intensity(LED8, RED_LED, rgb_value[3][0], 0);
-			rgb_set_intensity(LED8, GREEN_LED, rgb_value[3][1], 0);
-			rgb_set_intensity(LED8, BLUE_LED, rgb_value[3][2], 0);
+			//rgb_set_intensity(LED2, RED_LED, rgb_value[0][0], 1);
+			//rgb_set_intensity(LED2, GREEN_LED, rgb_value[0][1], 1);
+			//rgb_set_intensity(LED2, BLUE_LED, rgb_value[0][2], 1);
+			rgb_set_intensity(LED4, RED_LED, rgb_value[1][0], 1);
+			rgb_set_intensity(LED4, GREEN_LED, rgb_value[1][1], 1);
+			rgb_set_intensity(LED4, BLUE_LED, rgb_value[1][2], 1);
+			rgb_set_intensity(LED6, RED_LED, rgb_value[2][0], 1);
+			rgb_set_intensity(LED6, GREEN_LED, rgb_value[2][1], 1);
+			rgb_set_intensity(LED6, BLUE_LED, rgb_value[2][2], 1);
+			rgb_set_intensity(LED8, RED_LED, rgb_value[3][0], 1);
+			rgb_set_intensity(LED8, GREEN_LED, rgb_value[3][1], 1);
+			rgb_set_intensity(LED8, BLUE_LED, rgb_value[3][2], 1);
 		} else if(event_bits & UPDATE_LED2) {
-			rgb_set_intensity(LED2, RED_LED, rgb_value[0][0], 0);
-			rgb_set_intensity(LED2, GREEN_LED, rgb_value[0][1], 0);
-			rgb_set_intensity(LED2, BLUE_LED, rgb_value[0][2], 0);		
+			rgb_set_intensity(LED2, RED_LED, rgb_value[0][0], 1);
+			rgb_set_intensity(LED2, GREEN_LED, rgb_value[0][1], 1);
+			rgb_set_intensity(LED2, BLUE_LED, rgb_value[0][2], 1);		
 		}
 	}
 }

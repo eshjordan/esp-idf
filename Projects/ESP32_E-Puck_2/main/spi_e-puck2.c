@@ -105,9 +105,9 @@ void spi_task(void *pvParameter) {
 #if 0	
 // Test single transactions with the STM32.
 	for(;;) {
-		rgb_set_intensity(LED2, RED_LED, 0, 0);
-		rgb_set_intensity(LED2, BLUE_LED, 0, 0);
-		rgb_set_intensity(LED2, GREEN_LED, 0, 0);	
+		rgb_set_intensity(LED2, RED_LED, 0, 1);
+		rgb_set_intensity(LED2, BLUE_LED, 0, 1);
+		rgb_set_intensity(LED2, GREEN_LED, 0, 1);	
 	
 		/*
 		// Small size (header) transaction testing.
@@ -116,13 +116,13 @@ void spi_task(void *pvParameter) {
 		ret = spi_slave_transmit(VSPI_HOST, &transaction, portMAX_DELAY);
 		assert(ret==ESP_OK);				
 		if(transaction.trans_len == 12*8) { // Check the correct number of bytes are received.
-			rgb_set_intensity(LED2, RED_LED, 0, 0);
-			rgb_set_intensity(LED2, BLUE_LED, 0, 0);
-			rgb_set_intensity(LED2, GREEN_LED, 100, 0);		
+			rgb_set_intensity(LED2, RED_LED, 0, 1);
+			rgb_set_intensity(LED2, BLUE_LED, 0, 1);
+			rgb_set_intensity(LED2, GREEN_LED, 100, 1);		
 		} else {
-			rgb_set_intensity(LED2, RED_LED, 100, 0);
-			rgb_set_intensity(LED2, BLUE_LED, 0, 0);
-			rgb_set_intensity(LED2, GREEN_LED, 0, 0);			
+			rgb_set_intensity(LED2, RED_LED, 100, 1);
+			rgb_set_intensity(LED2, BLUE_LED, 0, 1);
+			rgb_set_intensity(LED2, GREEN_LED, 0, 1);			
 		}		
 		*/
 		
@@ -135,14 +135,14 @@ void spi_task(void *pvParameter) {
 			continue;
 		} else if(transaction.trans_len == SPI_PACKET_MAX_SIZE*8) { // Check the correct number of bytes are received.			
 			//printf("%d)%d\r\n", image_buff_curr->data[0], transaction.trans_len);			
-			rgb_set_intensity(LED2, RED_LED, 0, 0);
-			rgb_set_intensity(LED2, BLUE_LED, 0, 0);
-			rgb_set_intensity(LED2, GREEN_LED, 100, 0);			
+			rgb_set_intensity(LED2, RED_LED, 0, 1);
+			rgb_set_intensity(LED2, BLUE_LED, 0, 1);
+			rgb_set_intensity(LED2, GREEN_LED, 100, 1);			
 		} else {	
 			printf("%d)%d\r\n", image_buff_curr->data[0], transaction.trans_len);
-			rgb_set_intensity(LED2, RED_LED, 100, 0);
-			rgb_set_intensity(LED2, BLUE_LED, 0, 0);
-			rgb_set_intensity(LED2, GREEN_LED, 0, 0);				
+			rgb_set_intensity(LED2, RED_LED, 100, 1);
+			rgb_set_intensity(LED2, BLUE_LED, 0, 1);
+			rgb_set_intensity(LED2, GREEN_LED, 0, 1);				
 			//break;
 		}
 		

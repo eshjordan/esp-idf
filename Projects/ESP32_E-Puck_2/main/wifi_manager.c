@@ -562,9 +562,9 @@ void wifi_manager( void * pvParameters ){
 	
 	} else {
 		// Indicate to the user that the robot cannot connect to the AP.
-		//rgb_set_intensity(LED2, RED_LED, 100, 0);
-		//rgb_set_intensity(LED2, GREEN_LED, 0, 0);
-		//rgb_set_intensity(LED2, BLUE_LED, 0, 0);
+		//rgb_set_intensity(LED2, RED_LED, 100, 1);
+		//rgb_set_intensity(LED2, GREEN_LED, 0, 1);
+		//rgb_set_intensity(LED2, BLUE_LED, 0, 1);
 		rgb_led2_gpio_set(0, 1, 1);
 
 		/* start the softAP access point */
@@ -757,9 +757,9 @@ void wifi_manager( void * pvParameters ){
 						socket_set_event_connected();
 
 						// Indicate to the user that the robot is connected to the AP and is waiting a connection.
-						//rgb_set_intensity(LED2, RED_LED, 0, 0);
-						//rgb_set_intensity(LED2, GREEN_LED, 100, 0);
-						//rgb_set_intensity(LED2, BLUE_LED, 0, 0);
+						//rgb_set_intensity(LED2, RED_LED, 0, 1);
+						//rgb_set_intensity(LED2, GREEN_LED, 100, 1);
+						//rgb_set_intensity(LED2, BLUE_LED, 0, 1);
 						rgb_led2_gpio_set(1, 0, 1);
 
 
