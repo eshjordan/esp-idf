@@ -25,7 +25,6 @@ Functions to control and use the bluetooth stack
 #include "btstack.h"
 #include "main_e-puck2.h"
 #include "rfcomm_e-puck2.h"
-#include "button_e-puck2.h"
 
 #define SERVICE_RECORD              0x10001   //service class id (could be everything)
 #define SERVICE_BUFFER_SIZE         150
@@ -692,13 +691,13 @@ int btstack_setup(int argc, const char * argv[]){
 		}
 	}	
 	//set the name of the device as seen by the computer the zeros are replaced by the mac adress
-	sprintf(bt_name, "e-puck2_%05d", robot_id);
+	sprintf(bt_name, "e-puck3");
 	gap_set_local_name(bt_name);
 
     //enable the discoverability of the bluetooth if the button is pressed during the startup
-    if(button_is_pressed()){
+    // if(button_is_pressed()){
         gap_discoverable_control(ENABLE);
-    }
+    // }
 
     // turn on the state machine
     hci_power_control(HCI_POWER_ON);

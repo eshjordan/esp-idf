@@ -10,7 +10,6 @@ Functions to configure and use the SPI communication between the main processor 
 #include <string.h>
 
 #include "driver/spi_slave.h"
-#include "button_e-puck2.h"
 #include "main_e-puck2.h"
 #include "rgb_led_e-puck2.h"
 
@@ -36,22 +35,22 @@ void spi_task(void *pvParameter) {
 	transaction.user=(void*)0;	// Optional user parameter for the callback.
 	
 	for(;;) {
-		spi_tx_buff[0] = button_is_pressed(); // Button status to send to F407.
+		//spi_tx_buff[0] = button_is_pressed(); // Button status to send to F407.
 		ret = spi_slave_transmit(VSPI_HOST, &transaction, portMAX_DELAY); // Wait until the master start the transaction.
 		assert(ret==ESP_OK);
 		if(transaction.trans_len == 12*8) { // Check the correct number of bytes are received.
-			rgb_set_intensity(LED2, RED_LED, spi_rx_buff[0], 0);
-			rgb_set_intensity(LED2, GREEN_LED, spi_rx_buff[1], 0);
-			rgb_set_intensity(LED2, BLUE_LED, spi_rx_buff[2], 0);
-			rgb_set_intensity(LED4, RED_LED, spi_rx_buff[3], 0);
-			rgb_set_intensity(LED4, GREEN_LED, spi_rx_buff[4], 0);
-			rgb_set_intensity(LED4, BLUE_LED, spi_rx_buff[5], 0);
-			rgb_set_intensity(LED6, RED_LED, spi_rx_buff[6], 0);
-			rgb_set_intensity(LED6, GREEN_LED, spi_rx_buff[7], 0);
-			rgb_set_intensity(LED6, BLUE_LED, spi_rx_buff[8], 0);
-			rgb_set_intensity(LED8, RED_LED, spi_rx_buff[9], 0);
-			rgb_set_intensity(LED8, GREEN_LED, spi_rx_buff[10], 0);
-			rgb_set_intensity(LED8, BLUE_LED, spi_rx_buff[11], 0);
+			// rgb_set_intensity(LED2, RED_LED, spi_rx_buff[0], 0);
+			// rgb_set_intensity(LED2, GREEN_LED, spi_rx_buff[1], 0);
+			// rgb_set_intensity(LED2, BLUE_LED, spi_rx_buff[2], 0);
+			// rgb_set_intensity(LED4, RED_LED, spi_rx_buff[3], 0);
+			// rgb_set_intensity(LED4, GREEN_LED, spi_rx_buff[4], 0);
+			// rgb_set_intensity(LED4, BLUE_LED, spi_rx_buff[5], 0);
+			// rgb_set_intensity(LED6, RED_LED, spi_rx_buff[6], 0);
+			// rgb_set_intensity(LED6, GREEN_LED, spi_rx_buff[7], 0);
+			// rgb_set_intensity(LED6, BLUE_LED, spi_rx_buff[8], 0);
+			// rgb_set_intensity(LED8, RED_LED, spi_rx_buff[9], 0);
+			// rgb_set_intensity(LED8, GREEN_LED, spi_rx_buff[10], 0);
+			// rgb_set_intensity(LED8, BLUE_LED, spi_rx_buff[11], 0);
 		}
 	}
 }

@@ -22,10 +22,7 @@ Functions to control the RGB LEDs connected of the ESP32 of the E-Puck 2
 
 //List of the RGB LEDs present on the e-puck 2
 typedef enum {
-	LED2,
-	LED4,
-	LED6,
-	LED8,
+	LED1,
 	NUM_RGB_LED,
 } rgb_led_name_t;
 

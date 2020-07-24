@@ -21,43 +21,27 @@ Firmware to be run on the ESP32 of the e-puck2
 
 
 ///////////////////////////////////////////BLUART DEFINITIONS//////////////////////////////////////////////
-#define BLUART_413_BLUETOOTH_CHANNEL_USED		CHANNEL_1
+#define BLUART_746_BLUETOOTH_CHANNEL_USED		CHANNEL_1
 
-#define BLUART_413_UART_USED					UART_NUM_0
-#define BLUART_413_UART_TX_PIN					UART_PIN_NO_CHANGE //default pin U0TXD
-#define BLUART_413_UART_RX_PIN					UART_PIN_NO_CHANGE //default pin U0RXD
+#define BLUART_746_UART_USED					UART_NUM_0
+#define BLUART_746_UART_TX_PIN					UART_PIN_NO_CHANGE //default pin U0TXD
+#define BLUART_746_UART_RX_PIN					UART_PIN_NO_CHANGE //default pin U0RXD
 
-#define BLUART_413_CONNECTION_STATUS_PIN		GPIO_NUM_0	//0 = bluetooth connected, 1 = bluetooth not connected
-#define BLUART_407_CONNECTION_STATUS_PIN		GPIO_NUM_1	// Special case. Not really used. See shared_set_level()
+#define BLUART_746_CONNECTION_STATUS_PIN		GPIO_NUM_0	//0 = bluetooth connected, 1 = bluetooth not connected
+#define BLUART_779_CONNECTION_STATUS_PIN		GPIO_NUM_1	// Special case. Not really used. See shared_set_level()
 
 
-#define BLUART_407_BLUETOOTH_CHANNEL_USED		CHANNEL_2
+#define BLUART_779_BLUETOOTH_CHANNEL_USED		CHANNEL_2
 
-#define BLUART_407_UART_USED					UART_NUM_1
-#define BLUART_407_UART_TX_PIN					GPIO_NUM_17
-#define BLUART_407_UART_RX_PIN					GPIO_NUM_34
+#define BLUART_779_UART_USED					UART_NUM_1
+#define BLUART_779_UART_TX_PIN					GPIO_NUM_10
+#define BLUART_779_UART_RX_PIN					GPIO_NUM_9
 
 
 //////////////////////////////////////////RGB_LED DEFINITIONS//////////////////////////////////////////////
-#define RGB_LED2_RED_GPIO		32
-#define RGB_LED2_GREEN_GPIO		33
-#define RGB_LED2_BLUE_GPIO		25
-
-#define RGB_LED4_RED_GPIO		14
-#define RGB_LED4_GREEN_GPIO		27
-#define RGB_LED4_BLUE_GPIO		26
-
-#define RGB_LED6_RED_GPIO		22
-#define RGB_LED6_GREEN_GPIO		21
-#define RGB_LED6_BLUE_GPIO		13
-
-#define RGB_LED8_RED_GPIO		4
-#define RGB_LED8_GREEN_GPIO		16
-#define RGB_LED8_BLUE_GPIO		15
-
-
-///////////////////////////////////////////BUTTON DEFINITIONS//////////////////////////////////////////////
-#define BUTTON_GPIO		GPIO_NUM_35
+#define RGB_LED1_RED_GPIO		26
+#define RGB_LED1_GREEN_GPIO		25
+#define RGB_LED1_BLUE_GPIO		14
 
 
 #endif /* MAIN_E_PUCK_2_H */

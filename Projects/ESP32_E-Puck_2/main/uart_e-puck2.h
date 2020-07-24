@@ -5,7 +5,7 @@ Author  : Stefano Morgani
 Date    : 10 January 2018
 REV 1.0
 
-Functions to configure and use the UART communication between the ESP32 and both the main processor (F407) and the programmer (F413).
+Functions to configure and use the UART communication between the ESP32 and both the main processor (F779) and the programmer (F746).
 */
 
 #ifndef UART_E_PUCK_2_H

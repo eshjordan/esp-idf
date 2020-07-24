@@ -25,11 +25,11 @@ ledc_timer_config_t led_timer = {
 
 //LED configurations
 ledc_channel_config_t led_config[NUM_RGB_LED][NUM_LED] = {
-  //LED2
+  //LED1
   { 
     //RED_LED
     { 
-      .gpio_num     = RGB_LED2_RED_GPIO,
+      .gpio_num     = RGB_LED1_RED_GPIO,
       .speed_mode   = LEDC_HIGH_SPEED_MODE,
       .duty         = RGB_MAX_DUTY,
       .channel      = LEDC_CHANNEL_0, 
@@ -38,7 +38,7 @@ ledc_channel_config_t led_config[NUM_RGB_LED][NUM_LED] = {
     },
     //GREEN_LED
     { 
-      .gpio_num     = RGB_LED2_GREEN_GPIO,
+      .gpio_num     = RGB_LED1_GREEN_GPIO,
       .speed_mode   = LEDC_HIGH_SPEED_MODE,
       .duty         = RGB_MAX_DUTY,
       .channel      = LEDC_CHANNEL_1, 
@@ -46,102 +46,12 @@ ledc_channel_config_t led_config[NUM_RGB_LED][NUM_LED] = {
       .timer_sel    = LEDC_TIMER_0, 
     },
     //BLUE_LED
-    { .gpio_num     = RGB_LED2_BLUE_GPIO,
+    { .gpio_num     = RGB_LED1_BLUE_GPIO,
       .speed_mode   = LEDC_HIGH_SPEED_MODE,
       .duty         = RGB_MAX_DUTY,
       .channel      = LEDC_CHANNEL_2, 
       .intr_type    = LEDC_INTR_FADE_END,
       .timer_sel    = LEDC_TIMER_0, 
-    },
-  },
-  //LED4
-  {
-    //RED_LED
-    { 
-      .gpio_num     = RGB_LED4_RED_GPIO,
-      .speed_mode   = LEDC_HIGH_SPEED_MODE,
-      .duty         = RGB_MAX_DUTY,
-      .channel      = LEDC_CHANNEL_3, 
-      .intr_type    = LEDC_INTR_FADE_END,
-      .timer_sel    = LEDC_TIMER_0, 
-    },
-    //GREEN_LED
-    { 
-      .gpio_num     = RGB_LED4_GREEN_GPIO,
-      .speed_mode   = LEDC_HIGH_SPEED_MODE,
-      .duty         = RGB_MAX_DUTY,
-      .channel      = LEDC_CHANNEL_4,
-      .intr_type    = LEDC_INTR_FADE_END,
-      .timer_sel    = LEDC_TIMER_0, 
-    },
-    //BLUE_LED
-    { 
-      .gpio_num     = RGB_LED4_BLUE_GPIO,
-      .speed_mode   = LEDC_HIGH_SPEED_MODE,
-      .duty         = RGB_MAX_DUTY,
-      .channel      = LEDC_CHANNEL_5, 
-      .intr_type    = LEDC_INTR_FADE_END,
-      .timer_sel    = LEDC_TIMER_0, 
-    },
-  },
-  //LED6
-  {
-    //RED_LED
-    {
-      .gpio_num     = RGB_LED6_RED_GPIO,
-      .speed_mode   = LEDC_HIGH_SPEED_MODE,
-      .duty         = RGB_MAX_DUTY,
-      .channel      = LEDC_CHANNEL_6, 
-      .intr_type    = LEDC_INTR_FADE_END,
-      .timer_sel    = LEDC_TIMER_0, 
-    },
-    //GREEN_LED
-    {
-      .gpio_num     = RGB_LED6_GREEN_GPIO,
-      .speed_mode   = LEDC_HIGH_SPEED_MODE,
-      .duty         = RGB_MAX_DUTY,
-      .channel      = LEDC_CHANNEL_7, 
-      .intr_type    = LEDC_INTR_FADE_END,
-      .timer_sel    = LEDC_TIMER_0, 
-    },
-    //BLUE_LED
-    {
-      .gpio_num     = RGB_LED6_BLUE_GPIO,
-      .speed_mode   = LEDC_LOW_SPEED_MODE,
-      .duty         = RGB_MAX_DUTY,
-      .channel      = LEDC_CHANNEL_0, 
-      .intr_type    = LEDC_INTR_FADE_END,
-      .timer_sel    = LEDC_TIMER_0,       
-    },
-  },
-  //LED8
-  {
-    //RED_LED
-    {
-      .gpio_num     = RGB_LED8_RED_GPIO,
-      .speed_mode   = LEDC_LOW_SPEED_MODE,
-      .duty         = RGB_MAX_DUTY,
-      .channel      = LEDC_CHANNEL_1, 
-      .intr_type    = LEDC_INTR_FADE_END,
-      .timer_sel    = LEDC_TIMER_0,       
-    },
-    //GREEN_LED
-    {
-      .gpio_num     = RGB_LED8_GREEN_GPIO,
-      .speed_mode   = LEDC_LOW_SPEED_MODE,
-      .duty         = RGB_MAX_DUTY,
-      .channel      = LEDC_CHANNEL_2, 
-      .intr_type    = LEDC_INTR_FADE_END,
-      .timer_sel    = LEDC_TIMER_0,       
-    },
-    //BLUE_LED
-    {
-      .gpio_num     = RGB_LED8_BLUE_GPIO,
-      .speed_mode   = LEDC_LOW_SPEED_MODE,
-      .duty         = RGB_MAX_DUTY,
-      .channel      = LEDC_CHANNEL_3, 
-      .intr_type    = LEDC_INTR_FADE_END,
-      .timer_sel    = LEDC_TIMER_0,       
     },
   },
 };
