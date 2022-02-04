@@ -15,7 +15,6 @@ Functions to configure and use the SPI communication between the main processor 
 
 #include "spi_fishbot.h"
 #include "driver/spi_slave.h"
-#include "button_fishbot.h"
 #include "main_fishbot.h"
 #include "rgb_led_fishbot.h"
 //#include "socket_fishbot.h"
@@ -149,7 +148,8 @@ void spi_task(void *pvParameter) {
 
 	for(;;) {
 
-		spi_tx_buff[0] = button_is_pressed(); 	// Button status to send to F407.
+		// spi_tx_buff[0] = button_is_pressed(); 	// Button status to send to F407.
+		spi_tx_buff[0] = 0; 	// There is no anymore Button status
 		spi_tx_buff[1] = 0xB7; 					// Get image.		
 		
 		switch(spi_state) {

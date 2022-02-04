@@ -25,7 +25,6 @@ Functions to control and use the bluetooth stack
 #include "btstack.h"
 #include "main_fishbot.h"
 #include "rfcomm_fishbot.h"
-#include "button_fishbot.h"
 
 #define SERVICE_RECORD              0x10001   //service class id (could be everything)
 #define SERVICE_BUFFER_SIZE         150
@@ -696,9 +695,11 @@ int btstack_setup(int argc, const char * argv[]){
 	gap_set_local_name(bt_name);
 
     //enable the discoverability of the bluetooth if the button is pressed during the startup
-    if(button_is_pressed()){
+    // ToDo: Manage the bluetooth discoverability from command received from Arduino via USB
+    //       For the moment always discoverable at power up
+    // if(button_is_pressed()){
         gap_discoverable_control(ENABLE);
-    }
+    // }
 
     // turn on the state machine
     hci_power_control(HCI_POWER_ON);

@@ -22,7 +22,6 @@ Firmware to be run by the ESP32 of the Arduino Nano 33 Iot on the Fishbot V5.2
 #include "uart_fishbot.h"
 #include "bluart_fishbot.h"
 #include "rfcomm_fishbot.h"
-#include "button_fishbot.h"
 #include "spi_fishbot.h"
 
 extern int btstack_main(void);
@@ -30,7 +29,6 @@ extern int btstack_main(void);
 void app_main(void)
 { 
   rgb_init();
-  button_init();
   bluart_init();
   //uart_init();
   spi_init();
