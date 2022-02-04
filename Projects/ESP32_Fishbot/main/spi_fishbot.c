@@ -165,7 +165,7 @@ void spi_task(void *pvParameter) {
 				if(transaction.trans_len == 0) {
 					break;
 				} else if(transaction.trans_len == 12*8) {
-					rgb_update_all(spi_rx_buff);
+					// rgb_update_all(spi_rx_buff);
 					spi_state = 2;
 				} else {
 					spi_state = 0;

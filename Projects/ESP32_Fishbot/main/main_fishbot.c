@@ -50,9 +50,6 @@ void app_main(void)
   // SPI communication task.
   xTaskCreatePinnedToCore(spi_task, "spi_task", SPI_TASK_STACK_SIZE, NULL, SPI_TASK_PRIO, NULL, CORE_1);
 
-  // RGB handling task.
-  xTaskCreatePinnedToCore(rgb_task, "rgb_task", 2048, NULL, 4, NULL, CORE_0);    
-  
   //btstack works as a loop called from the main. So every other task should be created before the call
   //of this function
   //main runs always on core 0
