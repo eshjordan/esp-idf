@@ -24,14 +24,31 @@ Firmware to be run by the ESP32 of the Arduino Nano 33 Iot on the Fishbot V5.2
 #include "rfcomm_fishbot.h"
 #include "spi_fishbot.h"
 
+#include "project_infos.h"
+
+// #include "git_comit.h"
+// Find a solution to be able to obtain the project name and the git commit in order to display these infos
+// A solution is to pass by the makefile in order to have something like that:
+//
+//      git_comit.h: FORCE
+//      $(Q)echo " GIT git_comit.h"
+//      $(Q)echo "#define FIMWARE_INFO $PROJECT_NAME\"$(shell git describe --always --dirty)\"" > $@
+//      main_fishbot.c: git_comit.h
+//
+// For the moment use internal static define
+
+// #define FIMWARE_INFO "ESP32_Fishbot"
+
 extern int btstack_main(void);
 
 void app_main(void)
 { 
-  rgb_init();
+  // rgb_init();
   bluart_init();
+  printf("bluart_init launched\n");
+
   //uart_init();
-  spi_init();
+  // spi_init();
 
   //a bluetooth echo example
   //Due to a very strange bug of freeRTOS implementation in the ESP32 environment, the tasks related to the bluetooth
@@ -39,19 +56,26 @@ void app_main(void)
   //If we specifiy the core for the tasks, it works, no matter which core is chosen for each task.
   // xTaskCreatePinnedToCore(&example_echo_bluetooth_task_channel_1, "example_echo_bluetooth_task", 
   //             EXAMPLE_ECHO_STACK_SIZE, NULL, EXAMPLE_ECHO_PRIO, NULL, CORE_1);
-  // xTaskCreatePinnedToCore(&example_echo_bluetooth_task_channel_2, "example_echo_bluetooth_task2", 
-  //             EXAMPLE_ECHO_STACK_SIZE, NULL, EXAMPLE_ECHO_PRIO, NULL, CORE_1);
+  xTaskCreatePinnedToCore(&example_echo_bluetooth_task_channel_2, "example_echo_bluetooth_task2", 
+              EXAMPLE_ECHO_STACK_SIZE, NULL, EXAMPLE_ECHO_PRIO, NULL, CORE_1);
+  printf("example_echo_bluetooth_task_channel_2 launched\n");
   xTaskCreatePinnedToCore(&example_echo_bluetooth_task_channel_3, "example_echo_bluetooth_task3", 
               EXAMPLE_ECHO_STACK_SIZE, NULL, EXAMPLE_ECHO_PRIO, NULL, CORE_1);
+  printf("example_echo_bluetooth_task_channel_3 launched\n");
   
   //A uart read/write example without event queue;
   //xTaskCreate(echo_task, "uart_echo_task", ECHO_TASK_STACK_SIZE, NULL, ECHO_TASK_PRIO, NULL);
   
   // SPI communication task.
-  xTaskCreatePinnedToCore(spi_task, "spi_task", SPI_TASK_STACK_SIZE, NULL, SPI_TASK_PRIO, NULL, CORE_1);
+  // xTaskCreatePinnedToCore(spi_task, "spi_task", SPI_TASK_STACK_SIZE, NULL, SPI_TASK_PRIO, NULL, CORE_1);
+
+  printf("\n\nFirmware: ");
+  printf(FIMWARE_INFO);
+  printf("\n\n");
 
   //btstack works as a loop called from the main. So every other task should be created before the call
   //of this function
   //main runs always on core 0
   btstack_main();
+  printf("This message must NEVER been diplayed\n");
 }

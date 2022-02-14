@@ -24,12 +24,8 @@ Functions to init and use a bluetooth-UART translation
 #define BLUART_CONNECTED						0
 #define BLUART_NOT_CONNECTED					1
 
-void bluart_413_uart_to_bluetooth_task(void *pvParameter);
-void bluart_413_bluetooth_to_uart_task(void *pvParameter);
-
-void bluart_407_uart_to_bluetooth_task(void *pvParameter);
-void bluart_407_bluetooth_to_uart_task(void *pvParameter);
-
+void bluart_SAMD_uart_to_bluetooth_task(void *pvParameter);
+void bluart_SAMD_bluetooth_to_uart_task(void *pvParameter);
 
 /*
  * Function with the same template as the gpio_set_level function but which does nothing.
@@ -44,57 +40,43 @@ static esp_err_t void_set_level(gpio_num_t gpio_num, uint32_t level){
 }
 
 /*
- * Same as void_set_level() but in the case where the two bluart share the same status pin, Then we indicate a 
- * connected status if one of the two is connected.
- * Use the pin to use in the structure of the 413 bluart and a random pin for the 407. Only the first really used.
- * The other is only here to know who called the function
+ * Same as void_set_level() but in the case where many bluart share the same status pin, Then we indicate a 
+ * connected status if one of them is connected.
+ * Use the pin to use in the structure of the SAMD bluart
  */
 static esp_err_t shared_set_level(gpio_num_t gpio_num, uint32_t level){
 	(void)gpio_num;
 	(void)level;
-	static int8_t status_413 = BLUART_NOT_CONNECTED;
-	static int8_t status_407 = BLUART_NOT_CONNECTED;
+	static int8_t status_SAMD = BLUART_NOT_CONNECTED;
 
-	if(gpio_num == BLUART_413_CONNECTION_STATUS_PIN){
-		status_413 = level;
-	}else if(gpio_num == BLUART_407_CONNECTION_STATUS_PIN){
-		status_407 = level;
+	if(gpio_num == BLUART_SAMD_CONNECTION_STATUS_PIN){
+		status_SAMD = level;
 	}
 
-	if((status_413 == BLUART_NOT_CONNECTED) && (status_407 == BLUART_NOT_CONNECTED)){
-		gpio_set_level(BLUART_413_CONNECTION_STATUS_PIN, BLUART_NOT_CONNECTED);
+	if(status_SAMD == BLUART_NOT_CONNECTED){
+		gpio_set_level(BLUART_SAMD_CONNECTION_STATUS_PIN, BLUART_NOT_CONNECTED);
 	}else{
-		gpio_set_level(BLUART_413_CONNECTION_STATUS_PIN, BLUART_CONNECTED);
+		gpio_set_level(BLUART_SAMD_CONNECTION_STATUS_PIN, BLUART_CONNECTED);
 	}
 	return ESP_OK;
 }
 
-//uart config of the bluetooth-uart translator instance with the 413
-uart_config_t uart_413_config = {
-	.baud_rate 	= BLUART_413_UART_BAUDRATE,
-	.data_bits 	= BLUART_413_UART_DATABITS,
-	.parity 	= BLUART_413_UART_PARITY,
-	.stop_bits 	= BLUART_413_UART_STOP_BITS,
-	.flow_ctrl 	= BLUART_413_UART_FLOWCTRL,
-	.rx_flow_ctrl_thresh = BLUART_413_UART_FLOWCTRL_THRESHOLD,
+//uart config of the bluetooth-uart translator instance with the SAMD
+uart_config_t uart_SAMD_config = {
+	.baud_rate 	= BLUART_SAMD_UART_BAUDRATE,
+	.data_bits 	= BLUART_SAMD_UART_DATABITS,
+	.parity 	= BLUART_SAMD_UART_PARITY,
+	.stop_bits 	= BLUART_SAMD_UART_STOP_BITS,
+	.flow_ctrl 	= BLUART_SAMD_UART_FLOWCTRL,
+	.rx_flow_ctrl_thresh = BLUART_SAMD_UART_FLOWCTRL_THRESHOLD,
 };
 
-//uart config of the bluetooth-uart translator instance with the 407
-uart_config_t uart_407_config = {
-	.baud_rate 	= BLUART_407_UART_BAUDRATE,
-	.data_bits 	= BLUART_407_UART_DATABITS,
-	.parity 	= BLUART_407_UART_PARITY,
-	.stop_bits 	= BLUART_407_UART_STOP_BITS,
-	.flow_ctrl 	= BLUART_407_UART_FLOWCTRL,
-	.rx_flow_ctrl_thresh = BLUART_407_UART_FLOWCTRL_THRESHOLD,
-};
-
-//gpio config of the pin used to tell to the 413 if the bluetooth channel is connected or not
-gpio_config_t gpio_413_config = {
+//gpio config of the pin used to tell to the SAMD if the bluetooth channel is connected or not
+gpio_config_t gpio_SAMD_config = {
 	//interrupt of falling edge
 	.intr_type = GPIO_PIN_INTR_DISABLE,
 	//bit mask of the pins
-	.pin_bit_mask = ((uint64_t)1 << BLUART_413_CONNECTION_STATUS_PIN),
+	.pin_bit_mask = ((uint64_t)1 << BLUART_SAMD_CONNECTION_STATUS_PIN),
 	//set as input mode    
 	.mode = GPIO_MODE_OUTPUT_OD,
 	//enable pull-up mode (no pull-up on pin 34 to 39)
@@ -105,36 +87,21 @@ gpio_config_t gpio_413_config = {
 
 //config of the uart-bluetooth instances
 bluart_config_t bluart_channel[NB_BLUART] = {
-	//BLUART_413
+	//BLUART_SAMD
 	{
-		.bluetooth_channel 		= BLUART_413_BLUETOOTH_CHANNEL_USED,		
-		.uart_port 				= BLUART_413_UART_USED,				
-		.uart_tx_pin 			= BLUART_413_UART_TX_PIN,						
-		.uart_rx_pin 			= BLUART_413_UART_RX_PIN,								
+		.bluetooth_channel 		= BLUART_SAMD_BLUETOOTH_CHANNEL_USED,		
+		.uart_port 				= BLUART_SAMD_UART_USED,				
+		.uart_tx_pin 			= BLUART_SAMD_UART_TX_PIN,						
+		.uart_rx_pin 			= BLUART_SAMD_UART_RX_PIN,								
 
-		.uart_config 			= &uart_413_config,			
-		.gpio_status_config		= &gpio_413_config,	
-		.gpio_status_pin		= BLUART_413_CONNECTION_STATUS_PIN,
+		.uart_config 			= &uart_SAMD_config,			
+		.gpio_status_config		= &gpio_SAMD_config,	
+		.gpio_status_pin		= BLUART_SAMD_CONNECTION_STATUS_PIN,
 
 		.gpio_set_level_func 	= &shared_set_level,
-		.uart_to_bluetooth_func = &bluart_413_uart_to_bluetooth_task,
-		.bluetooth_to_uart_func = &bluart_413_bluetooth_to_uart_task,
+		.uart_to_bluetooth_func = &bluart_SAMD_uart_to_bluetooth_task,
+		.bluetooth_to_uart_func = &bluart_SAMD_bluetooth_to_uart_task,
 	},
-	//BLUART_407
-	{
-		.bluetooth_channel 		= BLUART_407_BLUETOOTH_CHANNEL_USED,		
-		.uart_port 				= BLUART_407_UART_USED,				
-		.uart_tx_pin 			= BLUART_407_UART_TX_PIN,						
-		.uart_rx_pin 			= BLUART_407_UART_RX_PIN,								
-
-		.uart_config 			= &uart_407_config,			
-		.gpio_status_config		= NULL,	//no pin used
-		.gpio_status_pin		= BLUART_407_CONNECTION_STATUS_PIN,
-
-		.gpio_set_level_func 	= &shared_set_level,
-		.uart_to_bluetooth_func = &bluart_407_uart_to_bluetooth_task,
-		.bluetooth_to_uart_func = &bluart_407_bluetooth_to_uart_task,
-	}
 };
 
 
@@ -147,12 +114,6 @@ void bluart_init(void){
 	    uart_set_pin(bluart->uart_port, 
 	    	bluart->uart_tx_pin, bluart->uart_rx_pin, 
 	    	UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-
-	    //the UART connected to the 407 must have its tx pin in OpenDrain mode. But the opendrain doesn't work...
-	    // if(bluart->gpio_status_config == NULL){
-	    // 	gpio_set_direction(bluart->uart_tx_pin, GPIO_MODE_OUTPUT_OD);
-	    // }
-
 
 	    //circular buffer for tx and rx and no event queue
 	    uart_driver_install(bluart->uart_port, BLUART_UART_BUFFER_SIZE, BLUART_UART_BUFFER_SIZE, 0, NULL, 0);
@@ -187,7 +148,7 @@ void bluart_generic_uart_to_bluetooth_task(bluart_config_t* bluart, uint8_t* buf
         	//it is like flushing the datas if nobody is listening
         	if(*status == BLUETOOTH_NOT_CONNECTED){
 		    	 break;
-		    }
+		    	}
             //vTaskDelay(1 / portTICK_PERIOD_MS);
         }
     }
@@ -211,13 +172,13 @@ void bluart_generic_bluetooth_to_uart_task(bluart_config_t* bluart, uint8_t* buf
 /*
  *	Tasks to read from UART and write to Bluetooth
 */
-void bluart_413_uart_to_bluetooth_task(void *pvParameter){
+void bluart_SAMD_uart_to_bluetooth_task(void *pvParameter){
 	uint8_t buffer[BLUART_BUFFER_SIZE];
 	int32_t len = 0;
 	int16_t status;
 
     while(1) {
-    	bluart_generic_uart_to_bluetooth_task(&bluart_channel[BLUART_413], buffer, &len, &status);
+    	bluart_generic_uart_to_bluetooth_task(&bluart_channel[BLUART_SAMD], buffer, &len, &status);
     }
 }
 
@@ -225,40 +186,12 @@ void bluart_413_uart_to_bluetooth_task(void *pvParameter){
  *	Tasks to read from Bluetooth and write to UART
  *	Can tell if the bluetooth is connected or not
 */
-void bluart_413_bluetooth_to_uart_task(void *pvParameter){
+void bluart_SAMD_bluetooth_to_uart_task(void *pvParameter){
 	uint8_t buffer[BLUART_BUFFER_SIZE];
 	int32_t len = 0;
 	int16_t status;
 
     while(1) {
-    	bluart_generic_bluetooth_to_uart_task(&bluart_channel[BLUART_413], buffer, &len, &status);
+    	bluart_generic_bluetooth_to_uart_task(&bluart_channel[BLUART_SAMD], buffer, &len, &status);
 	}
 }
-
-/*
- *	Tasks to read from UART and write to Bluetooth
-*/
-void bluart_407_uart_to_bluetooth_task(void *pvParameter){
-	uint8_t buffer[BLUART_BUFFER_SIZE];
-	int32_t len = 0;
-	int16_t status;
-
-    while(1) {
-    	bluart_generic_uart_to_bluetooth_task(&bluart_channel[BLUART_407], buffer, &len, &status);
-    }
-}
-
-/*
- *	Tasks to read from Bluetooth and write to UART
- *	Can tell if the bluetooth is connected or not
-*/
-void bluart_407_bluetooth_to_uart_task(void *pvParameter){
-	uint8_t buffer[BLUART_BUFFER_SIZE];
-	int32_t len = 0;
-	int16_t status;
-
-    while(1) {
-    	bluart_generic_bluetooth_to_uart_task(&bluart_channel[BLUART_407], buffer, &len, &status);
-	}
-}
-

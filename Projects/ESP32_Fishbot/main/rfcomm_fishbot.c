@@ -691,7 +691,10 @@ int btstack_setup(int argc, const char * argv[]){
 		}
 	}	
 	//set the name of the device as seen by the computer the zeros are replaced by the mac adress
-	sprintf(bt_name, "fishbot_%05d", robot_id);
+    //Force ID temporarely
+    robot_id = 1234;
+	// sprintf(bt_name, "fishbot_%05d", robot_id);
+    sprintf(bt_name, "fishbot_dany");
 	gap_set_local_name(bt_name);
 
     //enable the discoverability of the bluetooth if the button is pressed during the startup

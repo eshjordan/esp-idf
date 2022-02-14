@@ -21,38 +21,29 @@ Firmware to be run by the ESP32 of the Arduino Nano 33 Iot on the Fishbot V5.2
 
 
 ///////////////////////////////////////////BLUART DEFINITIONS//////////////////////////////////////////////
-#define BLUART_413_BLUETOOTH_CHANNEL_USED		CHANNEL_1
+#define BLUART_SAMD_BLUETOOTH_CHANNEL_USED		CHANNEL_1
 
-#define BLUART_413_UART_USED					UART_NUM_0
-#define BLUART_413_UART_TX_PIN					UART_PIN_NO_CHANGE //default pin U0TXD
-#define BLUART_413_UART_RX_PIN					UART_PIN_NO_CHANGE //default pin U0RXD
+#define BLUART_SAMD_UART_USED					UART_NUM_0
+#define BLUART_SAMD_UART_TX_PIN					UART_PIN_NO_CHANGE
+#define BLUART_SAMD_UART_RX_PIN					UART_PIN_NO_CHANGE
 
-#define BLUART_413_CONNECTION_STATUS_PIN		GPIO_NUM_0	//0 = bluetooth connected, 1 = bluetooth not connected
-#define BLUART_407_CONNECTION_STATUS_PIN		GPIO_NUM_1	// Special case. Not really used. See shared_set_level()
-
-
-#define BLUART_407_BLUETOOTH_CHANNEL_USED		CHANNEL_2
-
-#define BLUART_407_UART_USED					UART_NUM_1
-#define BLUART_407_UART_TX_PIN					GPIO_NUM_17
-#define BLUART_407_UART_RX_PIN					GPIO_NUM_34
-
+#define BLUART_SAMD_CONNECTION_STATUS_PIN		GPIO_NUM_0	//0 = bluetooth connected, 1 = bluetooth not connected
 
 //////////////////////////////////////////RGB_LED DEFINITIONS//////////////////////////////////////////////
-#define RGB_LED2_RED_GPIO		32
-#define RGB_LED2_GREEN_GPIO		33
-#define RGB_LED2_BLUE_GPIO		25
+#define RGB_LED2_RED_GPIO		-1 // 32
+#define RGB_LED2_GREEN_GPIO		-1 // 33
+#define RGB_LED2_BLUE_GPIO		-1 // 25
 
-#define RGB_LED4_RED_GPIO		14
-#define RGB_LED4_GREEN_GPIO		27
-#define RGB_LED4_BLUE_GPIO		26
+#define RGB_LED4_RED_GPIO		-1 // 14
+#define RGB_LED4_GREEN_GPIO		-1 // 27
+#define RGB_LED4_BLUE_GPIO		-1 // 26
 
-#define RGB_LED6_RED_GPIO		22
-#define RGB_LED6_GREEN_GPIO		21
-#define RGB_LED6_BLUE_GPIO		13
+#define RGB_LED6_RED_GPIO		-1 // 22
+#define RGB_LED6_GREEN_GPIO		-1 // 21
+#define RGB_LED6_BLUE_GPIO		-1 // 13
 
-#define RGB_LED8_RED_GPIO		4
-#define RGB_LED8_GREEN_GPIO		16
-#define RGB_LED8_BLUE_GPIO		15
+#define RGB_LED8_RED_GPIO		-1 // 4
+#define RGB_LED8_GREEN_GPIO		-1 // 16
+#define RGB_LED8_BLUE_GPIO		-1 // 15
 
 #endif /* MAIN_FISHBOT_H */
