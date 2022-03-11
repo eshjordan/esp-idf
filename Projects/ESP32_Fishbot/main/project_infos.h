@@ -4,4 +4,4 @@
   Author: dburnier <danielburnier@gmail.com>\n\
   Date:   Mon Feb 14 13:48:19 2022 +0100\n\
 \n\
-  Bluetooth to USART bridge allowing to communication via Bluetooth with the SAMD uC of the Arduino"
+  Bluetooth to USART bridge allowing to communicate via Bluetooth with the SAMD uC of the Arduino"
