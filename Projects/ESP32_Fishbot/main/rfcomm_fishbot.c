@@ -16,6 +16,8 @@ Functions to control and use the bluetooth stack
 #include <stdlib.h>
 #include <string.h>
 
+#include "driver/gpio.h"
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/xtensa_api.h"
@@ -496,7 +498,7 @@ static void bluetooth_send(rfcomm_user_channel_t* channel){
             //stop the sending during 100ms in order to let the computer digest the datas and 
             //free new credits for us => continue the sending only if we have more than 2 credits
             //send an empty packet to tell to the computer to refresh the credits (needed at least for OS X)
-            vTaskDelay(100 / portTICK_PERIOD_MS);
+            vTaskDelay(10 / portTICK_PERIOD_MS);
             rfcomm_send(channel->remote_id, channel->ptr_to_send_blue_tx, 0);
         }else{
             rfcomm_send(channel->remote_id, channel->ptr_to_send_blue_tx, size_to_send);
@@ -605,7 +607,7 @@ void example_echo_bluetooth_task_channel_1(void *pvParameter){
     test_buf[i] = i;
   }
   while(1){
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    vTaskDelay(1 / portTICK_PERIOD_MS);
     int16_t rcv = bluetooth_read(CHANNEL_1, test_buf, size, &status);
     //for(int j = 0 ; j < 96 ; j++){
     if(rcv>0){
@@ -621,16 +623,33 @@ void example_echo_bluetooth_task_channel_2(void *pvParameter){
   uint16_t size = 2000;
   int16_t status;
 
-  for(int i = 0 ; i < size ; i++){
-    test_buf[i] = i;
-  }
+  bool Toogle = false;
+
+#define GPIO_STEP   GPIO_A6
+#define GPIO_READ   GPIO_A7
+
+  // for(int i = 0 ; i < size ; i++){
+  //   test_buf[i] = i;
+  // }
   while(1){
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    vTaskDelay(1 / portTICK_PERIOD_MS);
+    gpio_set_level(GPIO_READ, 1);
+    Toogle = !Toogle;
+    gpio_set_level(GPIO_STEP, Toogle);
     int16_t rcv = bluetooth_read(CHANNEL_2, test_buf, size, &status);
     //for(int k = 0 ; k < 96 ; k++){
     if(rcv>0){
-        while(bluetooth_write(CHANNEL_2, test_buf, rcv, &status) != DATAS_WRITTEN){
-            vTaskDelay(10 / portTICK_PERIOD_MS);
+        bool done = false;
+        gpio_set_level(GPIO_READ, 0);
+        while(!done){
+            Toogle = !Toogle;
+            gpio_set_level(GPIO_STEP, Toogle);
+            done = (bluetooth_write(CHANNEL_3, test_buf, rcv, &status) == DATAS_WRITTEN);
+            if (done) {
+                Toogle = !Toogle;
+                gpio_set_level(GPIO_STEP, Toogle);
+            }
+            vTaskDelay(1 / portTICK_PERIOD_MS);
         }
     }
     //vTaskDelay(2000 / portTICK_PERIOD_MS);
@@ -641,16 +660,16 @@ void example_echo_bluetooth_task_channel_3(void *pvParameter){
   uint16_t size = 2000;
   int16_t status;
 
-  for(int i = 0 ; i < size ; i++){
-    test_buf[i] = i;
-  }
+  // for(int i = 0 ; i < size ; i++){
+  //   test_buf[i] = i;
+  // }
   while(1){
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    vTaskDelay(1 / portTICK_PERIOD_MS);
     int16_t rcv = bluetooth_read(CHANNEL_3, test_buf, size, &status);
     //for(int k = 0 ; k < 96 ; k++){
     if(rcv>0){
-        while(bluetooth_write(CHANNEL_3, test_buf, rcv, &status) != DATAS_WRITTEN){
-            vTaskDelay(10 / portTICK_PERIOD_MS);
+        while(bluetooth_write(CHANNEL_2, test_buf, rcv, &status) != DATAS_WRITTEN){
+            vTaskDelay(1 / portTICK_PERIOD_MS);
         }
     }
     //vTaskDelay(2000 / portTICK_PERIOD_MS);
@@ -694,7 +713,7 @@ int btstack_setup(int argc, const char * argv[]){
     //Force ID temporarely
     robot_id = 1234;
 	// sprintf(bt_name, "fishbot_%05d", robot_id);
-    sprintf(bt_name, "fishbot_dany");
+    sprintf(bt_name, "nano33iot_vaios");
 	gap_set_local_name(bt_name);
 
     //enable the discoverability of the bluetooth if the button is pressed during the startup

@@ -46,4 +46,7 @@ Firmware to be run by the ESP32 of the Arduino Nano 33 Iot on the Fishbot V5.2
 #define RGB_LED8_GREEN_GPIO		-1 // 16
 #define RGB_LED8_BLUE_GPIO		-1 // 15
 
+#define GPIO_A6	GPIO_NUM_32
+#define GPIO_A7	GPIO_NUM_21
+
 #endif /* MAIN_FISHBOT_H */
