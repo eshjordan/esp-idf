@@ -15,7 +15,7 @@ Functions to control and use the bluetooth stack
 #include "btstack.h"
 
 
-#define ENABLE_LOG_INFO_RFCOMM
+//#define ENABLE_LOG_INFO_RFCOMM
 //#define ENABLE_LOG_DEBUG_RFCOMM
 
 #define BLUE_RX_BUFFER_SIZE		2000	
@@ -39,8 +39,6 @@ typedef enum{
 
 typedef enum{
 	CHANNEL_1 = 0,
-	CHANNEL_2,
-	CHANNEL_3,
 	NB_RFCOMM_CHANNELS,
 } CHANNEL_NB;
 
@@ -124,20 +122,20 @@ void bluetooth_connectable_control(CONTROL_STATE state);
  *
  * @param *pvParameter	parameter from the xCreateTask 	
  */
-void example_echo_bluetooth_task_channel_1(void *pvParameter);
+// void example_echo_bluetooth_task_channel_1(void *pvParameter);
 
 /**
  * @brief 	Simple example of a task over the bluetooth channel 2
  *
  * @param *pvParameter	parameter from the xCreateTask 	
  */
-void example_echo_bluetooth_task_channel_2(void *pvParameter);
+// void example_echo_bluetooth_task_channel_2(void *pvParameter);
 /**
  * @brief 	Simple example of a task over the bluetooth channel 3
  *
  * @param *pvParameter	parameter from the xCreateTask 	
  */
-void example_echo_bluetooth_task_channel_3(void *pvParameter);
+// void example_echo_bluetooth_task_channel_3(void *pvParameter);
 
 
 #endif /* RFCOMM_FISHBOT_H */

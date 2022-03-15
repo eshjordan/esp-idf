@@ -24,6 +24,8 @@ Functions to init and use a bluetooth-UART translation
 #define BLUART_CONNECTED						0
 #define BLUART_NOT_CONNECTED					1
 
+#include "driver/gpio.h"
+
 void bluart_SAMD_uart_to_bluetooth_task(void *pvParameter);
 void bluart_SAMD_bluetooth_to_uart_task(void *pvParameter);
 
@@ -143,7 +145,12 @@ void bluart_generic_uart_to_bluetooth_task(bluart_config_t* bluart, uint8_t* buf
 	*len = uart_read_bytes(bluart->uart_port, buffer, BLUART_BUFFER_SIZE, DELAY_1_TICKS);
 	//Write to the bluetooth tx buffer
 	if(*len > 0){
-        while(bluetooth_write(bluart->bluetooth_channel, buffer, *len, status) != DATAS_WRITTEN){
+		bool not_written = true;
+        while(not_written) {
+        	gpio_set_level(GPIO_A6, 0); // -> Write
+        	gpio_set_level(GPIO_A7, 1); // -> Start
+        	not_written = (bluetooth_write(bluart->bluetooth_channel, buffer, *len, status) != DATAS_WRITTEN);
+        	gpio_set_level(GPIO_A7, 0); // -> Stop
         	//if bluetooth is not connected, we skip the sending
         	//it is like flushing the datas if nobody is listening
         	if(*status == BLUETOOTH_NOT_CONNECTED){
@@ -166,7 +173,10 @@ void bluart_generic_bluetooth_to_uart_task(bluart_config_t* bluart, uint8_t* buf
     }
 	//write to UART
     if(*len > 0) {
-		uart_write_bytes(bluart->uart_port, (const char*) buffer, *len);
+	  	gpio_set_level(GPIO_A6, 1); // -> Read
+	  	gpio_set_level(GPIO_A7, 1); // -> Start
+			uart_write_bytes(bluart->uart_port, (const char*) buffer, *len);
+	  	gpio_set_level(GPIO_A7, 0); // -> Stop
 	}
 }
 /*

@@ -87,12 +87,14 @@ void app_main(void)
   //If we specifiy the core for the tasks, it works, no matter which core is chosen for each task.
   // xTaskCreatePinnedToCore(&example_echo_bluetooth_task_channel_1, "example_echo_bluetooth_task", 
   //             EXAMPLE_ECHO_STACK_SIZE, NULL, EXAMPLE_ECHO_PRIO, NULL, CORE_1);
-  xTaskCreatePinnedToCore(&example_echo_bluetooth_task_channel_2, "example_echo_bluetooth_task2", 
-              EXAMPLE_ECHO_STACK_SIZE, NULL, EXAMPLE_ECHO_PRIO, NULL, CORE_1);
-  printf("example_echo_bluetooth_task_channel_2 launched\n");
-  xTaskCreatePinnedToCore(&example_echo_bluetooth_task_channel_3, "example_echo_bluetooth_task3", 
-              EXAMPLE_ECHO_STACK_SIZE, NULL, EXAMPLE_ECHO_PRIO, NULL, CORE_1);
-  printf("example_echo_bluetooth_task_channel_3 launched\n");
+
+  printf("There is no more echo example tasks in order to minimize tasks number.\n");
+  // xTaskCreatePinnedToCore(&example_echo_bluetooth_task_channel_2, "example_echo_bluetooth_task2", 
+  //             EXAMPLE_ECHO_STACK_SIZE, NULL, EXAMPLE_ECHO_PRIO, NULL, CORE_1);
+  // printf("example_echo_bluetooth_task_channel_2 launched\n");
+  // xTaskCreatePinnedToCore(&example_echo_bluetooth_task_channel_3, "example_echo_bluetooth_task3", 
+  //             EXAMPLE_ECHO_STACK_SIZE, NULL, EXAMPLE_ECHO_PRIO, NULL, CORE_1);
+  // printf("example_echo_bluetooth_task_channel_3 launched\n");
   
   //A uart read/write example without event queue;
   //xTaskCreate(echo_task, "uart_echo_task", ECHO_TASK_STACK_SIZE, NULL, ECHO_TASK_PRIO, NULL);

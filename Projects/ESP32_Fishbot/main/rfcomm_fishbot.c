@@ -598,83 +598,78 @@ void bluetooth_connectable_control(CONTROL_STATE state){
     }
 }
 
-void example_echo_bluetooth_task_channel_1(void *pvParameter){
-  uint8_t test_buf[2000];
-  uint16_t size = 2000;
-  int16_t status;
+// void example_echo_bluetooth_task_channel_1(void *pvParameter){
+//   uint8_t test_buf[2000];
+//   uint16_t size = 2000;
+//   int16_t status;
 
-  for(int i = 0 ; i < size ; i++){
-    test_buf[i] = i;
-  }
-  while(1){
-    vTaskDelay(1 / portTICK_PERIOD_MS);
-    int16_t rcv = bluetooth_read(CHANNEL_1, test_buf, size, &status);
-    //for(int j = 0 ; j < 96 ; j++){
-    if(rcv>0){
-        while(bluetooth_write(CHANNEL_1, test_buf, rcv, &status) != DATAS_WRITTEN){
-            vTaskDelay(10 / portTICK_PERIOD_MS);
-        }
-    }
-    //vTaskDelay(2000 / portTICK_PERIOD_MS);
-  }
-}
-void example_echo_bluetooth_task_channel_2(void *pvParameter){
-  uint8_t test_buf[2000];
-  uint16_t size = 2000;
-  int16_t status;
+//   for(int i = 0 ; i < size ; i++){
+//     test_buf[i] = i;
+//   }
+//   while(1){
+//     vTaskDelay(1 / portTICK_PERIOD_MS);
+//     int16_t rcv = bluetooth_read(CHANNEL_1, test_buf, size, &status);
+//     //for(int j = 0 ; j < 96 ; j++){
+//     if(rcv>0){
+//         while(bluetooth_write(CHANNEL_1, test_buf, rcv, &status) != DATAS_WRITTEN){
+//             vTaskDelay(10 / portTICK_PERIOD_MS);
+//         }
+//     }
+//     //vTaskDelay(2000 / portTICK_PERIOD_MS);
+//   }
+// }
+// void example_echo_bluetooth_task_channel_2(void *pvParameter){
+//   uint8_t test_buf[2000];
+//   uint16_t size = 2000;
+//   int16_t status;
 
-  bool Toogle = false;
+//   // for(int i = 0 ; i < size ; i++){
+//   //   test_buf[i] = i;
+//   // }
+//   while(1){
+//     vTaskDelay(1 / portTICK_PERIOD_MS);
+//     gpio_set_level(GPIO_A7, 1);
+//     Toogle = !Toogle;
+//     gpio_set_level(GPIO_A6, Toogle);
+//     int16_t rcv = bluetooth_read(CHANNEL_2, test_buf, size, &status);
+//     //for(int k = 0 ; k < 96 ; k++){
+//     if(rcv>0){
+//         bool done = false;
+//         gpio_set_level(GPIO_A7, 0);
+//         while(!done){
+//             Toogle = !Toogle;
+//             gpio_set_level(GPIO_A6, Toogle);
+//             done = (bluetooth_write(CHANNEL_3, test_buf, rcv, &status) == DATAS_WRITTEN);
+//             if (done) {
+//                 Toogle = !Toogle;
+//                 gpio_set_level(GPIO_A6, Toogle);
+//             }
+//             vTaskDelay(1 / portTICK_PERIOD_MS);
+//         }
+//     }
+//     //vTaskDelay(2000 / portTICK_PERIOD_MS);
+//   }
+// }
+// void example_echo_bluetooth_task_channel_3(void *pvParameter){
+//   uint8_t test_buf[2000];
+//   uint16_t size = 2000;
+//   int16_t status;
 
-#define GPIO_STEP   GPIO_A6
-#define GPIO_READ   GPIO_A7
-
-  // for(int i = 0 ; i < size ; i++){
-  //   test_buf[i] = i;
-  // }
-  while(1){
-    vTaskDelay(1 / portTICK_PERIOD_MS);
-    gpio_set_level(GPIO_READ, 1);
-    Toogle = !Toogle;
-    gpio_set_level(GPIO_STEP, Toogle);
-    int16_t rcv = bluetooth_read(CHANNEL_2, test_buf, size, &status);
-    //for(int k = 0 ; k < 96 ; k++){
-    if(rcv>0){
-        bool done = false;
-        gpio_set_level(GPIO_READ, 0);
-        while(!done){
-            Toogle = !Toogle;
-            gpio_set_level(GPIO_STEP, Toogle);
-            done = (bluetooth_write(CHANNEL_3, test_buf, rcv, &status) == DATAS_WRITTEN);
-            if (done) {
-                Toogle = !Toogle;
-                gpio_set_level(GPIO_STEP, Toogle);
-            }
-            vTaskDelay(1 / portTICK_PERIOD_MS);
-        }
-    }
-    //vTaskDelay(2000 / portTICK_PERIOD_MS);
-  }
-}
-void example_echo_bluetooth_task_channel_3(void *pvParameter){
-  uint8_t test_buf[2000];
-  uint16_t size = 2000;
-  int16_t status;
-
-  // for(int i = 0 ; i < size ; i++){
-  //   test_buf[i] = i;
-  // }
-  while(1){
-    vTaskDelay(1 / portTICK_PERIOD_MS);
-    int16_t rcv = bluetooth_read(CHANNEL_3, test_buf, size, &status);
-    //for(int k = 0 ; k < 96 ; k++){
-    if(rcv>0){
-        while(bluetooth_write(CHANNEL_2, test_buf, rcv, &status) != DATAS_WRITTEN){
-            vTaskDelay(1 / portTICK_PERIOD_MS);
-        }
-    }
-    //vTaskDelay(2000 / portTICK_PERIOD_MS);
-  }
-}
+//   // for(int i = 0 ; i < size ; i++){
+//   //   test_buf[i] = i;
+//   // }
+//   while(1){
+//     vTaskDelay(1 / portTICK_PERIOD_MS);
+//     int16_t rcv = bluetooth_read(CHANNEL_3, test_buf, size, &status);
+//     //for(int k = 0 ; k < 96 ; k++){
+//     if(rcv>0){
+//         while(bluetooth_write(CHANNEL_2, test_buf, rcv, &status) != DATAS_WRITTEN){
+//             vTaskDelay(1 / portTICK_PERIOD_MS);
+//         }
+//     }
+//     //vTaskDelay(2000 / portTICK_PERIOD_MS);
+//   }
+// }
 
 /* 
  * Function to configure and initiate the bluetooth communication
