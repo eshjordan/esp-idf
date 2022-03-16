@@ -30,21 +30,21 @@ Firmware to be run by the ESP32 of the Arduino Nano 33 Iot on the Fishbot V5.2
 #define BLUART_SAMD_CONNECTION_STATUS_PIN		GPIO_NUM_0	//0 = bluetooth connected, 1 = bluetooth not connected
 
 //////////////////////////////////////////RGB_LED DEFINITIONS//////////////////////////////////////////////
-#define RGB_LED2_RED_GPIO		-1 // 32
-#define RGB_LED2_GREEN_GPIO		-1 // 33
-#define RGB_LED2_BLUE_GPIO		-1 // 25
+// #define RGB_LED2_RED_GPIO		-1 // 32
+// #define RGB_LED2_GREEN_GPIO		-1 // 33
+// #define RGB_LED2_BLUE_GPIO		-1 // 25
 
-#define RGB_LED4_RED_GPIO		-1 // 14
-#define RGB_LED4_GREEN_GPIO		-1 // 27
-#define RGB_LED4_BLUE_GPIO		-1 // 26
+// #define RGB_LED4_RED_GPIO		-1 // 14
+// #define RGB_LED4_GREEN_GPIO		-1 // 27
+// #define RGB_LED4_BLUE_GPIO		-1 // 26
 
-#define RGB_LED6_RED_GPIO		-1 // 22
-#define RGB_LED6_GREEN_GPIO		-1 // 21
-#define RGB_LED6_BLUE_GPIO		-1 // 13
+// #define RGB_LED6_RED_GPIO		-1 // 22
+// #define RGB_LED6_GREEN_GPIO		-1 // 21
+// #define RGB_LED6_BLUE_GPIO		-1 // 13
 
-#define RGB_LED8_RED_GPIO		-1 // 4
-#define RGB_LED8_GREEN_GPIO		-1 // 16
-#define RGB_LED8_BLUE_GPIO		-1 // 15
+// #define RGB_LED8_RED_GPIO		-1 // 4
+// #define RGB_LED8_GREEN_GPIO		-1 // 16
+// #define RGB_LED8_BLUE_GPIO		-1 // 15
 
 #define GPIO_A6	GPIO_NUM_32
 #define GPIO_A7	GPIO_NUM_21

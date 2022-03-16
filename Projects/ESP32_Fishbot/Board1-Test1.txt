@@ -1,0 +1,112 @@
+Board sans connecteur - SerialNINAPassthrough - WiFi Generic - modifié - erase_flash - flash code
+
+øàææææøæøþàæþæææþàæþæþæøæøæþæææøæææþþààþææàþæààæàþæàààþààøæþææàþààþààæàø[0;32mI (29) boot: ESP-IDF TPs_2019-5-g8a502c036-dirty 2nd stage bootloader[0m
+[0;32mI (29) boot: compile time 10:14:26[0m
+[0;32mI (30) boot: Enabling RNG early entropy source…[0m
+D (32) bootloader_flash: mmu set block paddr=0x00000000 (was 0xffffffff)[0m
+D (36) boot: magic e9[0m
+D (37) boot: segments 04[0m
+D (38) boot: spi_mode 02[0m
+D (39) boot: spi_speed 00[0m
+D (41) boot: spi_size 01[0m
+[0;32mI (42) boot: SPI Speed      : 40MHz[0m
+[0;32mI (44) boot: SPI Mode       : DIO[0m
+[0;32mI (46) boot: SPI Flash Size : 2MB[0m
+D (48) bootloader_flash: mmu set paddr=00000000 count=1[0m
+D (51) boot: mapped partition table 0x8000 at 0x3f408000[0m
+D (54) flash_parts: partition table verified, 3 entries[0m
+[0;32mI (56) boot: Partition Table:[0m
+[0;32mI (58) boot: ## Label            Usage          Type ST Offset   Length[0m
+D (62) boot: load partition table entry 0x3f408000[0m
+D (64) boot: type=1 subtype=2[0m
+[0;32mI (66) boot:  0 nvs              WiFi data        01 02 00009000 00006000[0m
+D (69) boot: load partition table entry 0x3f408020[0m
+D (72) boot: type=1 subtype=1[0m
+[0;32mI (73) boot:  1 phy_init         RF data          01 01 0000f000 00001000[0m
+D (77) boot: load partition table entry 0x3f408040[0m
+D (79) boot: type=0 subtype=0[0m
+[0;32mI (81) boot:  2 factory          factory app      00 00 00010000 00100000[0m
+[0;32mI (85) boot: End of partition table[0m
+D (87) boot: Trying partition index -1 offs 0x10000 size 0x100000[0m
+D (90) esp_image: reading image header @ 0x10000[0m
+D (92) bootloader_flash: mmu set block paddr=0x00010000 (was 0xffffffff)[0m
+D (96) esp_image: image header: 0xe9 0x07 0x02 0x01 40080f1c[0m
+V (98) esp_image: loading segment header 0 at offset 0x10018[0m
+V (101) esp_image: segment data length 0xb11c data starts 0x10020[0m
+V (104) esp_image: segment 0 map_segment 1 segment_data_offs 0x10020 load_addr 0x3f400020[0m
+[0;32mI (109) esp_image: segment 0: paddr=0x00010020 vaddr=0x3f400020 size=0x0b11c ( 45340) map[0m
+D (113) bootloader_flash: mmu set paddr=00010000 count=1[0m
+V (132) esp_image: loading segment header 1 at offset 0x1b13c[0m
+D (132) bootloader_flash: mmu set block paddr=0x00010000 (was 0xffffffff)[0m
+V (133) esp_image: segment data length 0x2c88 data starts 0x1b144[0m
+V (136) esp_image: segment 1 map_segment 0 segment_data_offs 0x1b144 load_addr 0x3ffc0000[0m
+[0;32mI (140) esp_image: segment 1: paddr=0x0001b144 vaddr=0x3ffc0000 size=0x02c88 ( 11400) load[0m
+D (145) bootloader_flash: mmu set paddr=00010000 count=1[0m
+V (152) esp_image: loading segment header 2 at offset 0x1ddcc[0m
+D (152) bootloader_flash: mmu set block paddr=0x00010000 (was 0xffffffff)[0m
+V (154) esp_image: segment data length 0x400 data starts 0x1ddd4[0m
+V (157) esp_image: segment 2 map_segment 0 segment_data_offs 0x1ddd4 load_addr 0x40080000[0m
+[0;32mI (161) esp_image: segment 2: paddr=0x0001ddd4 vaddr=0x40080000 size=0x00400 (  1024) load[0m
+D (165) bootloader_flash: mmu set paddr=00010000 count=1[0m
+V (168) esp_image: loading segment header 3 at offset 0x1e1d4[0m
+D (171) bootloader_flash: mmu set block paddr=0x00010000 (was 0xffffffff)[0m
+V (174) esp_image: segment data length 0x1e34 data starts 0x1e1dc[0m
+V (177) esp_image: segment 3 map_segment 0 segment_data_offs 0x1e1dc load_addr 0x40080400[0m
+[0;32mI (181) esp_image: segment 3: paddr=0x0001e1dc vaddr=0x40080400 size=0x01e34 (  7732) load[0m
+D (186) bootloader_flash: mmu set paddr=00010000 count=2[0m
+V (192) esp_image: loading segment header 4 at offset 0x20010[0m
+D (192) bootloader_flash: mmu set block paddr=0x00020000 (was 0xffffffff)[0m
+V (195) esp_image: segment data length 0x28824 data starts 0x20018[0m
+V (198) esp_image: segment 4 map_segment 1 segment_data_offs 0x20018 load_addr 0x400d0018[0m
+[0;32mI (202) esp_image: segment 4: paddr=0x00020018 vaddr=0x400d0018 size=0x28824 (165924) map[0m
+D (207) bootloader_flash: mmu set paddr=00020000 count=3[0m
+V (269) esp_image: loading segment header 5 at offset 0x4883c[0m
+D (269) bootloader_flash: mmu set block paddr=0x00040000 (was 0xffffffff)[0m
+V (270) esp_image: segment data length 0x12824 data starts 0x48844[0m
+V (273) esp_image: segment 5 map_segment 0 segment_data_offs 0x48844 load_addr 0x40082234[0m
+[0;32mI (277) esp_image: segment 5: paddr=0x00048844 vaddr=0x40082234 size=0x12824 ( 75812) load[0m
+D (281) bootloader_flash: mmu set paddr=00040000 count=2[0m
+V (316) esp_image: loading segment header 6 at offset 0x5b068[0m
+D (316) bootloader_flash: mmu set block paddr=0x00050000 (was 0xffffffff)[0m
+V (316) esp_image: segment data length 0x0 data starts 0x5b070[0m
+V (319) esp_image: segment 6 map_segment 0 segment_data_offs 0x5b070 load_addr 0x400c0000[0m
+[0;32mI (324) esp_image: segment 6: paddr=0x0005b070 vaddr=0x400c0000 size=0x00000 (     0) load[0m
+D (328) bootloader_flash: mmu set paddr=00050000 count=1[0m
+V (331) esp_image: image start 0x00010000 end of last section 0x0005b070[0m
+D (334) bootloader_flash: mmu set block paddr=0x00050000 (was 0xffffffff)[0m
+D (338) esp_image: Calculated hash: 1b3d0ccb[0m
+D (340) bootloader_flash: mmu set paddr=00050000 count=1[0m
+[0;32mI (354) boot: Loaded app from partition at offset 0x10000[0m
+[0;32mI (354) boot: Disabling RNG early entropy source…[0m
+D (354) boot: Mapping segment 0 as IROM[0m
+D (356) boot: Mapping segment 4 as DROM[0m
+D (358) boot: calling set_cache_and_start_app[0m
+D (360) boot: configure drom and irom and start[0m
+V (363) boot: d mmu set paddr=00020000 vaddr=400d0000 size=165924 n=3[0m
+V (366) boot: rc=0[0m
+V (367) boot: rc=0[0m
+V (368) boot: i mmu set paddr=00010000 vaddr=3f400000 size=45340 n=1[0m
+V (371) boot: rc=0[0m
+V (372) boot: rc=0[0m
+D (373) boot: start: 0x40080f1c[0m
+[0;32mI (375) cpu_start: Pro cpu up.[0m
+[0;32mI (377) cpu_start: Starting app cpu, entry point is 0x40080ed4[0m
+[0;32mI (0) cpu_start: App cpu up.[0m
+[0;32mI (382) heap_init: Initializing. RAM available for dynamic allocation:[0m
+[0;32mI (385) heap_init: At 3FFAFF10 len 000000F0 (0 KiB): DRAM[0m
+[0;32mI (388) heap_init: At 3FFCE158 len 00011EA8 (71 KiB): DRAM[0m
+[0;32mI (392) heap_init: At 3FFE0440 len 00003BC0 (14 KiB): D/IRAM[0m
+[0;32mI (395) heap_init: At 3FFE4350 len 0001BCB0 (111 KiB): D/IRAM[0m
+[0;32mI (398) heap_init: At 40094A58 len 0000B5A8 (45 KiB): IRAM[0m
+[0;32mI (401) cpu_start: Pro cpu start user code[0m
+[0;32mI (189) cpu_start: Starting scheduler on PRO CPU.[0m
+[0;32mI (0) cpu_start: Starting scheduler on APP CPU.[0m
+[0;32mI (192) gpio: GPIO[0]| InputEn: 0| OutputEn: 1| OpenDrain: 1| Pullup: 1| Pulldown: 0| Intr:0 [0m
+bluart_init launched
+example_echo_bluetooth_task_channel_2 launched
+example_echo_bluetooth_task_channel_3 launched
+BTstack: setup
+[0;32mI (259) system_api: Base MAC address is not set, read default base MAC address from BLK0 of EFUSE[0m
+[0;32mI (453) phy: phy_version: 366.0, ba9923d, Dec 29 2017, 14:25:06, 0, 0[0m
+BTstack: execute run loop
+BTstack: up and running.

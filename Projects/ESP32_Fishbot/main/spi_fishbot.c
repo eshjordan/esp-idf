@@ -16,7 +16,7 @@ Functions to configure and use the SPI communication between the main processor 
 #include "spi_fishbot.h"
 #include "driver/spi_slave.h"
 #include "main_fishbot.h"
-#include "rgb_led_fishbot.h"
+// #include "rgb_led_fishbot.h"
 //#include "socket_fishbot.h"
 //#include "utility.h"
 

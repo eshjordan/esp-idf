@@ -19,7 +19,7 @@ Firmware to be run by the ESP32 of the Arduino Nano 33 Iot on the Fishbot V5.2
 #include "esp_attr.h"   
 #include "esp_err.h"
 #include "main_fishbot.h"
-#include "rgb_led_fishbot.h"
+// #include "rgb_led_fishbot.h"
 #include "uart_fishbot.h"
 #include "bluart_fishbot.h"
 #include "rfcomm_fishbot.h"
