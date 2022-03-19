@@ -15,7 +15,7 @@ Functions to control and use the bluetooth stack
 #include "btstack.h"
 
 
-#define ENABLE_LOG_INFO_RFCOMM
+//#define ENABLE_LOG_INFO_RFCOMM
 //#define ENABLE_LOG_DEBUG_RFCOMM
 
 #define BLUE_RX_BUFFER_SIZE		2000	
