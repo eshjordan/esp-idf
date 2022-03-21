@@ -22,6 +22,7 @@ Firmware to be run by the ESP32 of the Arduino Nano 33 Iot on the Fishbot V5.2
 
 ///////////////////////////////////////////BLUART DEFINITIONS//////////////////////////////////////////////
 #define BLUART_SAMD_BLUETOOTH_CHANNEL_USED		CHANNEL_1
+#define BLUART_BLUETOOTH_SAMD_CHANNEL_USED		CHANNEL_2
 
 #define BLUART_SAMD_UART_USED					UART_NUM_0
 #define BLUART_SAMD_UART_TX_PIN					UART_PIN_NO_CHANGE

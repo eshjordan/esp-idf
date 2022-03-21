@@ -25,14 +25,16 @@ Functions to init and use a bluetooth-UART translation
 #define BLUART_SAMD_UART_FLOWCTRL_THRESHOLD		122
 
 typedef enum{
-	BLUART_SAMD = 0,
+	BLUART_SAMD_BLUETOOTH = 0,
+	BLUART_BLUETOOTH_SAMD,
 	NB_BLUART,
 } BLUART_NB;
 
 //struct to represent a bluetooth-uart bidirectional communication
 typedef struct {
 
-	CHANNEL_NB bluetooth_channel;		/*!< bluetooth channel used*/
+	CHANNEL_NB bluetooth_channel_rx;		/*!< bluetooth channel used for rx*/
+	CHANNEL_NB bluetooth_channel_tx;		/*!< bluetooth channel used for tx*/
 	uart_port_t uart_port;				/*!< uart port used*/
 	int uart_tx_pin;					/*!< uart tx pin used*/	
 	int uart_rx_pin;					/*!< uart rx pin used*/

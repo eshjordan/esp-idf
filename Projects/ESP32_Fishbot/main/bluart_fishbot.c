@@ -86,28 +86,26 @@ gpio_config_t gpio_SAMD_config = {
 };
 
 //config of the uart-bluetooth instances
-bluart_config_t bluart_channel[NB_BLUART] = {
+bluart_config_t bluart_channel = {
 	//BLUART_SAMD
-	{
-		.bluetooth_channel 		= BLUART_SAMD_BLUETOOTH_CHANNEL_USED,		
-		.uart_port 				= BLUART_SAMD_UART_USED,				
-		.uart_tx_pin 			= BLUART_SAMD_UART_TX_PIN,						
-		.uart_rx_pin 			= BLUART_SAMD_UART_RX_PIN,								
+	.bluetooth_channel_tx 		= BLUART_SAMD_BLUETOOTH_CHANNEL_USED,		
+	.bluetooth_channel_rx 		= BLUART_BLUETOOTH_SAMD_CHANNEL_USED,
+	.uart_port 				= BLUART_SAMD_UART_USED,				
+	.uart_tx_pin 			= BLUART_SAMD_UART_TX_PIN,						
+	.uart_rx_pin 			= BLUART_SAMD_UART_RX_PIN,								
 
-		.uart_config 			= &uart_SAMD_config,			
-		.gpio_status_config		= &gpio_SAMD_config,	
-		.gpio_status_pin		= BLUART_SAMD_CONNECTION_STATUS_PIN,
+	.uart_config 			= &uart_SAMD_config,			
+	.gpio_status_config		= &gpio_SAMD_config,	
+	.gpio_status_pin		= BLUART_SAMD_CONNECTION_STATUS_PIN,
 
-		.gpio_set_level_func 	= &shared_set_level,
-		.uart_to_bluetooth_func = &bluart_SAMD_uart_to_bluetooth_task,
-		.bluetooth_to_uart_func = &bluart_SAMD_bluetooth_to_uart_task,
-	},
+	.gpio_set_level_func 	= &shared_set_level,
+	.uart_to_bluetooth_func = &bluart_SAMD_uart_to_bluetooth_task,
+	.bluetooth_to_uart_func = &bluart_SAMD_bluetooth_to_uart_task,
 };
 
 
 void bluart_init(void){
-	for(int i = 0 ; i < NB_BLUART ; i++){
-		bluart_config_t* bluart = &bluart_channel[i];
+		bluart_config_t* bluart = &bluart_channel;
 
 		//Configure parameters.
 		uart_param_config(bluart->uart_port, bluart->uart_config);
@@ -131,10 +129,9 @@ void bluart_init(void){
 	    xTaskCreatePinnedToCore(bluart->uart_to_bluetooth_func, "uart to bluetooth translator", 
 	              BLUART_UART_TO_BLUETOOTH_TASK_SIZE, NULL, BLUART_UART_TO_BLUETOOTH_TASK_PRIO, NULL, CORE_1);
 		
-		xTaskCreatePinnedToCore(bluart->bluetooth_to_uart_func, "bluetooth to uart translator", 
+			xTaskCreatePinnedToCore(bluart->bluetooth_to_uart_func, "bluetooth to uart translator", 
 	              BLUART_BLUETOOTH_TO_UART_TASK_SIZE, NULL, BLUART_BLUETOOTH_TO_UART_TASK_PRIO, NULL, CORE_1);
 
-	}
 }
 
 void bluart_generic_uart_to_bluetooth_task(bluart_config_t* bluart, uint8_t* buffer, int32_t* len, int16_t* status){
@@ -143,7 +140,7 @@ void bluart_generic_uart_to_bluetooth_task(bluart_config_t* bluart, uint8_t* buf
 	*len = uart_read_bytes(bluart->uart_port, buffer, BLUART_BUFFER_SIZE, DELAY_1_TICKS);
 	//Write to the bluetooth tx buffer
 	if(*len > 0){
-        while(bluetooth_write(bluart->bluetooth_channel, buffer, *len, status) != DATAS_WRITTEN){
+        while(bluetooth_write(bluart->bluetooth_channel_tx, buffer, *len, status) != DATAS_WRITTEN){
         	//if bluetooth is not connected, we skip the sending
         	//it is like flushing the datas if nobody is listening
         	if(*status == BLUETOOTH_NOT_CONNECTED){
@@ -157,7 +154,7 @@ void bluart_generic_uart_to_bluetooth_task(bluart_config_t* bluart, uint8_t* buf
 void bluart_generic_bluetooth_to_uart_task(bluart_config_t* bluart, uint8_t* buffer, int32_t* len, int16_t* status){
 	vTaskDelay(1 / portTICK_PERIOD_MS);
     //read data from bluetooth rx buffer
-    *len = bluetooth_read(bluart->bluetooth_channel, buffer, BLUART_BUFFER_SIZE, status);
+    *len = bluetooth_read(bluart->bluetooth_channel_rx, buffer, BLUART_BUFFER_SIZE, status);
     //updates the pin to tell the bluetooth is connected
     if(*status == BLUETOOTH_NOT_CONNECTED){
     	bluart->gpio_set_level_func(bluart->gpio_status_pin, BLUART_NOT_CONNECTED);
@@ -178,7 +175,7 @@ void bluart_SAMD_uart_to_bluetooth_task(void *pvParameter){
 	int16_t status;
 
     while(1) {
-    	bluart_generic_uart_to_bluetooth_task(&bluart_channel[BLUART_SAMD], buffer, &len, &status);
+    	bluart_generic_uart_to_bluetooth_task(&bluart_channel, buffer, &len, &status);
     }
 }
 
@@ -192,6 +189,6 @@ void bluart_SAMD_bluetooth_to_uart_task(void *pvParameter){
 	int16_t status;
 
     while(1) {
-    	bluart_generic_bluetooth_to_uart_task(&bluart_channel[BLUART_SAMD], buffer, &len, &status);
+    	bluart_generic_bluetooth_to_uart_task(&bluart_channel, buffer, &len, &status);
 	}
 }
