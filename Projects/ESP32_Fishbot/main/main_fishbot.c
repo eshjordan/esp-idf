@@ -45,34 +45,34 @@ extern int btstack_main(void);
 void app_main(void)
 { 
 
-  gpio_config_t io_conf;
-  //interrupt of falling edge
-  io_conf.intr_type = GPIO_PIN_INTR_DISABLE;//GPIO_PIN_INTR_NEGEDGE;
-  //bit mask of the pins
-  io_conf.pin_bit_mask = ((uint64_t)1 << GPIO_A6);
-  //set as input mode    
-  io_conf.mode = GPIO_MODE_OUTPUT;
-  //enable pull-up mode (no pull-up on pin 34 to 39)
-  io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-  //disable pull-down mode (no pull-down on pin 34 to 39)
-  io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-  gpio_config(&io_conf);
+  // gpio_config_t io_conf;
+  // //interrupt of falling edge
+  // io_conf.intr_type = GPIO_PIN_INTR_DISABLE;//GPIO_PIN_INTR_NEGEDGE;
+  // //bit mask of the pins
+  // io_conf.pin_bit_mask = ((uint64_t)1 << GPIO_A6);
+  // //set as input mode    
+  // io_conf.mode = GPIO_MODE_OUTPUT;
+  // //enable pull-up mode (no pull-up on pin 34 to 39)
+  // io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+  // //disable pull-down mode (no pull-down on pin 34 to 39)
+  // io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+  // gpio_config(&io_conf);
 
-  io_conf.intr_type = GPIO_PIN_INTR_DISABLE;//GPIO_PIN_INTR_NEGEDGE;
-  //bit mask of the pins
-  io_conf.pin_bit_mask = ((uint64_t)1 << GPIO_A7);
-  //set as input mode    
-  io_conf.mode = GPIO_MODE_OUTPUT;
-  //enable pull-up mode (no pull-up on pin 34 to 39)
-  io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-  //disable pull-down mode (no pull-down on pin 34 to 39)
-  io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-  gpio_config(&io_conf);
+  // io_conf.intr_type = GPIO_PIN_INTR_DISABLE;//GPIO_PIN_INTR_NEGEDGE;
+  // //bit mask of the pins
+  // io_conf.pin_bit_mask = ((uint64_t)1 << GPIO_A7);
+  // //set as input mode    
+  // io_conf.mode = GPIO_MODE_OUTPUT;
+  // //enable pull-up mode (no pull-up on pin 34 to 39)
+  // io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+  // //disable pull-down mode (no pull-down on pin 34 to 39)
+  // io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+  // gpio_config(&io_conf);
 
-  int gpio_level = 0;
+  // int gpio_level = 0;
 
-  gpio_set_level(GPIO_A6, gpio_level);
-  gpio_set_level(GPIO_A7, gpio_level);
+  // gpio_set_level(GPIO_A6, gpio_level);
+  // gpio_set_level(GPIO_A7, gpio_level);
 
   // rgb_init();
   bluart_init();

@@ -625,29 +625,29 @@ void example_echo_bluetooth_task_channel_2(void *pvParameter){
 
   bool Toogle = false;
 
-#define GPIO_STEP   GPIO_A6
-#define GPIO_READ   GPIO_A7
+// #define GPIO_STEP   GPIO_A6
+// #define GPIO_READ   GPIO_A7
 
   // for(int i = 0 ; i < size ; i++){
   //   test_buf[i] = i;
   // }
   while(1){
     vTaskDelay(1 / portTICK_PERIOD_MS);
-    gpio_set_level(GPIO_READ, 1);
+    // gpio_set_level(GPIO_READ, 1);
     Toogle = !Toogle;
-    gpio_set_level(GPIO_STEP, Toogle);
+    // gpio_set_level(GPIO_STEP, Toogle);
     int16_t rcv = bluetooth_read(CHANNEL_2, test_buf, size, &status);
     //for(int k = 0 ; k < 96 ; k++){
     if(rcv>0){
         bool done = false;
-        gpio_set_level(GPIO_READ, 0);
+        // gpio_set_level(GPIO_READ, 0);
         while(!done){
             Toogle = !Toogle;
-            gpio_set_level(GPIO_STEP, Toogle);
+            // gpio_set_level(GPIO_STEP, Toogle);
             done = (bluetooth_write(CHANNEL_3, test_buf, rcv, &status) == DATAS_WRITTEN);
             if (done) {
                 Toogle = !Toogle;
-                gpio_set_level(GPIO_STEP, Toogle);
+                // gpio_set_level(GPIO_STEP, Toogle);
             }
             vTaskDelay(1 / portTICK_PERIOD_MS);
         }
@@ -713,7 +713,7 @@ int btstack_setup(int argc, const char * argv[]){
     //Force ID temporarely
     robot_id = 1234;
 	// sprintf(bt_name, "fishbot_%05d", robot_id);
-    sprintf(bt_name, "nano33iot_vaios");
+    sprintf(bt_name, "Nano33IoT");
 	gap_set_local_name(bt_name);
 
     //enable the discoverability of the bluetooth if the button is pressed during the startup
