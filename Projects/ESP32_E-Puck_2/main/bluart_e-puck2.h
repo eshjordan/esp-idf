@@ -32,8 +32,8 @@ Functions to init and use a bluetooth-UART translation
 #define BLUART_407_UART_FLOWCTRL_THRESHOLD		122
 
 typedef enum{
-	BLUART_413 = 0,
-	BLUART_407,
+	BLUART_407 = 0,
+	BLUART_413,
 	NB_BLUART,
 } BLUART_NB;
 

@@ -105,21 +105,6 @@ gpio_config_t gpio_413_config = {
 
 //config of the uart-bluetooth instances
 bluart_config_t bluart_channel[NB_BLUART] = {
-	//BLUART_413
-	{
-		.bluetooth_channel 		= BLUART_413_BLUETOOTH_CHANNEL_USED,		
-		.uart_port 				= BLUART_413_UART_USED,				
-		.uart_tx_pin 			= BLUART_413_UART_TX_PIN,						
-		.uart_rx_pin 			= BLUART_413_UART_RX_PIN,								
-
-		.uart_config 			= &uart_413_config,			
-		.gpio_status_config		= &gpio_413_config,	
-		.gpio_status_pin		= BLUART_413_CONNECTION_STATUS_PIN,
-
-		.gpio_set_level_func 	= &shared_set_level,
-		.uart_to_bluetooth_func = &bluart_413_uart_to_bluetooth_task,
-		.bluetooth_to_uart_func = &bluart_413_bluetooth_to_uart_task,
-	},
 	//BLUART_407
 	{
 		.bluetooth_channel 		= BLUART_407_BLUETOOTH_CHANNEL_USED,		
@@ -134,6 +119,21 @@ bluart_config_t bluart_channel[NB_BLUART] = {
 		.gpio_set_level_func 	= &shared_set_level,
 		.uart_to_bluetooth_func = &bluart_407_uart_to_bluetooth_task,
 		.bluetooth_to_uart_func = &bluart_407_bluetooth_to_uart_task,
+	},
+	//BLUART_413
+	{
+		.bluetooth_channel 		= BLUART_413_BLUETOOTH_CHANNEL_USED,		
+		.uart_port 				= BLUART_413_UART_USED,				
+		.uart_tx_pin 			= BLUART_413_UART_TX_PIN,						
+		.uart_rx_pin 			= BLUART_413_UART_RX_PIN,								
+
+		.uart_config 			= &uart_413_config,			
+		.gpio_status_config		= &gpio_413_config,	
+		.gpio_status_pin		= BLUART_413_CONNECTION_STATUS_PIN,
+
+		.gpio_set_level_func 	= &shared_set_level,
+		.uart_to_bluetooth_func = &bluart_413_uart_to_bluetooth_task,
+		.bluetooth_to_uart_func = &bluart_413_bluetooth_to_uart_task,
 	}
 };
 

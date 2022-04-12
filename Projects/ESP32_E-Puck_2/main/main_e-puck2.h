@@ -21,7 +21,7 @@ Firmware to be run on the ESP32 of the e-puck2
 
 
 ///////////////////////////////////////////BLUART DEFINITIONS//////////////////////////////////////////////
-#define BLUART_413_BLUETOOTH_CHANNEL_USED		CHANNEL_1
+#define BLUART_413_BLUETOOTH_CHANNEL_USED		CHANNEL_2
 
 #define BLUART_413_UART_USED					UART_NUM_0
 #define BLUART_413_UART_TX_PIN					UART_PIN_NO_CHANGE //default pin U0TXD
@@ -31,7 +31,7 @@ Firmware to be run on the ESP32 of the e-puck2
 #define BLUART_407_CONNECTION_STATUS_PIN		GPIO_NUM_1	// Special case. Not really used. See shared_set_level()
 
 
-#define BLUART_407_BLUETOOTH_CHANNEL_USED		CHANNEL_2
+#define BLUART_407_BLUETOOTH_CHANNEL_USED		CHANNEL_1
 
 #define BLUART_407_UART_USED					UART_NUM_1
 #define BLUART_407_UART_TX_PIN					GPIO_NUM_17
