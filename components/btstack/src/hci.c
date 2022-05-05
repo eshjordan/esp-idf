@@ -2531,7 +2531,9 @@ static int hci_power_control_on(void){
     // power on
     int err = 0;
     if (hci_stack->control && hci_stack->control->on){
+        printf("Test1a\n");
         err = (*hci_stack->control->on)();
+        printf("Test1b\n");
     }
     if (err){
         log_error( "POWER_ON failed");
@@ -2541,22 +2543,33 @@ static int hci_power_control_on(void){
     
     // int chipset driver
     if (hci_stack->chipset && hci_stack->chipset->init){
+        printf("Test2a\n");
         hci_stack->chipset->init(hci_stack->config);
+        printf("Test2b\n");
     }
 
     // init transport
     if (hci_stack->hci_transport->init){
+        printf("Test3a\n");
         hci_stack->hci_transport->init(hci_stack->config);
+        printf("Test3b\n");
     }
 
     // open transport
+    printf("Test4a\n");
     err = hci_stack->hci_transport->open();
+    printf("Test4b\n");
     if (err){
         log_error( "HCI_INIT failed, turning Bluetooth off again");
         if (hci_stack->control && hci_stack->control->off){
+            printf("Test4c\n");
             (*hci_stack->control->off)();
+            printf("Test4d\n");
         }
+        printf("Test4e\n");
+
         hci_emit_hci_open_failed();
+        printf("Test4f\n");
         return err;
     }
     return 0;
@@ -2636,19 +2649,26 @@ static void hci_power_transition_to_initializing(void){
 int hci_power_control(HCI_POWER_MODE power_mode){
     
     log_info("hci_power_control: %d, current mode %u", power_mode, hci_stack->state);
-    
+    printf("23\n");
+    printf("current state : %d\n", hci_stack->state);
+    printf("power mode : %d\n", power_mode);
+
     int err = 0;
     switch (hci_stack->state){
             
         case HCI_STATE_OFF:
             switch (power_mode){
                 case HCI_POWER_ON:
+                    printf("24\n");
                     err = hci_power_control_on();
                     if (err) {
+                        printf("24err\n");
                         log_error("hci_power_control_on() error %d", err);
                         return err;
                     }
+                    printf("24befInit\n");
                     hci_power_transition_to_initializing();
+                    printf("24next\n");
                     break;
                 case HCI_POWER_OFF:
                     // do nothing
@@ -2761,9 +2781,11 @@ int hci_power_control(HCI_POWER_MODE power_mode){
 
     // create internal event
 	hci_emit_state();
+    printf("emit\n");
     
 	// trigger next/first action
 	hci_run();
+    printf("run");
 	
     return 0;
 }

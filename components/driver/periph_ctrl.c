@@ -29,10 +29,15 @@ static uint32_t get_rst_en_reg(periph_module_t periph);
 
 void periph_module_enable(periph_module_t periph)
 {
+    // printf("TestEnableA : %d\n", periph);
     portENTER_CRITICAL(&periph_spinlock);
+    // printf("TestEnableB\n");
     DPORT_SET_PERI_REG_MASK(get_clk_en_reg(periph), get_clk_en_mask(periph));
+    // printf("TestEnableC\n");
     DPORT_CLEAR_PERI_REG_MASK(get_rst_en_reg(periph), get_rst_en_mask(periph));
+    // printf("TestEnableD\n");
     portEXIT_CRITICAL(&periph_spinlock);
+    // printf("TestEnableE\n");
 }
 
 void periph_module_disable(periph_module_t periph)

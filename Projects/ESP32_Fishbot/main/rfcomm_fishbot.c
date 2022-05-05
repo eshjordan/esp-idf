@@ -686,23 +686,32 @@ int btstack_setup(int argc, const char * argv[]){
 	uint64_t temp;
 	uint16_t robot_id;
 	
+    printf("bt_name %s\n",bt_name);
     //init the channels used
     init_rf_channels_struct(rf_channel);
+    printf("12\n");
     //init the semaphores used
     init_semaphores();
+    printf("13\n");
     //init the timer used by the heartbeat handler
     one_shot_timer_setup();
+    printf("14\n");
     //init the differents software stacks used to provide virtual serial ports over bluetooth
     spp_service_setup();
+    printf("15\n");
     //set the authentification process
     gap_ssp_set_io_capability(SSP_IO_CAPABILITY_DISPLAY_ONLY);
+    printf("16\n");
 
 	 // The id of the robot is stored in the first 64 bits of the block3 of efuses.
 	 // Each id is 2 bytes long, thus there is space for writing 4 times the id in case there is the need to change it.
 	 // The old id need to be programmed to 0xFFFF in order to be identified as invalid.
 	blk3_rdata0 = REG_READ(EFUSE_BLK3_RDATA0_REG);
+    printf("17\n");
 	blk3_rdata1 = REG_READ(EFUSE_BLK3_RDATA1_REG);
+    printf("18\n");
 	temp = ((uint64_t)blk3_rdata1<<32)|blk3_rdata0;
+    printf("19\n");
 	for(int i=0; i<4; i++) {
 		robot_id = (temp>>(i*16))&0xFFFF;
 		if(robot_id != 0xFFFF) {
@@ -713,18 +722,21 @@ int btstack_setup(int argc, const char * argv[]){
     //Force ID temporarely
     robot_id = 1234;
 	// sprintf(bt_name, "fishbot_%05d", robot_id);
-    sprintf(bt_name, "nano33iot_vaios");
+    sprintf(bt_name, "nano33iot");
 	gap_set_local_name(bt_name);
+    printf("20\n");
 
     //enable the discoverability of the bluetooth if the button is pressed during the startup
     // ToDo: Manage the bluetooth discoverability from command received from Arduino via USB
     //       For the moment always discoverable at power up
     // if(button_is_pressed()){
         gap_discoverable_control(ENABLE);
+    printf("21\n");
     // }
 
     // turn on the state machine
     hci_power_control(HCI_POWER_ON);
+    printf("22\n");
 
     return 0;
 }

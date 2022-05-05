@@ -109,4 +109,7 @@ void app_main(void)
   //main runs always on core 0
   btstack_main();
   printf("This message must NEVER been diplayed\n");
+  vTaskDelay(10000 / portTICK_PERIOD_MS);
+  printf("This message must NEVER been diplayed\n");
+
 }

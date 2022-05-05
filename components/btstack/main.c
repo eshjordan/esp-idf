@@ -356,29 +356,40 @@ int btstack_main(void){
 
     // enable packet logger
     hci_dump_open(NULL, HCI_DUMP_STDOUT);
+    printf("1\n");
 
     /// GET STARTED with BTstack ///
     btstack_memory_init();
+    printf("2\n");
     btstack_run_loop_init(btstack_run_loop_freertos_get_instance());
+    printf("3\n");
 
     // init HCI
     hci_init(transport_get_instance(), NULL);
+    printf("4\n");
 
     // setup TLV ESP32 implementation
     const btstack_tlv_t * btstack_tlv_impl = btstack_tlv_esp32_get_instance();
+    printf("5\n");
 
     // setup Link Key DB using TLV
     const btstack_link_key_db_t * btstack_link_key_db = btstack_link_key_db_tlv_get_instance(btstack_tlv_impl, NULL);
+    printf("6\n");
     hci_set_link_key_db(btstack_link_key_db);
+    printf("7\n");
 
     // setup LE Device DB using TLV
     le_device_db_tlv_configure(btstack_tlv_impl, NULL);
+    printf("8\n");
 
     // inform about BTstack state
     hci_event_callback_registration.callback = &packet_handler;
+    printf("9\n");
     hci_add_event_handler(&hci_event_callback_registration);
+    printf("10\n");
 
     btstack_setup(0, NULL);
+    printf("11\n");
 
     printf("BTstack: execute run loop\n");
     btstack_run_loop_execute();

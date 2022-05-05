@@ -48,8 +48,9 @@ esp_err_t esp_phy_rf_init(const esp_phy_init_data_t* init_data,
         esp_phy_calibration_mode_t mode, esp_phy_calibration_data_t* calibration_data)
 {
     assert((s_phy_rf_init_count <= 1) && (s_phy_rf_init_count >= 0));
-
+    printf("TestLockA\n");
     _lock_acquire(&s_phy_rf_init_lock);
+    printf("TestLockB : %d\n", s_phy_rf_init_count);
     if (s_phy_rf_init_count == 0) {
         // Enable WiFi/BT common peripheral clock
         periph_module_enable(PERIPH_WIFI_BT_COMMON_MODULE);
