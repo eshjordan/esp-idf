@@ -87,6 +87,10 @@ set(COMPONENT_SRCS "apps/dhcpserver/dhcpserver.c"
                    "port/esp32/netif/ethernetif.c"
                    "port/esp32/netif/wlanif.c")
 
+if(CONFIG_LWIP_NETIF_API)
+    list(APPEND COMPONENT_SRCS "port/if_index.c")
+endif()
+
 if(CONFIG_PPP_SUPPORT)
     list(APPEND COMPONENT_SRCS "lwip/src/netif/ppp/auth.c"
                    "lwip/src/netif/ppp/ccp.c"
