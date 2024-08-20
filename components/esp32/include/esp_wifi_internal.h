@@ -256,7 +256,7 @@ void *wifi_calloc( size_t n, size_t size );
   *
   * @return    Always returns ESP_OK
   */
-esp_err_t esp_wifi_internal_update_mac_time( uint32_t time_delta );
+inline esp_err_t esp_wifi_internal_update_mac_time( uint32_t time_delta ) {return ESP_OK;}
 
 /**
   * @brief     Set current WiFi log level     
