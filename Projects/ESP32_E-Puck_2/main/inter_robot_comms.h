@@ -29,16 +29,4 @@ void inter_robot_comms_task(void *pvParameter);
  */
 void inter_robot_comms_init(void);
 
-/**
- * @brief 	Set the connected bit.
- *
- */
-void inter_robot_comms_set_event_connected(void);
-
-/**
- * @brief 	Set the disconnected bit.
- *
- */
-void inter_robot_comms_set_event_disconnected(void);
-
 #endif /* INTER_ROBOT_COMMS_H */

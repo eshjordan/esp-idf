@@ -44,6 +44,7 @@ void app_main(void)
   robot_read_id();
   ESP_ERROR_CHECK( nvs_flash_init() );
   socket_init();
+  inter_robot_comms_init();
 
   // Start the HTTP Server task.
   xTaskCreatePinnedToCore(&http_server, "http_server", 2048, NULL, 4, NULL, CORE_1);

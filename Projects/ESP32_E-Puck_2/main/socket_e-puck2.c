@@ -33,7 +33,7 @@ const int CONNECTED_BIT = BIT0;
 const int DISCONNECTED_BIT = BIT1;
 
 /* FreeRTOS event group to signal when we are connected & ready to send data */
-static EventGroupHandle_t socket_event_group;
+EventGroupHandle_t socket_event_group;
 
 int get_socket_error_code(int socket)
 {
@@ -70,28 +70,28 @@ void socket_task(void *pvParameter) {
     EventBits_t evg_bits;
 	int16_t len = 0;
 	sensors_buffer_t* sensors_buff = NULL;
-	uint8_t actuators_buff[ACTUATORS_BUFF_LEN], actuators_buff_last[ACTUATORS_BUFF_LEN]; // Packet id (1) + behavior/others (1) + speed left (2) + speed right (2) + LEDs (1) + RGB LEDs (12) + sound (1)	
+	uint8_t actuators_buff[ACTUATORS_BUFF_LEN], actuators_buff_last[ACTUATORS_BUFF_LEN]; // Packet id (1) + behavior/others (1) + speed left (2) + speed right (2) + LEDs (1) + RGB LEDs (12) + sound (1)
 	uint8_t header[1];
 	uint8_t conn_error = 0;
 	uint8_t valid_cmd_received = 0;
 	int rx_bytes_not_read = 0;
 	int16_t bytes_sent = 0;
 	uint16_t num_cmd_packets = 0;
-	
+
 	while(1) {
 		evg_bits = xEventGroupGetBits(socket_event_group);
 		if (evg_bits & DISCONNECTED_BIT) {
 			close(server_sock);
 			conn_state = 0;
 		}
-		
-		switch(conn_state) {	
+
+		switch(conn_state) {
 			case 0: // Wait connection to the AP.
 				printf("socket_server: waiting for start bit\n");
 				xEventGroupWaitBits(socket_event_group, CONNECTED_BIT, false, true, portMAX_DELAY);
 				conn_state = 1;
 				break;
-				
+
 			case 1: // Create TCP server.
 				server_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 				if (server_sock < 0) {
@@ -114,7 +114,7 @@ void socket_task(void *pvParameter) {
 				}
 				conn_state = 2;
 				break;
-				
+
 			case 2: // Wait connection from a peer.
 				//rgb_update_led2(0, 100, 0);
 				rgb_led2_gpio_set(1, 0, 1);
@@ -131,7 +131,7 @@ void socket_task(void *pvParameter) {
     		    conn_state = 3;
 				conn_error = 0;
 				memset(actuators_buff_last, 0, ACTUATORS_BUFF_LEN);
-				
+
 				/*
 				int n;
 				unsigned int m = sizeof(n);
@@ -141,11 +141,11 @@ void socket_task(void *pvParameter) {
 				printf("tx buff size = %d\r\n", n);
 				*/
 				break;
-				
-			case 3: // Receive commands (new actuators values).	
+
+			case 3: // Receive commands (new actuators values).
 				ioctl(client_sock, FIONREAD, &rx_bytes_not_read );
 				//printf("rx state = %d\r\n", rx_bytes_not_read);
-				
+
 				if(rx_bytes_not_read >= ACTUATORS_BUFF_LEN*5) { // Flush the input buffer to keep the robot responsive to recent commands.
 					//printf("flushing rx...\r\n");
 					num_cmd_packets = rx_bytes_not_read/ACTUATORS_BUFF_LEN;
@@ -159,8 +159,8 @@ void socket_task(void *pvParameter) {
 							recv(client_sock, &actuators_buff[0], ACTUATORS_BUFF_LEN, MSG_DONTWAIT);
 						}
 					}
-				}	
-				
+				}
+
 				len = recv(client_sock, &actuators_buff[0], ACTUATORS_BUFF_LEN, MSG_DONTWAIT);
 				if(len < 0) {
 					if(get_socket_error_code(client_sock) != 11) { // When error code is 11, it means that no data was available, so continue normally with the next state, otherwise terminate the connection.
@@ -170,15 +170,15 @@ void socket_task(void *pvParameter) {
 					}
 				} else if((len==ACTUATORS_BUFF_LEN) && (actuators_buff[0]==0x80)) {
 					valid_cmd_received = 1;
-					memcpy(actuators_buff_last, actuators_buff, ACTUATORS_BUFF_LEN);					
+					memcpy(actuators_buff_last, actuators_buff, ACTUATORS_BUFF_LEN);
 				} else {
 					//printf("received only %d bytes, wait for the remaining\r\n", len);
 					len += recv(client_sock, &actuators_buff[len], ACTUATORS_BUFF_LEN-len, MSG_WAITALL);
 					memcpy(actuators_buff_last, actuators_buff, ACTUATORS_BUFF_LEN);
 				}
-				
+
 				//printf("tx state = %d, %d\r\n", get_snd_buf(client_sock), get_snd_queuelen(client_sock));
-								
+
 				if(valid_cmd_received == 1) { // Wait for at least the first command before sending back anything.
 					//printf("cmd len = %d (%X)\n", len, actuators_buff[0]);
 					//if(actuators_buff[ACTUATORS_BUFF_LEN-1]!=0) {
@@ -193,13 +193,13 @@ void socket_task(void *pvParameter) {
 					} else if(actuators_buff_last[1]&0x02) {
 						conn_state = 5; // Send only sensors.
 					}
-				}				
-				break;				
-				
+				}
+				break;
+
 			case 4: // Exchanging image.
 				//rgb_led2_gpio_set(0, 1, 1); // Turn on red.
-				img_buff = spi_get_data_ptr(1);				
-				//rgb_led2_gpio_set(1, 1, 1); // Turn off all.			
+				img_buff = spi_get_data_ptr(1);
+				//rgb_led2_gpio_set(1, 1, 1); // Turn off all.
     		    num_packets = MAX_BUFF_SIZE/SPI_PACKET_MAX_SIZE;
     		    remaining_bytes = MAX_BUFF_SIZE%SPI_PACKET_MAX_SIZE;
 				rgb_led2_gpio_set(1, 1, 0); // Turn on blue.
@@ -208,7 +208,7 @@ void socket_task(void *pvParameter) {
     				show_socket_error_reason("send_image_header", client_sock);
     				conn_state = 2;
 					break;
-    			}				
+    			}
     			for(packet_id=0; packet_id<num_packets; packet_id++) {
     				if((len=send(client_sock, &(img_buff->data[SPI_PACKET_MAX_SIZE*packet_id]), SPI_PACKET_MAX_SIZE, 0)) < 0) {
     					show_socket_error_reason("send_data", client_sock);
@@ -223,7 +223,7 @@ void socket_task(void *pvParameter) {
     					conn_error = 1;
     				}
 					//printf("%d)%d\r\n", packet_id, len);
-    			}	
+    			}
 				rgb_led2_gpio_set(1, 1, 1); // Turn off all.
 				if(conn_error == 0) {
 					if(actuators_buff[1]&0x02) { // Send also sensors.
@@ -236,7 +236,7 @@ void socket_task(void *pvParameter) {
 					conn_state = 2;
 				}
 				break;
-				
+
 			case 5: // Send sensors values.
 				spi_get_data_ptr(0); // This is needed to update the RGB LEDs state when the image isn't exchanged.
 				sensors_buff = uart_get_data_ptr();
@@ -246,9 +246,9 @@ void socket_task(void *pvParameter) {
     				show_socket_error_reason("send_sensor_header", client_sock);
     				conn_state = 2;
 					break;
-    			}	
+    			}
 				//printf("Send data\r\n");
-				bytes_sent = send(client_sock, &(sensors_buff->data[0]), UART_RX_BUFF_SIZE, 0);				
+				bytes_sent = send(client_sock, &(sensors_buff->data[0]), UART_RX_BUFF_SIZE, 0);
     			if(bytes_sent < 0) {
     				show_socket_error_reason("send_sensor_data", client_sock);
     				conn_state = 2;
@@ -262,7 +262,7 @@ void socket_task(void *pvParameter) {
 				rgb_led2_gpio_set(1, 1, 1); // Turn off all.
 				conn_state = 3;
 				break;
-				
+
 			case 6: // Send empty packet (only id with no payload).
 				spi_get_data_ptr(0); // This is needed to update the RGB LEDs state when the image isn't exchanged.
 				header[0] = 0x03;
@@ -275,8 +275,8 @@ void socket_task(void *pvParameter) {
 				conn_state = 3;
 				break;
 		}
-		
-    	vTaskDelay( (TickType_t)10); /* allows the freeRTOS scheduler to take over if needed */		
+
+    	vTaskDelay( (TickType_t)10); /* allows the freeRTOS scheduler to take over if needed */
 	}
 
 }
