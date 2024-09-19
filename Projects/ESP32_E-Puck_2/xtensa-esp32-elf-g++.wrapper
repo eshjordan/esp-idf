@@ -1,0 +1,4 @@
+#!/bin/bash
+__real_bin="$(basename "$0")"
+# Remove the unknown target triple printed by xtensa-xxxxxx
+{ "${__real_bin%.wrapper}" "$@"; } 2>&1 | grep -v 'Target: xtensa'

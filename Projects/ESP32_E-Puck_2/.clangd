@@ -1,0 +1,26 @@
+# /path/to/your/compile_commands.json, usually ./build
+# compilation_database_dir: build
+# output_directory:         build/diagram
+CompileFlags:
+  # Compiler: xtensa-esp32-elf-g++.wrapper
+  Compiler: xtensa-esp32-elf-g++.wrapper
+  # Or query_driver: xtensa-esp32-elf-g++.wrapper
+  Add:
+    - '-m32'
+    - '-mllvm'
+    - '--mtriple=xtensa' # Make xtensa assembler work by manually specify the target triple
+    - '-D__XTENSA__=1'
+    - '-fparse-all-comments'
+    - '-fno-rtti'
+    - '-fno-exceptions'
+    - '-fms-extensions'  # Allow to cast from void* to int
+    - '-Wno-int-to-void-pointer-cast'
+  Remove:
+    - '-fno-shrink-wrap'
+    - '-mlongcalls'
+    - '-fstrict-volatile-bitfields'
+    - '-fno-tree-switch-conversion'
+    - '-Wno-old-style-declaration'
+    - '-Werror=all'
+    - '-pedantic'
+    - '-nostartfiles'
