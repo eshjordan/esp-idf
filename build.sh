@@ -12,13 +12,39 @@ tar -xzf ${HOME}/.xtensa/xtensa-esp32-elf.tar.gz -C ${HOME}/.xtensa
 # Ensure python3.7 is used for compatibility
 which python3.7
 if [ $? -ne 0 ]; then
-    sudo apt update && sudo apt install -y python3.7
+    sudo add-apt-repository ppa:deadsnakes/ppa
+    sudo apt install -y python3.7 python3.7-venv
 fi
 
-ln -sf /usr/bin/python3.7 ${HOME}/.xtensa/xtensa-esp32-elf/bin/python
+which bear
+if [ $? -ne 0 ]; then
+    sudo apt update && sudo apt install -y bear
+fi
 
+which flex
+if [ $? -ne 0 ]; then
+    sudo apt update && sudo apt install -y flex
+fi
+
+which bison
+if [ $? -ne 0 ]; then
+    sudo apt update && sudo apt install -y bison
+fi
+
+which gperf
+if [ $? -ne 0 ]; then
+    sudo apt update && sudo apt install -y gperf
+fi
+
+python3.7 -m venv ${HOME}/.xtensa/xtensa-esp32-elf/venv
+. ${HOME}/.xtensa/xtensa-esp32-elf/venv/bin/activate
+# ln -sf $(which python) ${HOME}/.xtensa/xtensa-esp32-elf/bin/python
+
+python -m pip install -r ${PWD}/requirements.txt
+
+export PATH="${HOME}/.xtensa/xtensa-esp32-elf/venv/bin:${PATH}"
 export PATH="${HOME}/.xtensa/xtensa-esp32-elf/bin:${PATH}"
 export IDF_PATH=$(pwd)
 . ${IDF_PATH}/add_path.sh
 cd Projects/ESP32_E-Puck_2
-make
+bear -- make
