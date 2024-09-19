@@ -1,32 +1,34 @@
 
 #pragma once
 
+#ifdef __cplusplus
+extern "C++" {
+#endif
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
 #include "lwip/sockets.h"
+#include "types.hpp"
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
-
-#define MAX_ROBOTS 10
-#define MAX_HOST_LEN 18
 
 class EpuckHeartbeatPacket
 {
 public:
     uint8_t id                           = 0x20;
     uint8_t robot_id                     = 0;
-    char robot_host[MAX_HOST_LEN]        = {0};
+    HostString robot_host                = {};
     uint16_t robot_port                  = 0;
     static constexpr uint8_t PACKET_SIZE = 1 + 1 + MAX_HOST_LEN + 2;
 
     void *pack()
     {
-        uint8_t buffer[PACKET_SIZE] = {0};
+        uint8_t buffer[PACKET_SIZE] = {};
         buffer[0]                   = id;
         buffer[1]                   = robot_id;
-        strcpy((char *)&buffer[2], robot_host);
+        strcpy((char *)&buffer[2], robot_host.c_str());
         buffer[2 + MAX_HOST_LEN]     = robot_port >> 8U;
         buffer[2 + MAX_HOST_LEN + 1] = robot_port & 0xFFU;
         return buffer;
@@ -34,10 +36,10 @@ public:
 
     static EpuckHeartbeatPacket unpack(void *buffer)
     {
-        EpuckHeartbeatPacket packet = {0};
+        EpuckHeartbeatPacket packet = {};
         packet.id                   = ((uint8_t *)buffer)[0];
         packet.robot_id             = ((uint8_t *)buffer)[1];
-        strcpy(packet.robot_host, &((char *)buffer)[2]);
+        packet.robot_host           = &((char *)buffer)[2];
         packet.robot_port = ((uint8_t *)buffer)[2 + MAX_HOST_LEN] << 8U | ((uint8_t *)buffer)[2 + MAX_HOST_LEN + 1];
         return packet;
     }
@@ -49,16 +51,16 @@ class EpuckNeighbourPacket
 {
 public:
     uint8_t robot_id                     = 0;
-    char host[MAX_HOST_LEN]              = {0};
+    HostString host                      = {};
     uint16_t port                        = 0;
     float dist                           = 0;
     static constexpr uint8_t PACKET_SIZE = 1 + MAX_HOST_LEN + 2 + 4;
 
     void *pack()
     {
-        uint8_t buffer[PACKET_SIZE] = {0};
+        uint8_t buffer[PACKET_SIZE] = {};
         buffer[0]                   = robot_id;
-        strcpy((char *)&buffer[1], host);
+        strcpy((char *)&buffer[1], host.c_str());
         buffer[1 + MAX_HOST_LEN]     = port >> 8U;
         buffer[1 + MAX_HOST_LEN + 1] = port & 0xFFU;
         memcpy(&buffer[1 + MAX_HOST_LEN + 2], &dist, 4);
@@ -67,9 +69,9 @@ public:
 
     static EpuckNeighbourPacket unpack(void *buffer)
     {
-        EpuckNeighbourPacket packet = {0};
+        EpuckNeighbourPacket packet = {};
         packet.robot_id             = ((uint8_t *)buffer)[0];
-        strcpy(packet.host, &((char *)buffer)[1]);
+        packet.host                 = &((char *)buffer)[1];
         packet.port = ((uint8_t *)buffer)[1 + MAX_HOST_LEN] << 8U | ((uint8_t *)buffer)[1 + MAX_HOST_LEN + 1];
         memcpy(&packet.dist, &((uint8_t *)buffer)[1 + MAX_HOST_LEN + 2], 4);
         return packet;
@@ -88,7 +90,7 @@ public:
 
     void *pack()
     {
-        uint8_t buffer[PACKET_SIZE] = {0};
+        uint8_t buffer[PACKET_SIZE] = {};
         buffer[0]                   = id;
         buffer[1]                   = num_neighbours;
         for (int i = 0; i < num_neighbours; i++)
@@ -101,7 +103,7 @@ public:
 
     static EpuckHeartbeatResponsePacket unpack(void *buffer)
     {
-        EpuckHeartbeatResponsePacket packet = {0};
+        EpuckHeartbeatResponsePacket packet = {};
         packet.id                           = ((uint8_t *)buffer)[0];
         packet.num_neighbours               = ((uint8_t *)buffer)[1];
         for (int i = 0; i < packet.num_neighbours; i++)
@@ -121,12 +123,12 @@ public:
     uint8_t id                           = 0x22;
     uint8_t robot_id                     = 0;
     uint8_t N                            = 0;
-    uint8_t known_ids[MAX_ROBOTS]        = {0};
+    uint8_t known_ids[MAX_ROBOTS]        = {};
     static constexpr uint8_t PACKET_SIZE = 1 + 1 + 1 + MAX_ROBOTS;
 
     void *pack()
     {
-        uint8_t buffer[PACKET_SIZE] = {0};
+        uint8_t buffer[PACKET_SIZE] = {};
         buffer[0]                   = id;
         buffer[1]                   = robot_id;
         buffer[2]                   = N;
@@ -139,7 +141,7 @@ public:
 
     static EpuckKnowledgePacket unpack(void *buffer)
     {
-        EpuckKnowledgePacket packet = {0};
+        EpuckKnowledgePacket packet = {};
         packet.id                   = ((uint8_t *)buffer)[0];
         packet.robot_id             = ((uint8_t *)buffer)[1];
         packet.N                    = ((uint8_t *)buffer)[2];
@@ -159,17 +161,17 @@ public:
     uint8_t id                           = 0x23;
     uint8_t robot_id                     = 0;
     uint8_t N                            = 0;
-    char address[MAX_HOST_LEN]           = {0};
-    uint8_t known_ids[MAX_ROBOTS]        = {0};
+    HostString address                   = {};
+    uint8_t known_ids[MAX_ROBOTS]        = {};
     static constexpr uint8_t PACKET_SIZE = 1 + 1 + 1 + MAX_HOST_LEN + MAX_ROBOTS;
 
     void *pack()
     {
-        uint8_t buffer[PACKET_SIZE] = {0};
+        uint8_t buffer[PACKET_SIZE] = {};
         buffer[0]                   = id;
         buffer[1]                   = robot_id;
         buffer[2]                   = N;
-        strcpy((char *)&buffer[3], address);
+        strcpy((char *)&buffer[3], address.c_str());
         for (int i = 0; i < N; i++)
         {
             buffer[3 + MAX_HOST_LEN + i] = known_ids[i];
@@ -179,11 +181,11 @@ public:
 
     static EpuckAddressKnowledgePacket unpack(void *buffer)
     {
-        EpuckAddressKnowledgePacket packet = {0};
+        EpuckAddressKnowledgePacket packet = {};
         packet.id                          = ((uint8_t *)buffer)[0];
         packet.robot_id                    = ((uint8_t *)buffer)[1];
         packet.N                           = ((uint8_t *)buffer)[2];
-        strcpy(packet.address, &((char *)buffer)[3]);
+        packet.address                     = &((char *)buffer)[3];
         for (int i = 0; i < packet.N; i++)
         {
             packet.known_ids[i] = ((uint8_t *)buffer)[3 + MAX_HOST_LEN + i];
@@ -193,3 +195,7 @@ public:
 
     static constexpr uint8_t calcsize() { return PACKET_SIZE; }
 };
+
+#ifdef __cplusplus
+}
+#endif

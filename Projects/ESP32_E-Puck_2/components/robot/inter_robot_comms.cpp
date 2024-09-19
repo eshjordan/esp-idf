@@ -7,6 +7,14 @@ REV 1.0
 
 Functions to configure and use the socket to exchange data through WiFi.
 */
+
+#include "RobotCommsModel.hpp"
+#include "UDPComms.hpp"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
@@ -24,8 +32,6 @@ Functions to configure and use the socket to exchange data through WiFi.
 #include "socket_e-puck2.h"
 #include "spi_e-puck2.h"
 #include "uart_e-puck2.h"
-
-#include "RobotCommsModel.hpp"
 
 #define TCP_PORT 1001
 #define TAG "inter_robot_comms:"
@@ -324,13 +330,16 @@ void inter_robot_comms_set_event_disconnected(void) { xEventGroupSetBits(socket_
 
 void inter_robot_comms_init(void)
 {
-    socket_event_group                    = xEventGroupCreate();
-    uint8_t robot_id                      = 0;
-    const char *manager_host              = "192.168.0.1";
-    uint16_t manager_port                 = 0;
-    char *robot_host                      = "192.168.0.2";
-    uint16_t robot_port                   = 0;
-    BaseKnowledgeServer *knowledge_server = NULL;
-    BaseKnowledgeClient *knowledge_client = NULL;
-    RobotCommsModel robot_model(robot_id, manager_host, manager_port, robot_host, knowledge_server, knowledge_client);
+    socket_event_group      = xEventGroupCreate();
+    uint8_t robot_id        = 0;
+    HostString manager_host = HostString("192.168.0.1");
+    uint16_t manager_port   = 0;
+    HostString robot_host   = "192.168.0.2";
+    uint16_t robot_port     = 0;
+    auto robot_model = RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>(robot_id, manager_host, manager_port,
+                                                                               robot_host, robot_port);
 }
+
+#ifdef __cplusplus
+}
+#endif

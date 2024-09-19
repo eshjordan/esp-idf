@@ -36,6 +36,11 @@ if [ $? -ne 0 ]; then
     sudo apt update && sudo apt install -y gperf
 fi
 
+which ls
+if [ $? -ne 0 ]; then
+    sudo apt update && sudo apt install -y libncurses-dev ncurses-bin
+fi
+
 python3.7 -m venv ${HOME}/.xtensa/xtensa-esp32-elf/venv
 . ${HOME}/.xtensa/xtensa-esp32-elf/venv/bin/activate
 # ln -sf $(which python) ${HOME}/.xtensa/xtensa-esp32-elf/bin/python
@@ -48,3 +53,5 @@ export IDF_PATH=$(pwd)
 . ${IDF_PATH}/add_path.sh
 cd Projects/ESP32_E-Puck_2
 bear -- make
+# cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -B build .
+# cmake --build build

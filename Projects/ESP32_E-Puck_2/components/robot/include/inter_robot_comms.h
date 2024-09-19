@@ -13,8 +13,8 @@ Functions to configure and use the inter-robot comms to exchange data through Wi
 
 #define ACTUATORS_BUFF_LEN 21
 
-#define INTER_ROBOT_COMMS_TASK_STACK_SIZE	2048
-#define INTER_ROBOT_COMMS_TASK_PRIO		5
+#define INTER_ROBOT_COMMS_TASK_STACK_SIZE 2048
+#define INTER_ROBOT_COMMS_TASK_PRIO 5
 
 /**
  * @brief 	TCP communication handling between the PC and ESP32
