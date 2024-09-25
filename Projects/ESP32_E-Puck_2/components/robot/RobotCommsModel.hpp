@@ -34,10 +34,10 @@ class BaseKnowledgeClient;
 class BaseKnowledgeServer
 {
 private:
-    RobotCommsModel<BaseKnowledgeServer, BaseKnowledgeClient> *robot_model;
+    std::shared_ptr<RobotCommsModel<BaseKnowledgeServer, BaseKnowledgeClient>> robot_model;
 
 public:
-    explicit BaseKnowledgeServer(RobotCommsModel<BaseKnowledgeServer, BaseKnowledgeClient> *robot_model)
+    explicit BaseKnowledgeServer(std::shared_ptr<RobotCommsModel<BaseKnowledgeServer, BaseKnowledgeClient>> robot_model)
         : robot_model(robot_model){};
     virtual void start() = 0;
     virtual void stop()  = 0;
@@ -48,17 +48,17 @@ class BaseKnowledgeClient
 private:
     EpuckNeighbourPacket neighbour;
     bool (*running)();
-    RobotCommsModel<BaseKnowledgeServer, BaseKnowledgeClient> *robot_model;
+    std::shared_ptr<RobotCommsModel<BaseKnowledgeServer, BaseKnowledgeClient>> robot_model;
 
 public:
     BaseKnowledgeClient(EpuckNeighbourPacket neighbour, bool (*running)(),
-                        RobotCommsModel<BaseKnowledgeServer, BaseKnowledgeClient> *robot_model)
+                        std::shared_ptr<RobotCommsModel<BaseKnowledgeServer, BaseKnowledgeClient>> robot_model)
         : neighbour(neighbour), running(running), robot_model(robot_model){};
     virtual void start() = 0;
     virtual void stop()  = 0;
 };
 
-template <typename T, typename U> class RobotCommsModel
+template <typename T, typename U> class RobotCommsModel : public std::enable_shared_from_this<RobotCommsModel<T, U>>
 {
     static_assert(std::is_base_of<BaseKnowledgeServer, T>::value, "T must inherit from BaseKnowledgeServer");
     static_assert(std::is_base_of<BaseKnowledgeClient, U>::value, "U must inherit from BaseKnowledgeClient");
@@ -71,10 +71,8 @@ private:
     uint16_t robot_port     = 0;
 
     alignas(T) uint8_t knowledge_server_buffer[sizeof(T)];
-    T *knowledge_server;
+    std::unique_ptr<T, void (*)(T *)> knowledge_server;
     std::map<uint8_t, U, std::less<uint8_t>, RobotSizeAllocator<std::pair<uint8_t, U>>> knowledge_clients;
-
-    std::set<uint8_t, std::less<uint8_t>, RobotSizeAllocator<uint8_t>> known_ids;
 
     bool run_heartbeats = false;
 #ifdef ESP32
@@ -90,14 +88,13 @@ public:
         this->robot_id     = robot_id;
         this->manager_port = manager_port;
         this->robot_port   = robot_port;
-        this->known_ids    = std::set<uint8_t, std::less<uint8_t>, RobotSizeAllocator<uint8_t>>();
     }
 
     ~RobotCommsModel() { this->stop(); }
 
     void start()
     {
-        this->knowledge_server = new (this->knowledge_server_buffer) T(this);
+        this->knowledge_server = std::unique_ptr<T, void (*)(T *)>(new (this->knowledge_server_buffer) T(this->shared_from_this()), [](T *p){ delete static_cast<T *>(p); });
         this->knowledge_server->start();
 
         this->knowledge_clients.clear();
@@ -157,6 +154,43 @@ public:
             heartbeat_client.receive_from(
                 asio::buffer(response_buffer + 2, num_neighbours * EpuckNeighbourPacket::calcsize()), manager_endpoint);
             auto response = EpuckHeartbeatResponsePacket::unpack(response_buffer);
+
+            // Connect to new robots that are listed in the response if they have a lower ID
+            for (const auto &neighbour : response.neighbours)
+            {
+                // Only connect to robots with lower IDs that are not already connected
+                if (this->knowledge_clients.find(neighbour.robot_id) != this->knowledge_clients.end()
+                    || neighbour.robot_id >= this->robot_id)
+                {
+                    continue;
+                }
+
+                this->knowledge_clients.emplace(
+                    neighbour.robot_id, neighbour,
+                    [&]() { return this->knowledge_clients.find(neighbour.robot_id) != this->knowledge_clients.end(); },
+                    this->shared_from_this());
+                this->knowledge_clients[neighbour.robot_id].start();
+            }
+
+            // Disconnect from connected robots that are not listed in the response
+            for (const auto &it : this->knowledge_clients)
+            {
+                auto &neighbour_id = it.first;
+                if (std::find(response.neighbours.begin(), response.neighbours.end(), neighbour_id)
+                    != response.neighbours.end())
+                {
+                    continue;
+                }
+                this->knowledge_clients[neighbour_id].stop();
+                this->knowledge_clients.erase(neighbour_id);
+            }
+
+            // Sleep for 1 second
+#ifdef ESP32
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
+#else
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+#endif
         }
     }
 };

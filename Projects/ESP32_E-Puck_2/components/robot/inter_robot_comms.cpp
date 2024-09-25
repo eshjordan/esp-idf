@@ -15,6 +15,7 @@ Functions to configure and use the socket to exchange data through WiFi.
 extern "C" {
 #endif
 
+#include <memory>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>

@@ -9,7 +9,7 @@ extern "C++" {
 class UDPKnowledgeServer : public BaseKnowledgeServer
 {
 public:
-    template <typename T, typename U> explicit UDPKnowledgeServer(RobotCommsModel<T, U> *robot_model)
+    template <typename T, typename U> explicit UDPKnowledgeServer(std::shared_ptr<RobotCommsModel<T, U>> robot_model)
         : BaseKnowledgeServer(robot_model){};
     void start() {}
     void stop() {}
@@ -19,7 +19,7 @@ class UDPKnowledgeClient : public BaseKnowledgeClient
 {
 public:
     template <typename T, typename U>
-    UDPKnowledgeClient(EpuckNeighbourPacket neighbour, bool (*running)(), RobotCommsModel<T, U> *robot_model)
+    UDPKnowledgeClient(EpuckNeighbourPacket neighbour, bool (*running)(), std::shared_ptr<RobotCommsModel<T, U>> robot_model)
         : BaseKnowledgeClient(neighbour, running, robot_model){};
     void start() {}
     void stop() {}
