@@ -336,8 +336,7 @@ void inter_robot_comms_init(void)
     uint16_t manager_port   = 0;
     HostString robot_host   = "192.168.0.2";
     uint16_t robot_port     = 0;
-    auto robot_model = RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>(robot_id, manager_host, manager_port,
-                                                                               robot_host, robot_port);
+    auto robot_model = RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>(robot_id, manager_host, manager_port, robot_host, robot_port);
 }
 
 #ifdef __cplusplus

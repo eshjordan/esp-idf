@@ -12,7 +12,6 @@ extern "C++" {
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
-#include "lwip/sockets.h"
 #else
 #include <thread>
 #endif
@@ -24,11 +23,8 @@ extern "C++" {
 #include <functional>
 #include <map>
 #include <memory>
-#include <poll.h>
 #include <set>
 #include <stdint.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
 #include <sys/time.h>
 #include <vector>
 
@@ -87,8 +83,6 @@ private:
     std::thread heartbeat_thread = std::thread();
 #endif
 
-    asio::ip::udp::socket heartbeat_client = 0;
-
 public:
     RobotCommsModel(const uint8_t &robot_id, const HostString &manager_host, const uint16_t &manager_port,
                     const HostString &robot_host, const uint16_t &robot_port)
@@ -130,8 +124,7 @@ public:
     void exchange_heartbeats()
     {
         asio::io_context io_context;
-        this->heartbeat_client = asio::ip::udp::socket socket(io_context);
-        this->heartbeat_client.open(asio::ip::udp::v4());
+        auto heartbeat_client = asio::ip::udp::socket(io_context);
 
         auto manager_endpoint =
             asio::ip::udp::endpoint(asio::ip::address::from_string(this->manager_host), this->manager_port);
@@ -143,21 +136,27 @@ public:
             packet.robot_host = this->robot_host;
             packet.robot_port = this->robot_port;
 
-            this->heartbeat_client.sendto(asio::buffer(packet.pack(), packet.calcsize()), manager_endpoint);
+            heartbeat_client.send_to(asio::buffer(packet.pack(), packet.calcsize()), manager_endpoint);
 
-            struct pollfd pfd = {.fd = this->heartbeat_client.native_handle(), .events = POLLIN, .revents = 0};
-            int retval = poll(&pfd, 1, 10);
-            if (retval == 0) { // timeout
+            struct pollfd pfd = {.fd = heartbeat_client.native_handle(), .events = POLLIN, .revents = 0};
+            int retval        = poll(&pfd, 1, 10);
+            if (retval == 0)
+            { // timeout
                 continue;
             }
-            if (retval < 0) {
+            if (retval < 0)
+            {
                 perror("poll");
                 continue;
             }
 
-            auto response = EpuckHeartbeatResponsePacket().pack();
+            auto response_buffer = reinterpret_cast<uint8_t *>(EpuckHeartbeatResponsePacket().pack());
 
-            this->heartbeat_client.receive_from(asio::buffer(response.pack(), packet.calcsize()), manager_endpoint);
+            heartbeat_client.receive_from(asio::buffer(response_buffer, 2), manager_endpoint);
+            auto num_neighbours = response_buffer[1];
+            heartbeat_client.receive_from(
+                asio::buffer(response_buffer + 2, num_neighbours * EpuckNeighbourPacket::calcsize()), manager_endpoint);
+            auto response = EpuckHeartbeatResponsePacket::unpack(response_buffer);
         }
     }
 };
