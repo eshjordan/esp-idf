@@ -124,7 +124,7 @@ struct wps_data {
 #endif
 };
 
-wps_crypto_funcs_t wps_crypto_funcs;
+extern wps_crypto_funcs_t wps_crypto_funcs;
 
 /* wps_common.c */
 void wps_kdf(const u8 *key, const u8 *label_prefix, size_t label_prefix_len,

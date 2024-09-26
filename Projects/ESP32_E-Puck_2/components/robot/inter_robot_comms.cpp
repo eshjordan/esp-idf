@@ -8,6 +8,8 @@ REV 1.0
 Functions to configure and use the socket to exchange data through WiFi.
 */
 
+#define INTER_ROBOT_COMMS_ESP32
+
 #include "RobotCommsModel.hpp"
 #include "UDPComms.hpp"
 
@@ -15,6 +17,7 @@ Functions to configure and use the socket to exchange data through WiFi.
 extern "C" {
 #endif
 
+#include <esp_pthread.h>
 #include <memory>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -331,13 +334,18 @@ void inter_robot_comms_set_event_disconnected(void) { xEventGroupSetBits(socket_
 
 void inter_robot_comms_init(void)
 {
+    auto cfg        = esp_pthread_get_default_config();
+    cfg.pin_to_core = CORE_1;
+    esp_pthread_set_cfg(&cfg);
+
     socket_event_group      = xEventGroupCreate();
     uint8_t robot_id        = 0;
     HostString manager_host = HostString("192.168.0.1");
     uint16_t manager_port   = 0;
     HostString robot_host   = "192.168.0.2";
     uint16_t robot_port     = 0;
-    auto robot_model = RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>(robot_id, manager_host, manager_port, robot_host, robot_port);
+    auto robot_model = RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>(robot_id, manager_host, manager_port,
+                                                                               robot_host, robot_port);
 }
 
 #ifdef __cplusplus

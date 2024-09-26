@@ -66,7 +66,7 @@ struct eap_method {
 	/**
 	 * method - EAP type number
 	 */
-	EapType method;	
+	EapType method;
 
 	/**
 	 * name - Name of the method (e.g., "TLS")
@@ -128,7 +128,7 @@ struct eap_sm {
 	const struct eap_method *m;
 };
 
-wpa2_crypto_funcs_t wpa2_crypto_funcs;
+extern wpa2_crypto_funcs_t wpa2_crypto_funcs;
 
 const u8 * eap_get_config_identity(struct eap_sm *sm, size_t *len);
 const u8 * eap_get_config_password(struct eap_sm *sm, size_t *len);

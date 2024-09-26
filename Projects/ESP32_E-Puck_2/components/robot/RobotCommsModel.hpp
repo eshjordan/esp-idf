@@ -1,21 +1,12 @@
 
 #pragma once
 
-#include "types.hpp"
 #ifdef __cplusplus
 extern "C++" {
 #endif
 
-#define ESP32
-
-#ifdef ESP32
-#include "freertos/FreeRTOS.h"
-#include "freertos/event_groups.h"
-#include "freertos/task.h"
-#else
+#include "types.hpp"
 #include <thread>
-#endif
-
 #include "EpuckPackets.hpp"
 #include <asio.hpp>
 #include <cstddef>
@@ -71,15 +62,11 @@ private:
     uint16_t robot_port     = 0;
 
     alignas(T) uint8_t knowledge_server_buffer[sizeof(T)];
-    std::unique_ptr<T, void (*)(T *)> knowledge_server;
+    std::shared_ptr<T> knowledge_server;
     std::map<uint8_t, U, std::less<uint8_t>, RobotSizeAllocator<std::pair<uint8_t, U>>> knowledge_clients;
 
     bool run_heartbeats = false;
-#ifdef ESP32
-    TaskHandle_t heartbeat_thread = NULL;
-#else
-    std::thread heartbeat_thread = std::thread();
-#endif
+    std::thread heartbeat_thread;
 
 public:
     RobotCommsModel(const uint8_t &robot_id, const HostString &manager_host, const uint16_t &manager_port,
@@ -94,28 +81,20 @@ public:
 
     void start()
     {
-        this->knowledge_server = std::unique_ptr<T, void (*)(T *)>(new (this->knowledge_server_buffer) T(this->shared_from_this()), [](T *p){ delete static_cast<T *>(p); });
+        this->knowledge_server = std::shared_ptr<T>(new (this->knowledge_server_buffer) T(this->shared_from_this()));
         this->knowledge_server->start();
 
         this->knowledge_clients.clear();
 
         this->run_heartbeats = true;
-#ifdef ESP32
-        xTaskCreatePinnedToCore(&RobotCommsModel::exchange_heartbeats, "exchange_heartbeats", 4096, this, 5,
-                                &this->heartbeat_thread, 1);
-#else
-        this->heartbeat_thread = std::thread(&RobotCommsModel::exchange_heartbeats, this);
-#endif
+        std::thread tmp_thread(&RobotCommsModel::exchange_heartbeats, this);
+        this->heartbeat_thread.swap(tmp_thread);
     }
 
     void stop()
     {
         this->run_heartbeats = false;
-#ifdef ESP32
-        vTaskDelete(this->heartbeat_thread);
-#else
         this->heartbeat_thread.join();
-#endif
     }
 
     void exchange_heartbeats()
@@ -124,7 +103,7 @@ public:
         auto heartbeat_client = asio::ip::udp::socket(io_context);
 
         auto manager_endpoint =
-            asio::ip::udp::endpoint(asio::ip::address::from_string(this->manager_host), this->manager_port);
+            asio::ip::udp::endpoint(asio::ip::address::from_string(this->manager_host.c_str()), this->manager_port);
 
         while (this->run_heartbeats)
         {
@@ -186,11 +165,7 @@ public:
             }
 
             // Sleep for 1 second
-#ifdef ESP32
-            vTaskDelay(1000 / portTICK_PERIOD_MS);
-#else
             std::this_thread::sleep_for(std::chrono::seconds(1));
-#endif
         }
     }
 };

@@ -2,12 +2,12 @@
 
 mkdir -p ${HOME}/.xtensa
 
-# Check if xtensa-esp32-elf is already installed
-if [ ! -f ${HOME}/.xtensa/xtensa-esp32-elf.tar.gz ]; then
-    wget https://dl.espressif.com/dl/xtensa-esp32-elf-linux64-1.22.0-80-g6c4433a-5.2.0.tar.gz -O ${HOME}/.xtensa/xtensa-esp32-elf.tar.gz
+# Check if xtensa-esp-elf is already installed
+if [ ! -f ${HOME}/.xtensa/xtensa-esp-elf.tar.xz ]; then
+    wget https://github.com/espressif/crosstool-NG/releases/download/esp-13.2.0_20230928/xtensa-esp-elf-13.2.0_20230928-x86_64-linux-gnu.tar.xz -O ${HOME}/.xtensa/xtensa-esp-elf.tar.xz
 fi
 
-tar -xzf ${HOME}/.xtensa/xtensa-esp32-elf.tar.gz -C ${HOME}/.xtensa
+tar -xaf ${HOME}/.xtensa/xtensa-esp-elf.tar.xz -C ${HOME}/.xtensa
 
 # Ensure python3.7 is used for compatibility
 which python3.7
@@ -41,17 +41,23 @@ if [ $? -ne 0 ]; then
     sudo apt update && sudo apt install -y libncurses-dev ncurses-bin
 fi
 
-python3.7 -m venv ${HOME}/.xtensa/xtensa-esp32-elf/venv
-. ${HOME}/.xtensa/xtensa-esp32-elf/venv/bin/activate
-# ln -sf $(which python) ${HOME}/.xtensa/xtensa-esp32-elf/bin/python
+python3.7 -m venv ${HOME}/.xtensa/xtensa-esp-elf/venv
+. ${HOME}/.xtensa/xtensa-esp-elf/venv/bin/activate
+# ln -sf $(which python) ${HOME}/.xtensa/xtensa-esp-elf/bin/python
 
 python -m pip install -r ${PWD}/requirements.txt
 
-export PATH="${HOME}/.xtensa/xtensa-esp32-elf/venv/bin:${PATH}"
-export PATH="${HOME}/.xtensa/xtensa-esp32-elf/bin:${PATH}"
+export PATH="${HOME}/.xtensa/xtensa-esp-elf/venv/bin:${PATH}"
+export PATH="${HOME}/.xtensa/xtensa-esp-elf/bin:${PATH}"
 export IDF_PATH=$(pwd)
 . ${IDF_PATH}/add_path.sh
+
+# Find all patches in the current directory and apply them
+for patch in `ls *.patch`; do
+    patch -N -r /dev/null -p0 < $patch
+done
+
 cd Projects/ESP32_E-Puck_2
-bear -- make
+bear -- make -j12
 # cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -B build .
 # cmake --build build

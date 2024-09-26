@@ -5,6 +5,7 @@ extern "C++" {
 #endif
 
 #include <string>
+#include <stdint.h>
 
 #define MAX_ROBOTS 10
 #define MAX_HOST_LEN 18
