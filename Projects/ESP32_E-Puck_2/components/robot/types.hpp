@@ -4,8 +4,28 @@
 extern "C++" {
 #endif
 
-#include <string>
+#ifdef INTER_ROBOT_COMMS_ESP32
+#include "esp_log.h"
+#else
+#include <stdarg.h>
+#include <stdio.h>
+inline void log_write(const char *tag, const char *format, ...)
+{
+    va_list arg;
+    va_start(arg, format);
+    vprintf(format, arg);
+    va_end(arg);
+}
+
+#define ESP_LOGE(tag, format, ...) log_write(tag, "["##tag " - ERROR]: " format, ##__VA_ARGS__)
+#define ESP_LOGW(tag, format, ...) log_write(tag, "["##tag " - WARN]: " format, ##__VA_ARGS__)
+#define ESP_LOGI(tag, format, ...) log_write(tag, "["##tag " - INFO]: " format, ##__VA_ARGS__)
+#define ESP_LOGD(tag, format, ...) log_write(tag, "["##tag " - DEBUG]: " format, ##__VA_ARGS__)
+#define ESP_LOGV(tag, format, ...) log_write(tag, "["##tag " - VERBOSE]: " format, ##__VA_ARGS__)
+#endif
+
 #include <stdint.h>
+#include <string>
 
 #define MAX_ROBOTS 10
 #define MAX_HOST_LEN 18

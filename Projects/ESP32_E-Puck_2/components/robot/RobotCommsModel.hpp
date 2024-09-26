@@ -5,9 +5,8 @@
 extern "C++" {
 #endif
 
-#include "types.hpp"
-#include <thread>
 #include "EpuckPackets.hpp"
+#include "types.hpp"
 #include <asio.hpp>
 #include <cstddef>
 #include <cstdint>
@@ -17,6 +16,7 @@ extern "C++" {
 #include <set>
 #include <stdint.h>
 #include <sys/time.h>
+#include <thread>
 #include <vector>
 
 template <typename T, typename U> class RobotCommsModel;
@@ -68,6 +68,8 @@ private:
     bool run_heartbeats = false;
     std::thread heartbeat_thread;
 
+    static constexpr char TAG[] = "RobotCommsModel";
+
 public:
     RobotCommsModel(const uint8_t &robot_id, const HostString &manager_host, const uint16_t &manager_port,
                     const HostString &robot_host, const uint16_t &robot_port)
@@ -107,6 +109,8 @@ public:
 
         while (this->run_heartbeats)
         {
+            ESP_LOGD(TAG, "Sending heartbeat to %s:%hu", manager_host.c_str(), this->manager_port);
+
             auto packet       = EpuckHeartbeatPacket();
             packet.robot_id   = this->robot_id;
             packet.robot_host = this->robot_host;
@@ -134,6 +138,12 @@ public:
                 asio::buffer(response_buffer + 2, num_neighbours * EpuckNeighbourPacket::calcsize()), manager_endpoint);
             auto response = EpuckHeartbeatResponsePacket::unpack(response_buffer);
 
+            for (const auto &neighbour : response.neighbours)
+            {
+                ESP_LOGD(TAG, "Received neighbour: %hhu (%s:%hu) at distance %f", neighbour.robot_id,
+                         neighbour.host.c_str(), neighbour.port, neighbour.dist);
+            }
+
             // Connect to new robots that are listed in the response if they have a lower ID
             for (const auto &neighbour : response.neighbours)
             {
@@ -143,6 +153,9 @@ public:
                 {
                     continue;
                 }
+
+                ESP_LOGI(TAG, "Starting thread for neighbour %hhu (%s:%hu)", neighbour.robot_id, neighbour.host.c_str(),
+                         neighbour.port);
 
                 this->knowledge_clients.emplace(
                     neighbour.robot_id, neighbour,
@@ -155,11 +168,15 @@ public:
             for (const auto &it : this->knowledge_clients)
             {
                 auto &neighbour_id = it.first;
-                if (std::find(response.neighbours.begin(), response.neighbours.end(), neighbour_id)
+                if (std::find_if(response.neighbours.begin(), response.neighbours.end(),
+                                 [neighbour_id](auto &neighbour) { return neighbour.robot_id == neighbour_id; })
                     != response.neighbours.end())
                 {
                     continue;
                 }
+
+                ESP_LOGI(TAG, "Stopping thread for neighbour %hhu", neighbour_id);
+
                 this->knowledge_clients[neighbour_id].stop();
                 this->knowledge_clients.erase(neighbour_id);
             }
