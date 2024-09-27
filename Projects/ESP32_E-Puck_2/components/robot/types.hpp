@@ -1,15 +1,11 @@
 #pragma once
 
-#ifdef __cplusplus
-extern "C++" {
-#endif
-
 #ifdef INTER_ROBOT_COMMS_ESP32
 #include "esp_log.h"
 #else
 #include <stdarg.h>
 #include <stdio.h>
-inline void log_write(const char *tag, const char *format, ...)
+inline void log_write(const char *format, ...)
 {
     va_list arg;
     va_start(arg, format);
@@ -17,11 +13,11 @@ inline void log_write(const char *tag, const char *format, ...)
     va_end(arg);
 }
 
-#define ESP_LOGE(tag, format, ...) log_write(tag, "["##tag " - ERROR]: " format, ##__VA_ARGS__)
-#define ESP_LOGW(tag, format, ...) log_write(tag, "["##tag " - WARN]: " format, ##__VA_ARGS__)
-#define ESP_LOGI(tag, format, ...) log_write(tag, "["##tag " - INFO]: " format, ##__VA_ARGS__)
-#define ESP_LOGD(tag, format, ...) log_write(tag, "["##tag " - DEBUG]: " format, ##__VA_ARGS__)
-#define ESP_LOGV(tag, format, ...) log_write(tag, "["##tag " - VERBOSE]: " format, ##__VA_ARGS__)
+#define ESP_LOGE(tag, format, ...) log_write("[%s - ERROR]: " format, tag, ##__VA_ARGS__)
+#define ESP_LOGW(tag, format, ...) log_write("[%s - WARN]: " format, tag, ##__VA_ARGS__)
+#define ESP_LOGI(tag, format, ...) log_write("[%s - INFO]: " format, tag, ##__VA_ARGS__)
+#define ESP_LOGD(tag, format, ...) log_write("[%s - DEBUG]: " format, tag, ##__VA_ARGS__)
+#define ESP_LOGV(tag, format, ...) log_write("[%s - VERBOSE]: " format, tag, ##__VA_ARGS__)
 #endif
 
 #include <stdint.h>
@@ -120,7 +116,3 @@ DECLARE_STATIC_ALLOCATOR(RobotSizeAllocator, MAX_ROBOTS)
 DECLARE_STATIC_ALLOCATOR(HostSizeAllocator, MAX_HOST_LEN)
 
 using HostString = std::basic_string<char, std::char_traits<char>, RobotSizeAllocator<char>>;
-
-#ifdef __cplusplus
-}
-#endif

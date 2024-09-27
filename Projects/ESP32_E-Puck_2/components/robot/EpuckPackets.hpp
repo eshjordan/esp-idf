@@ -1,9 +1,4 @@
-
 #pragma once
-
-#ifdef __cplusplus
-extern "C++" {
-#endif
 
 #include "types.hpp"
 #include <string.h>
@@ -203,7 +198,3 @@ public:
 
     static constexpr uint8_t calcsize() { return PACKET_SIZE; }
 };
-
-#ifdef __cplusplus
-}
-#endif
