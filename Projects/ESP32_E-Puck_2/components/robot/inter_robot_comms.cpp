@@ -338,12 +338,12 @@ void inter_robot_comms_init(void)
     cfg.pin_to_core = CORE_1;
     esp_pthread_set_cfg(&cfg);
 
-    socket_event_group      = xEventGroupCreate();
-    uint8_t robot_id        = 0;
-    HostString manager_host = HostString("192.168.0.1");
-    uint16_t manager_port   = 0;
-    HostString robot_host   = "192.168.0.2";
-    uint16_t robot_port     = 0;
+    socket_event_group          = xEventGroupCreate();
+    uint8_t robot_id            = 0;
+    HostSizeString manager_host = HostSizeString("192.168.0.1");
+    uint16_t manager_port       = 0;
+    HostSizeString robot_host   = "192.168.0.2";
+    uint16_t robot_port         = 0;
     auto robot_model = RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>(robot_id, manager_host, manager_port,
                                                                                robot_host, robot_port);
 }

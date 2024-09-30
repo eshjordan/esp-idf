@@ -1,20 +1,20 @@
 #pragma once
 
 #include "types.hpp"
+#include <cstdint>
 #include <string.h>
-#include <vector>
 
 class EpuckHeartbeatPacket
 {
 public:
     uint8_t id                           = 0x20;
     uint8_t robot_id                     = 0;
-    HostString robot_host                = {};
+    HostSizeString robot_host                = {};
     uint16_t robot_port                  = 0;
     static constexpr uint8_t PACKET_SIZE = 1 + 1 + MAX_HOST_LEN + 2;
 
     EpuckHeartbeatPacket() = default;
-    explicit EpuckHeartbeatPacket(void *buffer) { *this = std::move(unpack(buffer)); }
+    [[nodiscard]] explicit EpuckHeartbeatPacket(const void *const buffer) { *this = std::move(unpack(buffer)); }
 
     void *pack()
     {
@@ -27,7 +27,7 @@ public:
         return buffer;
     }
 
-    static EpuckHeartbeatPacket unpack(void *buffer)
+    [[nodiscard]] static EpuckHeartbeatPacket unpack(const void *const buffer)
     {
         EpuckHeartbeatPacket packet;
         packet.id         = ((uint8_t *)buffer)[0];
@@ -44,15 +44,22 @@ class EpuckNeighbourPacket
 {
 public:
     uint8_t robot_id                     = 0;
-    HostString host                      = {};
+    HostSizeString host                      = {};
     uint16_t port                        = 0;
     float dist                           = 0;
     static constexpr uint8_t PACKET_SIZE = 1 + MAX_HOST_LEN + 2 + 4;
 
     EpuckNeighbourPacket() = default;
-    explicit EpuckNeighbourPacket(void *buffer) { *this = std::move(unpack(buffer)); }
+    [[nodiscard]] explicit EpuckNeighbourPacket(const void *const buffer) { *this = std::move(unpack(buffer)); }
 
-    void *pack()
+    bool operator==(const EpuckNeighbourPacket &other) const
+    {
+        return robot_id == other.robot_id && host == other.host && port == other.port && dist == other.dist;
+    }
+
+    bool operator<(const EpuckNeighbourPacket &other) const { return robot_id < other.robot_id; }
+
+    [[nodiscard]] void *pack() const
     {
         uint8_t buffer[PACKET_SIZE] = {0};
         buffer[0]                   = robot_id;
@@ -63,7 +70,7 @@ public:
         return buffer;
     }
 
-    static EpuckNeighbourPacket unpack(void *buffer)
+    [[nodiscard]] static EpuckNeighbourPacket unpack(const void *const buffer)
     {
         EpuckNeighbourPacket packet;
         packet.robot_id = ((uint8_t *)buffer)[0];
@@ -81,30 +88,35 @@ class EpuckHeartbeatResponsePacket
 public:
     uint8_t id             = 0x21;
     uint8_t num_neighbours = 0;
-    std::vector<EpuckNeighbourPacket, RobotSizeAllocator<EpuckNeighbourPacket>> neighbours;
+    RobotSizeSet<EpuckNeighbourPacket> neighbours;
     static constexpr uint8_t PACKET_SIZE = 1 + 1 + MAX_ROBOTS * EpuckNeighbourPacket::calcsize();
 
     EpuckHeartbeatResponsePacket() = default;
-    explicit EpuckHeartbeatResponsePacket(void *buffer) { *this = std::move(unpack(buffer)); }
+    [[nodiscard]] explicit EpuckHeartbeatResponsePacket(const void *const buffer) { *this = std::move(unpack(buffer)); }
 
-    void *pack()
+    [[nodiscard]] void *pack() const
     {
         uint8_t buffer[PACKET_SIZE] = {0};
         buffer[0]                   = id;
         buffer[1]                   = num_neighbours;
-        memcpy(&buffer[2], neighbours.data(), num_neighbours * EpuckNeighbourPacket::calcsize());
+        int i                       = 0;
+        for (const auto &neighbour : neighbours)
+        {
+            memcpy(&buffer[2 + i * EpuckNeighbourPacket::calcsize()], neighbour.pack(),
+                   EpuckNeighbourPacket::calcsize());
+            i++;
+        }
         return buffer;
     }
 
-    static EpuckHeartbeatResponsePacket unpack(void *buffer)
+    [[nodiscard]] static EpuckHeartbeatResponsePacket unpack(const void *const buffer)
     {
         EpuckHeartbeatResponsePacket packet;
         packet.id             = ((uint8_t *)buffer)[0];
         packet.num_neighbours = ((uint8_t *)buffer)[1];
-        packet.neighbours.reserve(packet.num_neighbours);
         for (int i = 0; i < packet.num_neighbours; i++)
         {
-            packet.neighbours.emplace_back(&((uint8_t *)buffer)[2 + i * EpuckNeighbourPacket::calcsize()]);
+            packet.neighbours.emplace(&((uint8_t *)buffer)[2 + i * EpuckNeighbourPacket::calcsize()]);
         }
         return packet;
     }
@@ -118,35 +130,35 @@ public:
     uint8_t id       = 0x22;
     uint8_t robot_id = 0;
     uint8_t N        = 0;
-    std::vector<uint8_t, RobotSizeAllocator<uint8_t>> known_ids;
+    RobotSizeSet<uint8_t> known_ids;
     static constexpr uint8_t PACKET_SIZE = 1 + 1 + 1 + MAX_ROBOTS;
 
     EpuckKnowledgePacket() = default;
-    explicit EpuckKnowledgePacket(void *buffer) { *this = std::move(unpack(buffer)); }
+    [[nodiscard]] explicit EpuckKnowledgePacket(const void *const buffer) { *this = std::move(unpack(buffer)); }
 
-    void *pack()
+    [[nodiscard]] void *pack() const
     {
         uint8_t buffer[PACKET_SIZE] = {0};
         buffer[0]                   = id;
         buffer[1]                   = robot_id;
         buffer[2]                   = N;
-        for (int i = 0; i < N; i++)
+        int i                       = 0;
+        for (const auto &known_id : known_ids)
         {
-            buffer[3 + i] = known_ids[i];
+            buffer[3 + i++] = known_id;
         }
         return buffer;
     }
 
-    static EpuckKnowledgePacket unpack(void *buffer)
+    [[nodiscard]] static EpuckKnowledgePacket unpack(const void *const buffer)
     {
         EpuckKnowledgePacket packet;
         packet.id       = ((uint8_t *)buffer)[0];
         packet.robot_id = ((uint8_t *)buffer)[1];
         packet.N        = ((uint8_t *)buffer)[2];
-        packet.known_ids.reserve(packet.N);
         for (int i = 0; i < packet.N; i++)
         {
-            packet.known_ids.emplace_back(((uint8_t *)buffer)[3 + i]);
+            packet.known_ids.emplace(((uint8_t *)buffer)[3 + i]);
         }
         return packet;
     }
@@ -160,38 +172,38 @@ public:
     uint8_t id         = 0x23;
     uint8_t robot_id   = 0;
     uint8_t N          = 0;
-    HostString address = {};
-    std::vector<uint8_t, RobotSizeAllocator<uint8_t>> known_ids;
+    HostSizeString address = {};
+    RobotSizeSet<uint8_t> known_ids;
     static constexpr uint8_t PACKET_SIZE = 1 + 1 + 1 + MAX_HOST_LEN + MAX_ROBOTS;
 
     EpuckAddressKnowledgePacket() = default;
-    explicit EpuckAddressKnowledgePacket(void *buffer) { *this = std::move(unpack(buffer)); }
+    [[nodiscard]] explicit EpuckAddressKnowledgePacket(const void *const buffer) { *this = std::move(unpack(buffer)); }
 
-    void *pack()
+    [[nodiscard]] void *pack() const
     {
         uint8_t buffer[PACKET_SIZE] = {0};
         buffer[0]                   = id;
         buffer[1]                   = robot_id;
         buffer[2]                   = N;
         strcpy((char *)&buffer[3], address.c_str());
-        for (int i = 0; i < N; i++)
+        int i = 0;
+        for (const auto &known_id : known_ids)
         {
-            buffer[3 + MAX_HOST_LEN + i] = known_ids[i];
+            buffer[3 + MAX_HOST_LEN + i++] = known_id;
         }
         return buffer;
     }
 
-    static EpuckAddressKnowledgePacket unpack(void *buffer)
+    [[nodiscard]] static EpuckAddressKnowledgePacket unpack(const void *const buffer)
     {
         EpuckAddressKnowledgePacket packet;
         packet.id       = ((uint8_t *)buffer)[0];
         packet.robot_id = ((uint8_t *)buffer)[1];
         packet.N        = ((uint8_t *)buffer)[2];
         packet.address  = &((char *)buffer)[3];
-        packet.known_ids.reserve(packet.N);
         for (int i = 0; i < packet.N; i++)
         {
-            packet.known_ids.emplace_back(((uint8_t *)buffer)[3 + MAX_HOST_LEN + i]);
+            packet.known_ids.emplace(((uint8_t *)buffer)[3 + MAX_HOST_LEN + i]);
         }
         return packet;
     }

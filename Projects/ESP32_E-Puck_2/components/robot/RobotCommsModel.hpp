@@ -19,9 +19,33 @@
 class BaseRobotCommsModel
 {
 public:
-    virtual void Start()                                        = 0;
-    virtual void Stop()                                         = 0;
-    [[nodiscard]] virtual std::set<uint8_t> GetKnownIds() const = 0;
+    using robot_id_type      = uint8_t;
+    using known_ids_type     = RobotSizeSet<robot_id_type>;
+    using known_ids_iterator = known_ids_type::iterator;
+
+    const robot_id_type robot_id;
+
+    explicit BaseRobotCommsModel(const robot_id_type &robot_id) : robot_id(robot_id)
+    {
+        this->known_ids.insert(robot_id);
+    }
+
+    virtual void Start() = 0;
+    virtual void Stop()  = 0;
+
+    [[nodiscard]] std::pair<const known_ids_iterator&, const known_ids_iterator&> GetKnownIds() const
+    {
+        return {this->known_ids.begin(), this->known_ids.end()};
+    }
+
+    size_t InsertKnownIds(known_ids_iterator first, known_ids_iterator last) {
+        auto size_before = this->known_ids.size();
+        this->known_ids.insert(first, last);
+        return this->known_ids.size() - size_before;
+    }
+
+protected:
+    known_ids_type known_ids = {};
 };
 
 class BaseKnowledgeServer
@@ -60,12 +84,11 @@ template <typename T, typename U> class RobotCommsModel : public std::enable_sha
     static_assert(std::is_base_of_v<BaseKnowledgeClient, U>, "U must inherit from BaseKnowledgeClient");
 
 public:
-    RobotCommsModel(const uint8_t &robot_id, HostString manager_host, const uint16_t &manager_port,
-                    HostString robot_host, const uint16_t &robot_port)
-        : robot_id_(robot_id), manager_host_(std::move(manager_host)), manager_port_(manager_port),
+    RobotCommsModel(const robot_id_type &robot_id, HostSizeString manager_host, const uint16_t &manager_port,
+                    HostSizeString robot_host, const uint16_t &robot_port)
+        : BaseRobotCommsModel(robot_id), manager_host_(std::move(manager_host)), manager_port_(manager_port),
           robot_host_(std::move(robot_host)), robot_port_(robot_port)
     {
-        this->known_ids_.insert(this->robot_id_);
     }
 
     ~RobotCommsModel() { this->Stop(); }
@@ -89,8 +112,6 @@ public:
         this->heartbeat_thread_.join();
     }
 
-    [[nodiscard]] std::set<uint8_t> GetKnownIds() const override { return this->known_ids_; }
-
 private:
     void ExchangeHeartbeats()
     {
@@ -105,7 +126,7 @@ private:
             ESP_LOGD(RobotCommsModel::TAG, "Sending heartbeat to %s:%hu", manager_host_.c_str(), this->manager_port_);
 
             auto packet       = EpuckHeartbeatPacket();
-            packet.robot_id   = this->robot_id_;
+            packet.robot_id   = this->robot_id;
             packet.robot_host = this->robot_host_;
             packet.robot_port = this->robot_port_;
 
@@ -135,6 +156,7 @@ private:
             {
                 ESP_LOGD(TAG, "Received neighbour: %hhu (%s:%hu) at distance %f", neighbour.robot_id,
                          neighbour.host.c_str(), neighbour.port, neighbour.dist);
+                this->known_ids.insert(neighbour.robot_id);
             }
 
             // Connect to new robots that are listed in the response if they have a lower ID
@@ -142,7 +164,7 @@ private:
             {
                 // Only connect to robots with lower IDs that are not already connected
                 if (this->knowledge_clients_.find(neighbour.robot_id) != this->knowledge_clients_.end()
-                    || neighbour.robot_id >= this->robot_id_)
+                    || neighbour.robot_id >= this->robot_id)
                 {
                     continue;
                 }
@@ -178,16 +200,14 @@ private:
         }
     }
 
-    uint8_t robot_id_            = 0;
-    HostString manager_host_     = "";
+    HostSizeString manager_host_ = "";
     uint16_t manager_port_       = 0;
-    HostString robot_host_       = "";
+    HostSizeString robot_host_   = "";
     uint16_t robot_port_         = 0;
-    std::set<uint8_t> known_ids_ = {};
 
     alignas(T) uint8_t knowledge_server_buffer_[sizeof(T)] = {0};
     std::shared_ptr<T> knowledge_server_;
-    std::map<const uint8_t, U, std::less<uint8_t>, RobotSizeAllocator<std::pair<const uint8_t, U>>> knowledge_clients_;
+    RobotSizeMap<robot_id_type, U> knowledge_clients_;
 
     bool run_heartbeats_ = false;
     std::thread heartbeat_thread_;
