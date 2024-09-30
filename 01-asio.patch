@@ -1,0 +1,12 @@
+diff --git components/asio/asio/asio/include/asio/error_code.hpp components/asio/asio/asio/include/asio/error_code.hpp
+index 042ab853..9c3a6bb9 100644
+--- components/asio/asio/asio/include/asio/error_code.hpp
++++ components/asio/asio/asio/include/asio/error_code.hpp
+@@ -19,6 +19,7 @@
+
+ #ifdef ESP_PLATFORM
+ # include "lwip/sockets.h"
++#include "lwip/if_api.h"
+ #endif
+
+ #if defined(ASIO_HAS_STD_SYSTEM_ERROR)

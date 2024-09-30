@@ -19,6 +19,7 @@ COMPONENT_SRCDIRS := \
 	lwip/src/core/ipv4 \
 	lwip/src/core/ipv6 \
 	lwip/src/netif \
+	port \
 	port/esp32 \
 	port/esp32/freertos \
 	port/esp32/netif \
