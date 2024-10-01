@@ -10,11 +10,15 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <sstream>
 #include <thread>
+#include <utility>
 
 template <class T> using RobotIdListAllocator =
     static_allocator<T, ((sizeof("255") - 1) * MAX_ROBOTS) + ((sizeof(", ") - 1) * (MAX_ROBOTS - 1)) + sizeof("")>;
+// DECLARE_STATIC_ALLOCATOR(RobotIdListAllocator,
+//                          ((sizeof("255") - 1) * MAX_ROBOTS) + ((sizeof(", ") - 1) * (MAX_ROBOTS - 1)) + sizeof(""));
 
 static inline auto known_ids_to_string(const RobotSizeSet<uint8_t> &known_ids)
 {
@@ -45,22 +49,67 @@ public:
     template <class T> explicit UDPKnowledgeServer(std::shared_ptr<T> robot_model) : BaseKnowledgeServer(robot_model) {}
 
     // Move constructor
-    UDPKnowledgeServer(UDPKnowledgeServer &&other) noexcept : BaseKnowledgeServer(std::move(other)) {}
+    UDPKnowledgeServer(UDPKnowledgeServer &&other) noexcept : socket_buffer_(other.socket_buffer_)
+    {
+        robot_model = std::move(other.robot_model);
+        if (nullptr != other.socket_)
+        {
+            this->socket_ = reinterpret_cast<asio::ip::udp::socket *>(this->socket_buffer_.data());
+        } else
+        {
+            this->socket_ = nullptr;
+        }
+        this->thread_.swap(other.thread_);
+        this->running_ = other.running_;
+    }
 
     // Move assignment
     UDPKnowledgeServer &operator=(UDPKnowledgeServer &&other) noexcept
     {
-        BaseKnowledgeServer::operator=(std::move(other));
+        robot_model = std::move(other.robot_model);
+        if (nullptr != other.socket_)
+        {
+            this->socket_ = reinterpret_cast<asio::ip::udp::socket *>(this->socket_buffer_.data());
+        } else
+        {
+            this->socket_ = nullptr;
+        }
+        this->thread_.swap(other.thread_);
+        this->running_       = other.running_;
+        this->socket_buffer_ = other.socket_buffer_;
         return *this;
     }
 
     // Copy constructor
-    UDPKnowledgeServer(const UDPKnowledgeServer &other) : BaseKnowledgeServer(other) {}
+    UDPKnowledgeServer(const UDPKnowledgeServer &other)
+        : BaseKnowledgeServer(other.robot_model), socket_buffer_(other.socket_buffer_)
+    {
+        robot_model = other.robot_model;
+        if (nullptr != other.socket_)
+        {
+            this->socket_ = reinterpret_cast<asio::ip::udp::socket *>(this->socket_buffer_.data());
+        } else
+        {
+            this->socket_ = nullptr;
+        }
+        // this->thread_.swap(other.thread_);
+        this->running_ = other.running_;
+    }
 
     // Copy assignment
     UDPKnowledgeServer &operator=(const UDPKnowledgeServer &other)
     {
-        BaseKnowledgeServer::operator=(other);
+        robot_model = other.robot_model;
+        if (nullptr != other.socket_)
+        {
+            this->socket_ = reinterpret_cast<asio::ip::udp::socket *>(this->socket_buffer_.data());
+        } else
+        {
+            this->socket_ = nullptr;
+        }
+        // this->thread_.swap(other.thread_);
+        this->running_       = other.running_;
+        this->socket_buffer_ = other.socket_buffer_;
         return *this;
     }
 
@@ -81,8 +130,8 @@ public:
     void Stop() override
     {
         this->running_ = false;
-        this->thread_.join();
-        this->socket_->close();
+        if (this->thread_.joinable()) { this->thread_.join(); }
+        if (nullptr != this->socket_) { this->socket_->close(); }
         this->socket_ = nullptr;
     }
 
@@ -176,25 +225,77 @@ public:
     UDPKnowledgeClient() = default;
     UDPKnowledgeClient(EpuckNeighbourPacket neighbour, std::function<bool()> running,
                        std::shared_ptr<BaseRobotCommsModel> robot_model)
-        : BaseKnowledgeClient(neighbour, running, robot_model){};
+        : BaseKnowledgeClient(std::move(neighbour), std::move(running), std::move(robot_model)){};
 
     // Move constructor
-    UDPKnowledgeClient(UDPKnowledgeClient &&other) noexcept : BaseKnowledgeClient(std::move(other)) {}
+    UDPKnowledgeClient(UDPKnowledgeClient &&other) noexcept
+        : socket_buffer_(other.socket_buffer_), stopping_(other.stopping_)
+    {
+        neighbour   = std::move(other.neighbour);
+        running     = std::move(other.running);
+        robot_model = std::move(other.robot_model);
+        if (nullptr != other.client_)
+        {
+            this->client_ = reinterpret_cast<asio::ip::udp::socket *>(this->socket_buffer_.data());
+        } else
+        {
+            this->client_ = nullptr;
+        }
+        this->thread_.swap(other.thread_);
+    }
 
     // Move assignment
     UDPKnowledgeClient &operator=(UDPKnowledgeClient &&other) noexcept
     {
-        BaseKnowledgeClient::operator=(std::move(other));
+        neighbour            = std::move(other.neighbour);
+        running              = std::move(other.running);
+        robot_model          = std::move(other.robot_model);
+        this->socket_buffer_ = other.socket_buffer_;
+        if (nullptr != other.client_)
+        {
+            this->client_ = reinterpret_cast<asio::ip::udp::socket *>(this->socket_buffer_.data());
+        } else
+        {
+            this->client_ = nullptr;
+        }
+        this->thread_.swap(other.thread_);
+        this->stopping_ = other.stopping_;
+
         return *this;
     }
 
     // Copy constructor
-    UDPKnowledgeClient(const UDPKnowledgeClient &other) : BaseKnowledgeClient(other) {}
+    UDPKnowledgeClient(const UDPKnowledgeClient &other)
+        : BaseKnowledgeClient(other.neighbour, other.running, other.robot_model), socket_buffer_(other.socket_buffer_),
+          stopping_(other.stopping_)
+    {
+        if (nullptr != other.client_)
+        {
+            this->client_ = reinterpret_cast<asio::ip::udp::socket *>(this->socket_buffer_.data());
+        } else
+        {
+            this->client_ = nullptr;
+        }
+        // this->thread_.swap(other.thread_);
+    }
 
     // Copy assignment
     UDPKnowledgeClient &operator=(const UDPKnowledgeClient &other)
     {
-        BaseKnowledgeClient::operator=(other);
+        neighbour            = other.neighbour;
+        running              = other.running;
+        robot_model          = other.robot_model;
+        this->socket_buffer_ = other.socket_buffer_;
+        if (nullptr != other.client_)
+        {
+            this->client_ = reinterpret_cast<asio::ip::udp::socket *>(this->socket_buffer_.data());
+        } else
+        {
+            this->client_ = nullptr;
+        }
+        // this->thread_.swap(other.thread_);
+        this->stopping_ = other.stopping_;
+
         return *this;
     }
 
@@ -212,8 +313,8 @@ public:
     void Stop() override
     {
         this->stopping_ = true;
-        this->thread_.join();
-        this->client_->close();
+        if (this->thread_.joinable()) { this->thread_.join(); }
+        if (nullptr != this->client_) { this->client_->close(); }
         this->client_ = nullptr;
     }
 
