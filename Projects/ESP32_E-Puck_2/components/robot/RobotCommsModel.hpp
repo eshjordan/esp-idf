@@ -113,7 +113,16 @@ public:
     void Stop() override
     {
         this->run_heartbeats_ = false;
-        this->heartbeat_thread_.join();
+        if (this->heartbeat_thread_.joinable()) {
+            this->heartbeat_thread_.join();
+        }
+        this->knowledge_server_->Stop();
+        this->knowledge_server_->~T();
+        for (auto &[_, client] : this->knowledge_clients_)
+        {
+            client.Stop();
+        }
+        this->knowledge_clients_.clear();
     }
 
 private:

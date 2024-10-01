@@ -64,6 +64,9 @@ public:
         return *this;
     }
 
+    // Destructor
+    ~UDPKnowledgeServer() { this->Stop(); }
+
     void Start() override
     {
         this->running_ = true;
@@ -194,6 +197,9 @@ public:
         BaseKnowledgeClient::operator=(other);
         return *this;
     }
+
+    // Destructor
+    ~UDPKnowledgeClient() { this->Stop(); }
 
     void Start() override
     {
