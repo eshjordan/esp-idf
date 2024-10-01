@@ -24,8 +24,15 @@ public:
     using known_ids_iterator = known_ids_type::iterator;
 
     const robot_id_type robot_id;
+    const HostSizeString manager_host;
+    const uint16_t manager_port;
+    const HostSizeString robot_host;
+    const uint16_t robot_port;
 
-    explicit BaseRobotCommsModel(const robot_id_type &robot_id) : robot_id(robot_id)
+    explicit BaseRobotCommsModel(const robot_id_type &robot_id, HostSizeString manager_host,
+                                 const uint16_t &manager_port, HostSizeString robot_host, const uint16_t &robot_port)
+        : robot_id(robot_id), manager_host(std::move(manager_host)), manager_port(manager_port),
+          robot_host(std::move(robot_host)), robot_port(robot_port)
     {
         this->known_ids.insert(robot_id);
     }
@@ -33,14 +40,12 @@ public:
     virtual void Start() = 0;
     virtual void Stop()  = 0;
 
-    [[nodiscard]] std::pair<const known_ids_iterator&, const known_ids_iterator&> GetKnownIds() const
-    {
-        return {this->known_ids.begin(), this->known_ids.end()};
-    }
+    [[nodiscard]] RobotSizeSet<uint8_t> GetKnownIds() const { return {this->known_ids}; }
 
-    size_t InsertKnownIds(known_ids_iterator first, known_ids_iterator last) {
+    size_t InsertKnownIds(const RobotSizeSet<uint8_t> &ids)
+    {
         auto size_before = this->known_ids.size();
-        this->known_ids.insert(first, last);
+        this->known_ids.insert(ids.begin(), ids.end());
         return this->known_ids.size() - size_before;
     }
 
@@ -86,8 +91,7 @@ template <typename T, typename U> class RobotCommsModel : public std::enable_sha
 public:
     RobotCommsModel(const robot_id_type &robot_id, HostSizeString manager_host, const uint16_t &manager_port,
                     HostSizeString robot_host, const uint16_t &robot_port)
-        : BaseRobotCommsModel(robot_id), manager_host_(std::move(manager_host)), manager_port_(manager_port),
-          robot_host_(std::move(robot_host)), robot_port_(robot_port)
+        : BaseRobotCommsModel(robot_id, manager_host, manager_port, robot_host, robot_port)
     {
     }
 
@@ -95,8 +99,8 @@ public:
 
     void Start() override
     {
-        this->knowledge_server_ = std::shared_ptr<T>(new (this->knowledge_server_buffer_) T(
-            std::reinterpret_pointer_cast<BaseRobotCommsModel>(this->shared_from_this())));
+        this->knowledge_server_ = new (this->knowledge_server_buffer_.data()) // NOLINT(cppcoreguidelines-owning-memory)
+            T(std::reinterpret_pointer_cast<BaseRobotCommsModel>(this->shared_from_this()));
         this->knowledge_server_->Start();
 
         this->knowledge_clients_.clear();
@@ -115,24 +119,27 @@ public:
 private:
     void ExchangeHeartbeats()
     {
-        asio::io_context io_context;
-        auto heartbeat_client = asio::ip::udp::socket(io_context);
+        auto heartbeat_client = asio::ip::udp::socket(io_context_);
+        heartbeat_client.open(asio::ip::udp::v4());
 
         auto manager_endpoint =
-            asio::ip::udp::endpoint(asio::ip::address::from_string(this->manager_host_.c_str()), this->manager_port_);
+            asio::ip::udp::endpoint(asio::ip::address::from_string(this->manager_host.c_str()), this->manager_port);
 
         while (this->run_heartbeats_)
         {
-            ESP_LOGD(RobotCommsModel::TAG, "Sending heartbeat to %s:%hu", manager_host_.c_str(), this->manager_port_);
+            ESP_LOGD(RobotCommsModel::TAG, "Sending heartbeat to %s:%hu", this->manager_host.c_str(),
+                     this->manager_port);
 
             auto packet       = EpuckHeartbeatPacket();
             packet.robot_id   = this->robot_id;
-            packet.robot_host = this->robot_host_;
-            packet.robot_port = this->robot_port_;
+            packet.robot_host = this->robot_host;
+            packet.robot_port = this->robot_port;
 
-            heartbeat_client.send_to(asio::buffer(packet.pack(), packet.calcsize()), manager_endpoint);
+            ESP_LOGI(TAG, "(%s:%hu)", manager_endpoint.address().to_string().c_str(), manager_endpoint.port());
+            std::array<uint8_t, EpuckHeartbeatPacket::PACKET_SIZE> packed_packet = packet.pack();
+            heartbeat_client.send_to(asio::buffer(packed_packet, EpuckHeartbeatPacket::calcsize()), manager_endpoint);
 
-            struct pollfd pfd = {.fd = heartbeat_client.native_handle(), .events = POLLIN, .revents = 0};
+            struct pollfd pfd = {heartbeat_client.native_handle(), POLLIN, 0};
             int retval        = poll(&pfd, 1, 10);
             if (retval == 0)
             { // timeout
@@ -144,13 +151,12 @@ private:
                 continue;
             }
 
-            auto response_buffer = reinterpret_cast<uint8_t *>(EpuckHeartbeatResponsePacket().pack());
+            auto response_buffer = EpuckHeartbeatResponsePacket().pack();
 
-            heartbeat_client.receive_from(asio::buffer(response_buffer, 2), manager_endpoint);
-            auto num_neighbours = response_buffer[1];
             heartbeat_client.receive_from(
-                asio::buffer(response_buffer + 2, num_neighbours * EpuckNeighbourPacket::calcsize()), manager_endpoint);
-            auto response = EpuckHeartbeatResponsePacket::unpack(response_buffer);
+                asio::buffer(response_buffer.data(), EpuckHeartbeatResponsePacket::calcsize()), manager_endpoint);
+
+            auto response = EpuckHeartbeatResponsePacket::unpack(response_buffer.data());
 
             for (const auto &neighbour : response.neighbours)
             {
@@ -173,7 +179,10 @@ private:
                          neighbour.port);
 
                 auto client = U(
-                    neighbour, [&]() { return this->run_heartbeats_; },
+                    neighbour,
+                    [&]() {
+                        return this->knowledge_clients_.find(neighbour.robot_id) != this->knowledge_clients_.end();
+                    },
                     std::reinterpret_pointer_cast<BaseRobotCommsModel>(this->shared_from_this()));
                 this->knowledge_clients_.insert(std::make_pair(neighbour.robot_id, client));
                 this->knowledge_clients_[neighbour.robot_id].Start();
@@ -200,13 +209,9 @@ private:
         }
     }
 
-    HostSizeString manager_host_ = "";
-    uint16_t manager_port_       = 0;
-    HostSizeString robot_host_   = "";
-    uint16_t robot_port_         = 0;
-
-    alignas(T) uint8_t knowledge_server_buffer_[sizeof(T)] = {0};
-    std::shared_ptr<T> knowledge_server_;
+    asio::io_context io_context_;
+    alignas(T) std::array<uint8_t, sizeof(T)> knowledge_server_buffer_ = {0};
+    T *knowledge_server_;
     RobotSizeMap<robot_id_type, U> knowledge_clients_;
 
     bool run_heartbeats_ = false;

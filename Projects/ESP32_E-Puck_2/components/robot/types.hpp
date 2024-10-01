@@ -3,8 +3,18 @@
 #include <map>
 #include <set>
 #include <vector>
+
+#define ROS2
+
 #ifdef INTER_ROBOT_COMMS_ESP32
 #include "esp_log.h"
+#elif defined(ROS2)
+#include "rclcpp/logging.hpp"
+#define ESP_LOGE(tag, format, ...) RCLCPP_ERROR(rclcpp::get_logger(tag), format, ##__VA_ARGS__)
+#define ESP_LOGW(tag, format, ...) RCLCPP_WARN(rclcpp::get_logger(tag), format, ##__VA_ARGS__)
+#define ESP_LOGI(tag, format, ...) RCLCPP_INFO(rclcpp::get_logger(tag), format, ##__VA_ARGS__)
+#define ESP_LOGD(tag, format, ...) RCLCPP_DEBUG(rclcpp::get_logger(tag), format, ##__VA_ARGS__)
+#define ESP_LOGV(tag, format, ...) RCLCPP_DEBUG(rclcpp::get_logger(tag), format, ##__VA_ARGS__)
 #else
 #include <stdarg.h>
 #include <stdio.h>
