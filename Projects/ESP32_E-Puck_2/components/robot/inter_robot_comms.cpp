@@ -49,6 +49,8 @@ static const int DISCONNECTED_BIT = BIT1;
 
 void inter_robot_comms_task(void *pvParameter)
 {
+    // try
+    // {
     uint8_t conn_state = 0;
     EventBits_t evg_bits;
 
@@ -58,7 +60,7 @@ void inter_robot_comms_task(void *pvParameter)
     // HostSizeString robot_host         = "192.168.0.2";
     constexpr uint16_t robot_port                                                                           = 0;
     std::array<uint8_t, sizeof(RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>)> robot_model_buffer = {0};
-    RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient> *robot_model                                    = nullptr;
+    std::shared_ptr<RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>> robot_model                    = nullptr;
 
     auto check_disconnection = [&]() {
         evg_bits = xEventGroupGetBits(socket_event_group);
@@ -67,7 +69,7 @@ void inter_robot_comms_task(void *pvParameter)
             if (robot_model)
             {
                 robot_model->Stop();
-                robot_model = nullptr;
+                robot_model.reset();
             }
             conn_state = 0;
         }
@@ -96,19 +98,29 @@ void inter_robot_comms_task(void *pvParameter)
             const char *hostname;
             tcpip_adapter_get_hostname(TCPIP_ADAPTER_IF_STA, &hostname);
 
-            asio::ip::tcp::resolver::query query(hostname, "");
-            asio::ip::tcp::resolver::iterator it = resolver.resolve(query);
-            asio::ip::tcp::endpoint endpoint     = *it;
-            const auto robot_host                = HostSizeString(endpoint.address().to_string());
+            // auto robot_host = HostSizeString("");
 
-            // tcpip_adapter_ip_info_t ip_info;
-            // tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
-            // const auto robot_host = HostSizeString(ip4addr_ntoa(&ip_info.ip));
+            // try
+            // {
+            //     asio::ip::tcp::resolver::query query(hostname, "");
+            //     asio::ip::tcp::resolver::iterator it = resolver.resolve(query);
+            //     asio::ip::tcp::endpoint endpoint     = *it;
+            //     robot_host                           = HostSizeString(endpoint.address().to_string());
+            // } catch (const std::exception &e)
+            // {
+            //     ESP_LOGE(TAG, "Error resolving hostname: %s", e.what());
+            //     throw e;
+            // }
+
+            tcpip_adapter_ip_info_t ip_info;
+            tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
+            const auto robot_host = HostSizeString(ip4addr_ntoa(&ip_info.ip));
 
             ESP_LOGI(TAG, "Local IP: %s", robot_host.c_str());
 
-            robot_model = new (robot_model_buffer.data()) RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>(
-                robot_id, manager_host, manager_port, robot_host, robot_port);
+            robot_model = std::shared_ptr<RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>>(
+                new (robot_model_buffer.data()) RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>(
+                    robot_id, manager_host, manager_port, robot_host, robot_port));
 
             robot_model->Start();
             conn_state = 2;
@@ -125,6 +137,11 @@ void inter_robot_comms_task(void *pvParameter)
 
         vTaskDelay((TickType_t)10); /* allows the freeRTOS scheduler to take over if needed */
     }
+    // } catch (const std::exception &e)
+    // {
+    //     ESP_LOGE(TAG, "Error: %s", e.what());
+    //     throw e;
+    // }
 }
 
 void inter_robot_comms_init(void)

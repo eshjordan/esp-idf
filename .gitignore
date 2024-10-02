@@ -75,3 +75,4 @@ flake8_output.txt
 # ESP-IDF library 
 build
 .cache/
+Projects/ESP32_E-Puck_2/core.dump

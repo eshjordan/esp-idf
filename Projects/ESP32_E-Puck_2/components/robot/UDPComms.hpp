@@ -121,8 +121,7 @@ public:
         this->running_ = true;
         this->socket_  = new (this->socket_buffer_.data()) asio::ip::udp::socket(io_context_);
         this->socket_->open(asio::ip::udp::v4());
-        this->socket_->bind(asio::ip::udp::endpoint(
-            asio::ip::address::from_string(this->robot_model->robot_host.c_str()), this->robot_model->robot_port));
+        this->socket_->bind(asio::ip::udp::endpoint(asio::ip::udp::v4(), this->robot_model->robot_port));
 
         this->thread_ = std::thread([this]() { this->StartReceive(); });
     }
