@@ -13,12 +13,12 @@
 // limitations under the License.
 
 /*
- * All the APIs declared here are internal only APIs, it can only be used by 
- * espressif internal modules, such as SSC, LWIP, TCPIP adapter etc, espressif 
+ * All the APIs declared here are internal only APIs, it can only be used by
+ * espressif internal modules, such as SSC, LWIP, TCPIP adapter etc, espressif
  * customers are not recommended to use them.
  *
  * If someone really want to use specified APIs declared in here, please contact
- * espressif AE/developer to make sure you know the limitations or risk of 
+ * espressif AE/developer to make sure you know the limitations or risk of
  * the API, otherwise you may get unexpected behavior!!!
  *
  */
@@ -57,7 +57,7 @@ typedef enum {
     WIFI_LOG_DEBUG,       /*can be set in menuconfig*/
     WIFI_LOG_VERBOSE,     /*can be set in menuconfig*/
 } wifi_log_level_t;
-  
+
 /**
   * @brief WiFi log module definition
   *
@@ -256,10 +256,10 @@ void *wifi_calloc( size_t n, size_t size );
   *
   * @return    Always returns ESP_OK
   */
-inline esp_err_t esp_wifi_internal_update_mac_time( uint32_t time_delta ) {return ESP_OK;}
+esp_err_t esp_wifi_internal_update_mac_time( uint32_t time_delta );
 
 /**
-  * @brief     Set current WiFi log level     
+  * @brief     Set current WiFi log level
   *
   * @param     level   Log level.
   *
@@ -288,7 +288,7 @@ esp_err_t esp_wifi_internal_set_log_level(wifi_log_level_t level);
 esp_err_t esp_wifi_internal_set_log_mod(wifi_log_module_t module, uint32_t submodule, bool enable);
 
 /**
-  * @brief     Get current WiFi log info     
+  * @brief     Get current WiFi log info
   *
   * @param     log_level  the return log level.
   * @param     log_mod    the return log module and submodule
