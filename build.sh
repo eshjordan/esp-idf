@@ -7,7 +7,13 @@ if [ ! -f ${HOME}/.xtensa/xtensa-esp-elf.tar.xz ]; then
     wget https://github.com/espressif/crosstool-NG/releases/download/esp-13.2.0_20230928/xtensa-esp-elf-13.2.0_20230928-x86_64-linux-gnu.tar.xz -O ${HOME}/.xtensa/xtensa-esp-elf.tar.xz
 fi
 
+# Check if xtensa-esp-elf-gdb is already installed
+if [ ! -f ${HOME}/.xtensa/xtensa-esp-elf-gdb.tar.xz ]; then
+    wget https://github.com/espressif/binutils-gdb/releases/download/esp-gdb-v14.2_20240403/xtensa-esp-elf-gdb-14.2_20240403-x86_64-linux-gnu.tar.gz -O ${HOME}/.xtensa/xtensa-esp-elf-gdb.tar.xz
+fi
+
 tar -xaf ${HOME}/.xtensa/xtensa-esp-elf.tar.xz -C ${HOME}/.xtensa
+tar -xaf ${HOME}/.xtensa/xtensa-esp-elf-gdb.tar.xz -C ${HOME}/.xtensa
 
 # Ensure python3.7 is used for compatibility
 which python3.7
@@ -49,6 +55,7 @@ python -m pip install -r ${PWD}/requirements.txt
 
 export PATH="${HOME}/.xtensa/xtensa-esp-elf/venv/bin:${PATH}"
 export PATH="${HOME}/.xtensa/xtensa-esp-elf/bin:${PATH}"
+export PATH="${HOME}/.xtensa/xtensa-esp-elf-gdb/bin:${PATH}"
 export IDF_PATH=$(pwd)
 . ${IDF_PATH}/add_path.sh
 
