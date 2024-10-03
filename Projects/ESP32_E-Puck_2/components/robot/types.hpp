@@ -4,10 +4,20 @@
 #include <set>
 #include <vector>
 
+#define ENABLE_TRY_CATCH 0
 #define ROS2
 
 #ifdef INTER_ROBOT_COMMS_ESP32
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include "esp_log.h"
+#include "main_e-puck2.h"
+#include <esp_core_dump.h>
+#include <esp_pthread.h>
+#ifdef __cplusplus
+}
+#endif
 #elif defined(ROS2)
 #include "rclcpp/logging.hpp"
 #define ESP_LOGE(tag, format, ...) RCLCPP_ERROR(rclcpp::get_logger(tag), format, ##__VA_ARGS__)
@@ -35,6 +45,21 @@ inline void log_write(const char *format, ...)
 
 #include <stdint.h>
 #include <string>
+
+#ifndef INTER_ROBOT_COMMS_ESP32
+typedef struct {
+    size_t stack_size;
+    size_t prio;
+    bool inherit_cfg;
+    const char *thread_name;
+    int pin_to_core;
+} esp_pthread_cfg_t;
+#define CORE_0 0
+#define CORE_1 1
+static inline esp_pthread_cfg_t esp_pthread_get_default_config() { return esp_pthread_cfg_t{}; }
+static inline void ESP_ERROR_CHECK(int) {}
+static inline int esp_pthread_set_cfg(esp_pthread_cfg_t *) { return 0; }
+#endif
 
 #define MAX_ROBOTS 10
 #define MAX_HOST_LEN 18
@@ -131,7 +156,6 @@ template <class T, std::size_t Size> std::size_t static_allocator<T, Size>::offs
 template <class T, std::size_t Size>
 alignas(T) std::array<uint8_t, (Size) * sizeof(T)> static_allocator<T, Size>::buffer_                      = {0};
 template <class T, std::size_t Size> std::array<uint8_t, 1 + ((Size) / 8)> static_allocator<T, Size>::mask = {0};
-
 
 #if __cplusplus < 202002L
 #define REBIND(static_allocator)                                                                                       \
@@ -232,6 +256,7 @@ template <class T, std::size_t Size> std::array<uint8_t, 1 + ((Size) / 8)> stati
 template <class T> using RobotSizeAllocator = static_allocator<T, MAX_ROBOTS>;
 template <class T> using HostSizeAllocator  = static_allocator<T, MAX_HOST_LEN>;
 
+template <class T> using RobotSizeArray  = std::array<T, MAX_ROBOTS>;
 template <class T> using RobotSizeVector = std::vector<T, RobotSizeAllocator<T>>;
 template <class T> using RobotSizeSet    = std::set<T, std::less<T>, RobotSizeAllocator<T>>;
 template <class T, class U> using RobotSizeMap =

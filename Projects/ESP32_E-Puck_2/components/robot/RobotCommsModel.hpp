@@ -40,9 +40,14 @@ public:
     virtual void Start() = 0;
     virtual void Stop()  = 0;
 
-    [[nodiscard]] RobotSizeSet<uint8_t> GetKnownIds() const { return {this->known_ids}; }
+    [[nodiscard]] RobotSizeArray<uint8_t> GetKnownIds() const
+    {
+        RobotSizeArray<uint8_t> ids;
+        std::copy(this->known_ids.begin(), this->known_ids.end(), ids.begin());
+        return ids;
+    }
 
-    size_t InsertKnownIds(const RobotSizeSet<uint8_t> &ids)
+    size_t InsertKnownIds(const RobotSizeArray<uint8_t> &ids)
     {
         auto size_before = this->known_ids.size();
         this->known_ids.insert(ids.begin(), ids.end());
@@ -106,7 +111,13 @@ public:
         this->knowledge_clients_.clear();
 
         this->run_heartbeats_ = true;
-        std::thread tmp_thread(&RobotCommsModel::ExchangeHeartbeats, this);
+
+        auto cfg        = esp_pthread_get_default_config();
+        cfg.pin_to_core = CORE_1;
+        cfg.stack_size  = 4096;
+        cfg.thread_name = "robot_comms_exchange_heartbeats";
+        ESP_ERROR_CHECK(esp_pthread_set_cfg(&cfg));
+        std::thread tmp_thread(&RobotCommsModel::LaunchExchangeHeartbeats, this);
         this->heartbeat_thread_.swap(tmp_thread);
     }
 
@@ -124,51 +135,98 @@ public:
     }
 
 private:
+    void LaunchExchangeHeartbeats()
+    {
+#if ENABLE_TRY_CATCH
+        try
+        {
+#endif
+            this->ExchangeHeartbeats();
+#if ENABLE_TRY_CATCH
+        } catch (const std::exception &e)
+        {
+            ESP_LOGE(TAG, "Error: %s", e.what());
+            throw e;
+        }
+#endif
+    }
+
+    /**
+     * @brief Exchange heartbeats with the manager, receiving a list of neighbours and connecting to them if necessary.
+     *
+     * ~2048 byte stack size
+     *
+     */
     void ExchangeHeartbeats()
     {
         auto heartbeat_client = asio::ip::udp::socket(io_context_);
         heartbeat_client.open(asio::ip::udp::v4());
 
-        auto manager_endpoint =
-            asio::ip::udp::endpoint(asio::ip::address::from_string(this->manager_host.c_str()), this->manager_port);
+        auto address = asio::ip::make_address_v4(this->manager_host.c_str());
+
+        auto manager_endpoint = asio::ip::udp::endpoint(address, this->manager_port);
 
         while (this->run_heartbeats_)
         {
             ESP_LOGD(RobotCommsModel::TAG, "Sending heartbeat to %s:%hu", this->manager_host.c_str(),
                      this->manager_port);
 
-            auto packet       = EpuckHeartbeatPacket();
-            packet.robot_id   = this->robot_id;
-            packet.robot_host = this->robot_host;
+            auto packet     = EpuckHeartbeatPacket();
+            packet.robot_id = this->robot_id;
+            strncpy(packet.robot_host.data(), this->robot_host.c_str(), MAX_HOST_LEN);
             packet.robot_port = this->robot_port;
 
             ESP_LOGI(TAG, "(%s:%hu)", manager_endpoint.address().to_string().c_str(), manager_endpoint.port());
-            std::array<uint8_t, EpuckHeartbeatPacket::PACKET_SIZE> packed_packet = packet.pack();
-            heartbeat_client.send_to(asio::buffer(packed_packet, EpuckHeartbeatPacket::calcsize()), manager_endpoint);
+            std::array<uint8_t, sizeof(EpuckHeartbeatPacket)> packed_packet = packet.pack();
+            heartbeat_client.send_to(asio::buffer(packed_packet, sizeof(EpuckHeartbeatPacket)), manager_endpoint);
 
             struct pollfd pfd = {heartbeat_client.native_handle(), POLLIN, 0};
-            int retval        = poll(&pfd, 1, 10);
+            int retval        = poll(&pfd, 1, 1000);
             if (retval == 0)
             { // timeout
+                ESP_LOGW(TAG, "Timeout waiting for response from %hhu (%s:%hu)", this->robot_id,
+                         this->manager_host.c_str(), this->manager_port);
                 continue;
             }
             if (retval < 0)
             {
+                ESP_LOGE(TAG, "poll %s", "error");
                 perror("poll");
+                std::this_thread::sleep_for(std::chrono::seconds(1));
                 continue;
             }
 
             auto response_buffer = EpuckHeartbeatResponsePacket().pack();
 
-            heartbeat_client.receive_from(
-                asio::buffer(response_buffer.data(), EpuckHeartbeatResponsePacket::calcsize()), manager_endpoint);
+            ESP_LOGI(TAG, "Receiving heartbeat response%s", "");
+
+            size_t bytes_received = 0;
+            size_t expected_bytes = sizeof(EpuckHeartbeatResponsePacket);
+            while (bytes_received < expected_bytes)
+            {
+                bytes_received +=
+                    heartbeat_client.receive_from(asio::buffer(response_buffer.data() + bytes_received,
+                                                               sizeof(EpuckHeartbeatResponsePacket) - bytes_received),
+                                                  manager_endpoint);
+
+                if (bytes_received > offsetof(EpuckHeartbeatResponsePacket, num_neighbours)
+                                         + sizeof(EpuckHeartbeatResponsePacket::num_neighbours))
+                {
+                    auto num_neighbours = response_buffer[offsetof(EpuckHeartbeatResponsePacket, num_neighbours)];
+                    expected_bytes      = offsetof(EpuckHeartbeatResponsePacket, neighbours)
+                                     + num_neighbours * sizeof(EpuckNeighbourPacket);
+                }
+            }
+
+            ESP_LOGD(TAG, "Received heartbeat response%s", "");
+            // esp_core_dump_to_uart();
 
             auto response = EpuckHeartbeatResponsePacket::unpack(response_buffer.data());
 
             for (const auto &neighbour : response.neighbours)
             {
                 ESP_LOGD(TAG, "Received neighbour: %hhu (%s:%hu) at distance %f", neighbour.robot_id,
-                         neighbour.host.c_str(), neighbour.port, neighbour.dist);
+                         neighbour.host.data(), neighbour.port, neighbour.dist);
                 this->known_ids.insert(neighbour.robot_id);
             }
 
@@ -182,7 +240,7 @@ private:
                     continue;
                 }
 
-                ESP_LOGI(TAG, "Starting thread for neighbour %hhu (%s:%hu)", neighbour.robot_id, neighbour.host.c_str(),
+                ESP_LOGI(TAG, "Starting thread for neighbour %hhu (%s:%hu)", neighbour.robot_id, neighbour.host.data(),
                          neighbour.port);
 
                 auto client = U(
