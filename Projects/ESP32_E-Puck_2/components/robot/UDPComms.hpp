@@ -203,7 +203,7 @@ private:
             {
                 ESP_LOGE(TAG, "Error receiving data%s", "poll");
                 perror("poll");
-                std::this_thread::sleep_for(std::chrono::seconds(1));
+                vTaskDelay(1000 / portTICK_PERIOD_MS);
                 continue;
             }
 
@@ -240,7 +240,8 @@ private:
 
         auto known_ids_before = this->robot_model->GetKnownIds();
 
-        auto num_inserted = this->robot_model->InsertKnownIds(request.known_ids);
+        auto num_inserted =
+            this->robot_model->InsertKnownIds({request.known_ids.begin(), request.known_ids.begin() + request.N});
 
         auto known_ids_after = this->robot_model->GetKnownIds();
 
@@ -258,10 +259,10 @@ private:
                  client.address().to_string().c_str(), client.port(),
                  known_ids_list_to_string(request.known_ids).data());
 
-        auto knowledge      = EpuckKnowledgePacket();
-        knowledge.robot_id  = this->robot_model->robot_id;
-        knowledge.N         = std::distance(known_ids_after.begin(), known_ids_after.end());
-        knowledge.known_ids = known_ids_after;
+        auto knowledge     = EpuckKnowledgePacket();
+        knowledge.robot_id = this->robot_model->robot_id;
+        knowledge.N        = std::distance(known_ids_after.begin(), known_ids_after.end());
+        std::copy(known_ids_after.begin(), known_ids_after.end(), knowledge.known_ids.begin());
 
         socket_->send_to(asio::buffer(knowledge.pack(), sizeof(EpuckKnowledgePacket)), client);
 
@@ -410,10 +411,11 @@ private:
 
         while (this->running() && !this->stopping_)
         {
-            auto knowledge      = EpuckKnowledgePacket();
-            knowledge.robot_id  = this->robot_model->robot_id;
-            knowledge.known_ids = this->robot_model->GetKnownIds();
-            knowledge.N         = std::distance(knowledge.known_ids.begin(), knowledge.known_ids.end());
+            auto knowledge     = EpuckKnowledgePacket();
+            knowledge.robot_id = this->robot_model->robot_id;
+            auto known_ids     = this->robot_model->GetKnownIds();
+            std::copy(known_ids.begin(), known_ids.end(), knowledge.known_ids.begin());
+            knowledge.N = std::distance(knowledge.known_ids.begin(), knowledge.known_ids.end());
 
             client_->send_to(asio::buffer(knowledge.pack(), sizeof(EpuckKnowledgePacket)), server);
 
@@ -432,7 +434,7 @@ private:
             {
                 ESP_LOGE(TAG, "poll %s", "error");
                 perror("poll");
-                std::this_thread::sleep_for(std::chrono::seconds(1));
+                vTaskDelay(1000 / portTICK_PERIOD_MS);
                 continue;
             }
 
@@ -461,7 +463,8 @@ private:
 
             const auto &known_ids_before = knowledge.known_ids;
 
-            auto num_inserted = this->robot_model->InsertKnownIds(response.known_ids);
+            auto num_inserted = this->robot_model->InsertKnownIds(
+                {response.known_ids.begin(), response.known_ids.begin() + response.N});
 
             if (num_inserted > 0)
             {
@@ -476,7 +479,7 @@ private:
             ESP_LOGD(TAG, "Received knowledge from %hhu (%s:%hu): %s", response.robot_id, this->neighbour.host.data(),
                      this->neighbour.port, known_ids_list_to_string(response.known_ids).data());
 
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
         }
     }
 };

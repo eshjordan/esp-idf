@@ -2,6 +2,9 @@
 
 #include <map>
 #include <set>
+#include <stdint.h>
+#include <string>
+#include <thread>
 #include <vector>
 
 #define ENABLE_TRY_CATCH 0
@@ -43,9 +46,6 @@ inline void log_write(const char *format, ...)
 #define ESP_LOGV(tag, format, ...) log_write("[%s - VERBOSE]: " format, tag, ##__VA_ARGS__)
 #endif
 
-#include <stdint.h>
-#include <string>
-
 #ifndef INTER_ROBOT_COMMS_ESP32
 typedef struct {
     size_t stack_size;
@@ -59,6 +59,10 @@ typedef struct {
 static inline esp_pthread_cfg_t esp_pthread_get_default_config() { return esp_pthread_cfg_t{}; }
 static inline void ESP_ERROR_CHECK(int) {}
 static inline int esp_pthread_set_cfg(esp_pthread_cfg_t *) { return 0; }
+static inline void esp_core_dump_to_uart() { throw std::runtime_error("Core dump"); }
+#define portMAX_DELAY 0xFFFFFFFF
+#define portTICK_PERIOD_MS 1
+static inline void vTaskDelay(size_t delay) { std::this_thread::sleep_for(std::chrono::milliseconds(delay)); }
 #endif
 
 #define MAX_ROBOTS 10

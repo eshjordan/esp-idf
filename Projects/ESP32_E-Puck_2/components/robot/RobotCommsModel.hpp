@@ -40,17 +40,15 @@ public:
     virtual void Start() = 0;
     virtual void Stop()  = 0;
 
-    [[nodiscard]] RobotSizeArray<uint8_t> GetKnownIds() const
+    [[nodiscard]] RobotSizeVector<uint8_t> GetKnownIds() const
     {
-        RobotSizeArray<uint8_t> ids;
-        std::copy(this->known_ids.begin(), this->known_ids.end(), ids.begin());
-        return ids;
+        return {this->known_ids.begin(), this->known_ids.end()};
     }
 
-    size_t InsertKnownIds(const RobotSizeArray<uint8_t> &ids)
+    size_t InsertKnownIds(const RobotSizeVector<uint8_t> &ids)
     {
         auto size_before = this->known_ids.size();
-        this->known_ids.insert(ids.begin(), ids.end());
+        std::copy(ids.begin(), ids.end(), std::inserter(this->known_ids, this->known_ids.end()));
         return this->known_ids.size() - size_before;
     }
 
@@ -192,7 +190,7 @@ private:
             {
                 ESP_LOGE(TAG, "poll %s", "error");
                 perror("poll");
-                std::this_thread::sleep_for(std::chrono::seconds(1));
+                vTaskDelay(1000 / portTICK_PERIOD_MS);
                 continue;
             }
 
@@ -209,8 +207,7 @@ private:
                                                                sizeof(EpuckHeartbeatResponsePacket) - bytes_received),
                                                   manager_endpoint);
 
-                if (bytes_received > offsetof(EpuckHeartbeatResponsePacket, num_neighbours)
-                                         + sizeof(EpuckHeartbeatResponsePacket::num_neighbours))
+                if (bytes_received > offsetof(EpuckHeartbeatResponsePacket, num_neighbours))
                 {
                     auto num_neighbours = response_buffer[offsetof(EpuckHeartbeatResponsePacket, num_neighbours)];
                     expected_bytes      = offsetof(EpuckHeartbeatResponsePacket, neighbours)
@@ -223,16 +220,20 @@ private:
 
             auto response = EpuckHeartbeatResponsePacket::unpack(response_buffer.data());
 
-            for (const auto &neighbour : response.neighbours)
+            for (const auto *it = response.neighbours.begin();
+                 it - response.neighbours.begin() < response.num_neighbours; it++)
             {
+                const auto &neighbour = *it;
                 ESP_LOGD(TAG, "Received neighbour: %hhu (%s:%hu) at distance %f", neighbour.robot_id,
                          neighbour.host.data(), neighbour.port, neighbour.dist);
                 this->known_ids.insert(neighbour.robot_id);
             }
 
             // Connect to new robots that are listed in the response if they have a lower ID
-            for (const auto &neighbour : response.neighbours)
+            for (const auto *it = response.neighbours.begin();
+                 it - response.neighbours.begin() < response.num_neighbours; it++)
             {
+                const auto &neighbour = *it;
                 // Only connect to robots with lower IDs that are not already connected
                 if (this->knowledge_clients_.find(neighbour.robot_id) != this->knowledge_clients_.end()
                     || neighbour.robot_id >= this->robot_id)
@@ -270,7 +271,7 @@ private:
             }
 
             // Sleep for 1 second
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
         }
     }
 

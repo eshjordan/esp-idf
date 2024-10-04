@@ -54,10 +54,6 @@ void inter_robot_comms_task(void *pvParameter)
     try
     {
 #endif
-        static int call_count = 0;
-        ESP_LOGI(TAG, "inter_robot_comms_task called %d times", ++call_count);
-        if (2 == call_count) { esp_core_dump_to_uart(); }
-
         uint8_t conn_state = 0;
         EventBits_t evg_bits;
 
