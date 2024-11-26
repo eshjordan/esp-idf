@@ -618,7 +618,7 @@ static esp_err_t _ledc_set_fade_with_step(ledc_mode_t speed_mode, ledc_channel_t
                 duty_cur, target_duty, step_num, cycle_num, scale, dir);
     } else {
         ledc_duty_config(speed_mode, channel, LEDC_VAL_NO_CHANGE, target_duty << 4, dir, 0, 1, 0);
-        ESP_LOGD(LEDC_TAG, "Set to target duty: %d", target_duty);
+        // ESP_LOGD(LEDC_TAG, "Set to target duty: %d", target_duty);
     }
     return ESP_OK;
 }
