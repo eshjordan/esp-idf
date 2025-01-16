@@ -260,10 +260,15 @@ template <class T, std::size_t Size> std::array<uint8_t, 1 + ((Size) / 8)> stati
 template <class T> using RobotSizeAllocator = static_allocator<T, MAX_ROBOTS>;
 template <class T> using HostSizeAllocator  = static_allocator<T, MAX_HOST_LEN>;
 
-template <class T> using RobotSizeArray  = std::array<T, MAX_ROBOTS>;
-template <class T> using RobotSizeVector = std::vector<T, RobotSizeAllocator<T>>;
-template <class T> using RobotSizeSet    = std::set<T, std::less<T>, RobotSizeAllocator<T>>;
-template <class T, class U> using RobotSizeMap =
-    std::map<const T, U, std::less<T>, RobotSizeAllocator<std::pair<const T, U>>>;
+template <class T> using RobotSizeArray = std::array<T, MAX_ROBOTS>;
+
+// template <class T> using RobotSizeVector = std::vector<T, RobotSizeAllocator<T>>;
+// template <class T> using RobotSizeSet    = std::set<T, std::less<T>, RobotSizeAllocator<T>>;
+// template <class T, class U> using RobotSizeMap =
+//     std::map<const T, U, std::less<T>, RobotSizeAllocator<std::pair<const T, U>>>;
+
+template <class T> using RobotSizeVector       = std::vector<T>;
+template <class T> using RobotSizeSet          = std::set<T>;
+template <class T, class U> using RobotSizeMap = std::map<const T, U>;
 
 using HostSizeString = std::basic_string<char, std::char_traits<char>, HostSizeAllocator<char>>;

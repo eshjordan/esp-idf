@@ -39,6 +39,7 @@ extern "C" {
 #include "socket_e-puck2.h"
 #include "spi_e-puck2.h"
 #include "uart_e-puck2.h"
+#include "utility.h"
 
 #define TCP_PORT 1001
 #define TAG "inter_robot_comms"
@@ -57,7 +58,7 @@ void inter_robot_comms_task(void *pvParameter)
         uint8_t conn_state = 0;
         EventBits_t evg_bits;
 
-        constexpr uint8_t robot_id        = 0;
+        const uint16_t robot_id           = robot_get_id();
         const HostSizeString manager_host = "192.168.0.2";
         constexpr uint16_t manager_port   = 50000;
         // HostSizeString robot_host         = "192.168.0.2";
@@ -92,6 +93,7 @@ void inter_robot_comms_task(void *pvParameter)
             case 1: // Start the inter-robot comms.
             {
                 ESP_LOGI(TAG, "Starting inter-robot comms");
+                ESP_LOGI(TAG, "e-puck robot_id: %d", robot_id);
                 asio::io_service io_service;
                 asio::ip::tcp::resolver resolver(io_service);
 

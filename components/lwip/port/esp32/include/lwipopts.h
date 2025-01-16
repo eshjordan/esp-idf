@@ -667,6 +667,11 @@
 #define API_LIB_DEBUG                   LWIP_DBG_OFF
 
 /**
+ * API_MSG_DEBUG: Enable debugging in api_msg.c.
+ */
+#define API_MSG_DEBUG                   LWIP_DBG_OFF
+
+/**
  * SOCKETS_DEBUG: Enable debugging in sockets.c.
  */
 #define SOCKETS_DEBUG                   LWIP_DBG_OFF
@@ -700,6 +705,11 @@
  * TCPIP_DEBUG: Enable debugging in tcpip.c.
  */
 #define TCPIP_DEBUG                     LWIP_DBG_OFF
+
+/**
+ * UDP_DEBUG: Enable debugging in udp.c.
+ */
+#define UDP_DEBUG                       LWIP_DBG_OFF
 
 /**
  * ETHARP_TRUST_IP_MAC==1: Incoming IP packets cause the ARP table to be

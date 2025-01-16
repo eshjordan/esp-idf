@@ -19,7 +19,6 @@
 class BaseRobotCommsModel
 {
 public:
-    using robot_id_type      = uint8_t;
     using known_ids_type     = RobotSizeSet<robot_id_type>;
     using known_ids_iterator = known_ids_type::iterator;
 
@@ -34,26 +33,26 @@ public:
         : robot_id(robot_id), manager_host(std::move(manager_host)), manager_port(manager_port),
           robot_host(std::move(robot_host)), robot_port(robot_port)
     {
-        this->known_ids.insert(robot_id);
+        this->known_ids_.insert(robot_id);
     }
 
     virtual void Start() = 0;
     virtual void Stop()  = 0;
 
-    [[nodiscard]] RobotSizeVector<uint8_t> GetKnownIds() const
+    [[nodiscard]] RobotSizeVector<robot_id_type> GetKnownIds() const
     {
-        return {this->known_ids.begin(), this->known_ids.end()};
+        return {this->known_ids_.begin(), this->known_ids_.end()};
     }
 
-    size_t InsertKnownIds(const RobotSizeVector<uint8_t> &ids)
+    size_t InsertKnownIds(const RobotSizeVector<robot_id_type> &ids)
     {
-        auto size_before = this->known_ids.size();
-        std::copy(ids.begin(), ids.end(), std::inserter(this->known_ids, this->known_ids.end()));
-        return this->known_ids.size() - size_before;
+        auto size_before = this->known_ids_.size();
+        std::copy(ids.begin(), ids.end(), std::inserter(this->known_ids_, this->known_ids_.end()));
+        return this->known_ids_.size() - size_before;
     }
 
-protected:
-    known_ids_type known_ids = {};
+private:
+    known_ids_type known_ids_;
 };
 
 class BaseKnowledgeServer
@@ -112,7 +111,7 @@ public:
 
         auto cfg        = esp_pthread_get_default_config();
         cfg.pin_to_core = CORE_1;
-        cfg.stack_size  = 4096;
+        cfg.stack_size  = 8192;
         cfg.thread_name = "robot_comms_exchange_heartbeats";
         ESP_ERROR_CHECK(esp_pthread_set_cfg(&cfg));
         std::thread tmp_thread(&RobotCommsModel::LaunchExchangeHeartbeats, this);
@@ -182,7 +181,7 @@ private:
             int retval        = poll(&pfd, 1, 1000);
             if (retval == 0)
             { // timeout
-                ESP_LOGW(TAG, "Timeout waiting for response from %hhu (%s:%hu)", this->robot_id,
+                ESP_LOGW(TAG, "Timeout waiting for response from " ROBOT_ID_TYPE_FMT " (%s:%hu)", this->robot_id,
                          this->manager_host.c_str(), this->manager_port);
                 continue;
             }
@@ -224,9 +223,9 @@ private:
                  it - response.neighbours.begin() < response.num_neighbours; it++)
             {
                 const auto &neighbour = *it;
-                ESP_LOGD(TAG, "Received neighbour: %hhu (%s:%hu) at distance %f", neighbour.robot_id,
+                ESP_LOGD(TAG, "Received neighbour: " ROBOT_ID_TYPE_FMT " (%s:%hu) at distance %f", neighbour.robot_id,
                          neighbour.host.data(), neighbour.port, neighbour.dist);
-                this->known_ids.insert(neighbour.robot_id);
+                this->InsertKnownIds({neighbour.robot_id});
             }
 
             // Connect to new robots that are listed in the response if they have a lower ID
@@ -241,8 +240,8 @@ private:
                     continue;
                 }
 
-                ESP_LOGI(TAG, "Starting thread for neighbour %hhu (%s:%hu)", neighbour.robot_id, neighbour.host.data(),
-                         neighbour.port);
+                ESP_LOGI(TAG, "Starting thread for neighbour " ROBOT_ID_TYPE_FMT " (%s:%hu)", neighbour.robot_id,
+                         neighbour.host.data(), neighbour.port);
 
                 auto client = U(
                     neighbour,
@@ -264,7 +263,7 @@ private:
                     continue;
                 }
 
-                ESP_LOGI(TAG, "Stopping thread for neighbour %hhu", neighbour_id);
+                ESP_LOGI(TAG, "Stopping thread for neighbour " ROBOT_ID_TYPE_FMT, neighbour_id);
 
                 this->knowledge_clients_[neighbour_id].Stop();
                 this->knowledge_clients_.erase(neighbour_id);

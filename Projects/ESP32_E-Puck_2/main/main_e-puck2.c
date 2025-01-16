@@ -56,7 +56,7 @@ void app_main(void)
   xTaskCreatePinnedToCore(&socket_task, "socket_task", 4096, NULL, 5, NULL, CORE_1);
 
   // WiFi inter-robot comms task.
-  xTaskCreatePinnedToCore(&inter_robot_comms_task, "inter_robot_comms_task", 4096, NULL, 5, NULL, CORE_1);
+  xTaskCreatePinnedToCore(&inter_robot_comms_task, "inter_robot_comms_task", 8192, NULL, 5, NULL, CORE_1);
 
   // SPI communication task.
   xTaskCreatePinnedToCore(spi_task, "spi_task", SPI_TASK_STACK_SIZE, NULL, SPI_TASK_PRIO, NULL, CORE_1);
