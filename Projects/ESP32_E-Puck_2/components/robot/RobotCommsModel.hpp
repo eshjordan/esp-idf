@@ -122,8 +122,11 @@ public:
     {
         this->run_heartbeats_ = false;
         if (this->heartbeat_thread_.joinable()) { this->heartbeat_thread_.join(); }
-        this->knowledge_server_->Stop();
-        this->knowledge_server_->~T();
+        if (this->knowledge_server_)
+        {
+            this->knowledge_server_->Stop();
+            this->knowledge_server_->~T();
+        }
         for (auto &[_, client] : this->knowledge_clients_)
         {
             client.Stop();
@@ -222,7 +225,7 @@ private:
             for (const auto *it = response.neighbours.begin();
                  it - response.neighbours.begin() < response.num_neighbours; it++)
             {
-                const auto &neighbour = *it;
+                const auto neighbour = *it;
                 ESP_LOGD(TAG, "Received neighbour: " ROBOT_ID_TYPE_FMT " (%s:%hu) at distance %f", neighbour.robot_id,
                          neighbour.host.data(), neighbour.port, neighbour.dist);
                 this->InsertKnownIds({neighbour.robot_id});
@@ -232,7 +235,7 @@ private:
             for (const auto *it = response.neighbours.begin();
                  it - response.neighbours.begin() < response.num_neighbours; it++)
             {
-                const auto &neighbour = *it;
+                const auto neighbour = *it;
                 // Only connect to robots with lower IDs that are not already connected
                 if (this->knowledge_clients_.find(neighbour.robot_id) != this->knowledge_clients_.end()
                     || neighbour.robot_id >= this->robot_id)
@@ -243,9 +246,9 @@ private:
                 ESP_LOGI(TAG, "Starting thread for neighbour " ROBOT_ID_TYPE_FMT " (%s:%hu)", neighbour.robot_id,
                          neighbour.host.data(), neighbour.port);
 
-                auto client = U(
+                U client(
                     neighbour,
-                    [&]() {
+                    [this, neighbour]() {
                         return this->knowledge_clients_.find(neighbour.robot_id) != this->knowledge_clients_.end();
                     },
                     std::reinterpret_pointer_cast<BaseRobotCommsModel>(this->shared_from_this()));

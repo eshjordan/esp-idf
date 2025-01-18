@@ -16,27 +16,28 @@
 #include <sys/select.h>
 #include <thread>
 #include <utility>
+#include <vector>
 
 template <class T> using RobotIdListAllocator =
-    static_allocator<T, ((sizeof("255") - 1) * MAX_ROBOTS) + ((sizeof(", ") - 1) * (MAX_ROBOTS - 1)) + sizeof("")>;
+    static_allocator<T, ((sizeof("65535") - 1) * MAX_ROBOTS) + ((sizeof(", ") - 1) * (MAX_ROBOTS - 1)) + sizeof("")>;
 // DECLARE_STATIC_ALLOCATOR(RobotIdListAllocator,
 //                          ((sizeof("255") - 1) * MAX_ROBOTS) + ((sizeof(", ") - 1) * (MAX_ROBOTS - 1)) + sizeof(""));
 
 static inline auto known_ids_set_to_string(const RobotSizeSet<robot_id_type> &known_ids)
 {
-    std::array<char, ((sizeof("255") - 1) * MAX_ROBOTS) + ((sizeof(", ") - 1) * (MAX_ROBOTS - 1)) + sizeof("")> output =
-        {0};
+    std::array<char, ((sizeof("65535") - 1) * MAX_ROBOTS) + ((sizeof(", ") - 1) * (MAX_ROBOTS - 1)) + sizeof("")>
+        output = {0};
     if (known_ids.empty())
     {
         snprintf(output.data(), sizeof("{}"), "{}");
         return output;
     }
 
-    snprintf(output.data(), sizeof(output), "%hhu", (*known_ids.begin()));
+    snprintf(output.data(), sizeof(output), ROBOT_ID_TYPE_FMT, (*known_ids.begin()));
     for (auto it = known_ids.begin(); ++it != known_ids.end();)
     {
-        std::array<char, sizeof(", 255")> buf = {0};
-        snprintf(buf.data(), sizeof(buf), ", %hhu", (*it));
+        std::array<char, sizeof(", 65535")> buf = {0};
+        snprintf(buf.data(), sizeof(buf), ", " ROBOT_ID_TYPE_FMT, (*it));
         strncat(output.data(), buf.data(), sizeof(buf));
     }
     return output;
@@ -44,19 +45,19 @@ static inline auto known_ids_set_to_string(const RobotSizeSet<robot_id_type> &kn
 
 static inline auto known_ids_list_to_string(const std::array<robot_id_type, MAX_ROBOTS> &known_ids, uint8_t N)
 {
-    std::array<char, ((sizeof("255") - 1) * MAX_ROBOTS) + ((sizeof(", ") - 1) * (MAX_ROBOTS - 1)) + sizeof("")> output =
-        {0};
+    std::array<char, ((sizeof("65535") - 1) * MAX_ROBOTS) + ((sizeof(", ") - 1) * (MAX_ROBOTS - 1)) + sizeof("")>
+        output = {0};
     if (known_ids.empty())
     {
         snprintf(output.data(), sizeof("{}"), "{}");
         return output;
     }
 
-    snprintf(output.data(), sizeof(output), "%hhu", known_ids[0]);
+    snprintf(output.data(), sizeof(output), ROBOT_ID_TYPE_FMT, known_ids[0]);
     for (size_t i = 1; i < N; i++)
     {
-        std::array<char, sizeof(", 255")> buf = {0};
-        snprintf(buf.data(), sizeof(buf), ", %hhu", known_ids[i]);
+        std::array<char, sizeof(", 65535")> buf = {0};
+        snprintf(buf.data(), sizeof(buf), ", " ROBOT_ID_TYPE_FMT, known_ids[i]);
         strncat(output.data(), buf.data(), sizeof(buf));
     }
     return output;
@@ -372,7 +373,7 @@ public:
         this->client_->open(asio::ip::udp::v4());
 
         auto cfg             = esp_pthread_get_default_config();
-        cfg.stack_size       = 4096;
+        cfg.stack_size       = 8192;
         cfg.pin_to_core      = CORE_1;
         char thread_name[64] = {0};
         snprintf(thread_name, sizeof(thread_name), "udp_client_" ROBOT_ID_TYPE_FMT "_send_knowledge",
@@ -421,7 +422,7 @@ private:
         auto server =
             asio::ip::udp::endpoint(asio::ip::make_address_v4(this->neighbour.host.data()), this->neighbour.port);
 
-        while (this->running() && !this->stopping_)
+        while (this->running() && !this->stopping_ && this->client_ && this->client_->is_open())
         {
             auto knowledge     = EpuckKnowledgePacket();
             knowledge.robot_id = this->robot_model->robot_id;
@@ -474,15 +475,18 @@ private:
 
             auto response = EpuckKnowledgePacket::unpack(data.data());
 
-            const auto &known_ids_before = knowledge.known_ids;
+            const auto known_ids_before =
+                RobotSizeVector<robot_id_type>(knowledge.known_ids.begin(), knowledge.known_ids.begin() + knowledge.N);
 
-            auto num_inserted = this->robot_model->InsertKnownIds(
-                {response.known_ids.begin(), response.known_ids.begin() + response.N});
+            const auto known_ids_after =
+                RobotSizeVector<robot_id_type>(response.known_ids.begin(), response.known_ids.begin() + response.N);
+
+            auto num_inserted = this->robot_model->InsertKnownIds(known_ids_after);
 
             if (num_inserted > 0)
             {
                 RobotSizeSet<robot_id_type> new_ids;
-                std::set_difference(response.known_ids.begin(), response.known_ids.end(), known_ids_before.begin(),
+                std::set_difference(known_ids_after.begin(), known_ids_after.end(), known_ids_before.begin(),
                                     known_ids_before.end(), std::inserter(new_ids, new_ids.begin()));
 
                 ESP_LOGI(TAG, "Received new IDs from " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", response.robot_id,
@@ -495,5 +499,8 @@ private:
 
             vTaskDelay(1000 / portTICK_PERIOD_MS);
         }
+
+        ESP_LOGI(TAG, "Stopping knowledge connection with " ROBOT_ID_TYPE_FMT " (%s:%hu)", this->neighbour.robot_id,
+                 this->neighbour.host.data(), this->neighbour.port);
     }
 };
