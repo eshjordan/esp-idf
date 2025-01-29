@@ -23,46 +23,6 @@ template <class T> using RobotIdListAllocator =
 // DECLARE_STATIC_ALLOCATOR(RobotIdListAllocator,
 //                          ((sizeof("255") - 1) * MAX_ROBOTS) + ((sizeof(", ") - 1) * (MAX_ROBOTS - 1)) + sizeof(""));
 
-static inline auto known_ids_set_to_string(const RobotSizeSet<robot_id_type> &known_ids)
-{
-    std::array<char, ((sizeof("65535") - 1) * MAX_ROBOTS) + ((sizeof(", ") - 1) * (MAX_ROBOTS - 1)) + sizeof("")>
-        output = {0};
-    if (known_ids.empty())
-    {
-        snprintf(output.data(), sizeof("{}"), "{}");
-        return output;
-    }
-
-    snprintf(output.data(), sizeof(output), ROBOT_ID_TYPE_FMT, (*known_ids.begin()));
-    for (auto it = known_ids.begin(); ++it != known_ids.end();)
-    {
-        std::array<char, sizeof(", 65535")> buf = {0};
-        snprintf(buf.data(), sizeof(buf), ", " ROBOT_ID_TYPE_FMT, (*it));
-        strncat(output.data(), buf.data(), sizeof(buf));
-    }
-    return output;
-}
-
-static inline auto known_ids_list_to_string(const std::array<robot_id_type, MAX_ROBOTS> &known_ids, uint8_t N)
-{
-    std::array<char, ((sizeof("65535") - 1) * MAX_ROBOTS) + ((sizeof(", ") - 1) * (MAX_ROBOTS - 1)) + sizeof("")>
-        output = {0};
-    if (known_ids.empty())
-    {
-        snprintf(output.data(), sizeof("{}"), "{}");
-        return output;
-    }
-
-    snprintf(output.data(), sizeof(output), ROBOT_ID_TYPE_FMT, known_ids[0]);
-    for (size_t i = 1; i < N; i++)
-    {
-        std::array<char, sizeof(", 65535")> buf = {0};
-        snprintf(buf.data(), sizeof(buf), ", " ROBOT_ID_TYPE_FMT, known_ids[i]);
-        strncat(output.data(), buf.data(), sizeof(buf));
-    }
-    return output;
-}
-
 class UDPKnowledgeClient;
 
 class UDPKnowledgeServer : public BaseKnowledgeServer
@@ -141,7 +101,7 @@ public:
         this->socket_  = std::make_shared<asio::ip::udp::socket>(io_context_);
         this->socket_->open(asio::ip::udp::v4());
         auto address         = asio::ip::make_address_v4(this->robot_model->robot_host.c_str());
-        auto client_endpoint = asio::ip::udp::endpoint(address, this->robot_model->robot_port);
+        auto client_endpoint = asio::ip::udp::endpoint(address, this->robot_model->robot_knowledge_exchange_port);
         ESP_LOGI(TAG, "UDPKnowledgeServer - (%s:%hu)", client_endpoint.address().to_string().c_str(),
                  client_endpoint.port());
         this->socket_->bind(client_endpoint);
@@ -187,7 +147,7 @@ private:
     void StartReceive()
     {
         ESP_LOGI(TAG, "Starting knowledge connection on %s:%hu", this->robot_model->robot_host.c_str(),
-                 this->robot_model->robot_port);
+                 this->robot_model->robot_knowledge_exchange_port);
         while (this->running_)
         {
             struct timeval tv = {1, 0};
@@ -202,26 +162,11 @@ private:
             }
             if (fds_ready < 0)
             {
-                ESP_LOGE(TAG, "Error receiving data%s", "select");
+                ESP_LOGE(TAG, "Error receiving data - %s", "select");
                 perror("select");
                 vTaskDelay(1000 / portTICK_PERIOD_MS);
                 continue;
             }
-
-            // struct pollfd pfd = {this->socket_->native_handle(), POLLIN, 0};
-            // int retval        = poll(&pfd, 1, 1000);
-            // if (retval == 0)
-            // { // timeout
-            //     ESP_LOGD(TAG, "Timeout, no data received%s", "");
-            //     continue;
-            // }
-            // if (retval < 0)
-            // {
-            //     ESP_LOGE(TAG, "Error receiving data%s", "poll");
-            //     perror("poll");
-            //     vTaskDelay(1000 / portTICK_PERIOD_MS);
-            //     continue;
-            // }
 
             asio::ip::udp::endpoint client;
             std::array<uint8_t, sizeof(EpuckKnowledgePacket)> data{};
@@ -243,6 +188,12 @@ private:
                     expected_bytes =
                         offsetof(EpuckKnowledgePacket, known_ids) + data[offsetof(EpuckKnowledgePacket, N)];
                 }
+            }
+
+            if (bytes_received != expected_bytes)
+            {
+                ESP_LOGW(TAG, "Received %zu bytes, expected %zu bytes", bytes_received, expected_bytes);
+                continue;
             }
 
             HandleReceive(client, data);
