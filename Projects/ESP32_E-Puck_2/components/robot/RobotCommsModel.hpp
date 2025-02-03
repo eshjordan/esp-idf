@@ -1,17 +1,21 @@
 #pragma once
 
+#include <algorithm>
 #include <asio.hpp>
 
 #include "EpuckPackets.hpp"
 #include "types.hpp"
+#include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <set>
 #include <stdint.h>
 #include <sys/time.h>
 #include <thread>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -35,21 +39,23 @@ static inline auto known_ids_set_to_string(const RobotSizeSet<robot_id_type> &kn
     return output;
 }
 
-static inline auto known_ids_list_to_string(const std::array<robot_id_type, MAX_ROBOTS> &known_ids, uint8_t N)
+template <typename IterRecord> static inline auto known_ids_to_string(IterRecord begin, IterRecord end)
 {
-    std::array<char, ((sizeof("65535") - 1) * MAX_ROBOTS) + ((sizeof(", ") - 1) * (MAX_ROBOTS - 1)) + sizeof("")>
+    std::array<char,
+               ((sizeof("65535 (seq: 65535)") - 1) * MAX_ROBOTS) + ((sizeof(", ") - 1) * (MAX_ROBOTS - 1)) + sizeof("")>
         output = {0};
-    if (known_ids.empty())
+    if (begin == end)
     {
         snprintf(output.data(), sizeof("{}"), "{}");
         return output;
     }
 
-    snprintf(output.data(), sizeof(output), ROBOT_ID_TYPE_FMT, known_ids[0]);
-    for (size_t i = 1; i < N; i++)
+    snprintf(output.data(), sizeof(output), ROBOT_ID_TYPE_FMT " (seq: %hu)", (*begin).robot_id, (*begin).seq);
+    begin++;
+    for (; begin != end; begin++)
     {
-        std::array<char, sizeof(", 65535")> buf = {0};
-        snprintf(buf.data(), sizeof(buf), ", " ROBOT_ID_TYPE_FMT, known_ids[i]);
+        std::array<char, sizeof(", 65535 (seq: 65535)")> buf = {0};
+        snprintf(buf.data(), sizeof(buf), ", " ROBOT_ID_TYPE_FMT " (seq: %hu)", (*begin).robot_id, (*begin).seq);
         strncat(output.data(), buf.data(), sizeof(buf));
     }
     return output;
@@ -58,8 +64,48 @@ static inline auto known_ids_list_to_string(const std::array<robot_id_type, MAX_
 class BaseRobotCommsModel
 {
 public:
-    using known_ids_type     = RobotSizeSet<robot_id_type>;
-    using known_ids_iterator = known_ids_type::iterator;
+    using known_id_record_type = EpuckKnowledgeRecord;
+    using known_ids_type       = RobotSizeMap<robot_id_type, known_id_record_type>;
+    // using known_ids_type_iterator = known_ids_type::iterator;
+
+    template <bool const_type> class known_ids_type_iterator_base
+    {
+    private:
+        using iter_type = std::conditional_t<const_type, known_ids_type::const_iterator, known_ids_type::iterator>;
+        iter_type iter_;
+
+    public:
+        using difference_type   = std::ptrdiff_t;
+        using value_type        = known_id_record_type;
+        using pointer           = known_id_record_type *;
+        using reference         = known_id_record_type &;
+        using iterator_category = std::input_iterator_tag;
+
+        known_ids_type_iterator_base() = default;
+        explicit known_ids_type_iterator_base(iter_type iter) : iter_(iter) {}
+        known_ids_type_iterator_base(const known_ids_type_iterator_base &other)            = default;
+        known_ids_type_iterator_base &operator=(const known_ids_type_iterator_base &other) = default;
+        ~known_ids_type_iterator_base()                                                    = default;
+
+        bool operator==(const known_ids_type_iterator_base &other) const { return this->iter_ == other.iter_; }
+        bool operator!=(const known_ids_type_iterator_base &other) const { return this->iter_ != other.iter_; }
+        value_type operator*() { return (*iter_).second; }
+        reference operator->() { return iter_->second; }
+        known_ids_type_iterator_base &operator++()
+        {
+            ++this->iter_;
+            return *this;
+        }
+        known_ids_type_iterator_base operator++(int)
+        {
+            auto copy = *this;
+            operator++();
+            return copy;
+        }
+    };
+
+    using known_ids_type_iterator       = known_ids_type_iterator_base<false>;
+    using known_ids_type_const_iterator = known_ids_type_iterator_base<true>;
 
     const robot_id_type robot_id;
     const HostSizeString manager_host;
@@ -76,26 +122,58 @@ public:
           robot_host(std::move(robot_host)), robot_knowledge_exchange_port(robot_knowledge_exchange_port),
           robot_knowledge_request_port(robot_knowledge_request_port)
     {
-        this->known_ids_.insert(robot_id);
+        this->known_ids_.emplace(robot_id, EpuckKnowledgeRecord{robot_id, this->GetSeq()});
     }
 
     virtual void Start() = 0;
     virtual void Stop()  = 0;
 
-    [[nodiscard]] RobotSizeVector<robot_id_type> GetKnownIds() const
+    [[nodiscard]] known_ids_type_const_iterator KnownIdsBegin() const
     {
-        return {this->known_ids_.begin(), this->known_ids_.end()};
+        return known_ids_type_const_iterator(this->known_ids_.cbegin());
     }
 
-    size_t InsertKnownIds(const RobotSizeVector<robot_id_type> &ids)
+    [[nodiscard]] known_ids_type_const_iterator KnownIdsEnd() const
     {
-        auto size_before = this->known_ids_.size();
-        std::copy(ids.begin(), ids.end(), std::inserter(this->known_ids_, this->known_ids_.end()));
-        return this->known_ids_.size() - size_before;
+        return known_ids_type_const_iterator(this->known_ids_.cend());
+    }
+
+    [[nodiscard]] size_t KnownIdsSize() const { return std::distance(KnownIdsBegin(), KnownIdsEnd()); }
+
+    template <typename RecordContainerIterator>
+    size_t InsertKnownIds(const RecordContainerIterator begin, const RecordContainerIterator end)
+    {
+        typename std::iterator_traits<RecordContainerIterator>::iterator_category *_ = nullptr;
+
+        auto size_before = this->KnownIdsSize();
+        // std::copy(begin, end, std::inserter(this->known_ids_, this->known_ids_.end()));
+        std::transform(begin, end, std::inserter(this->known_ids_, this->known_ids_.end()),
+                       [](const known_id_record_type &record) { return std::make_pair(record.robot_id, record); });
+        return this->KnownIdsSize() - size_before;
+    }
+
+    [[nodiscard]] uint16_t GetSeq() { return ++this->seq_; }
+
+    [[nodiscard]] EpuckKnowledgePacket CreateKnowledgePacket()
+    {
+        // Update the sequence number of the internal record for this robot, so it matches the one in the response
+        auto seq                                       = this->GetSeq();
+        std::array<EpuckKnowledgeRecord, 1> new_record = {EpuckKnowledgeRecord{this->robot_id, seq}};
+        this->InsertKnownIds(new_record.cbegin(), new_record.cend());
+
+        auto packet     = EpuckKnowledgePacket();
+        packet.robot_id = this->robot_id;
+        packet.seq      = seq;
+        packet.N        = this->KnownIdsSize();
+        std::copy(this->KnownIdsBegin(), this->KnownIdsEnd(), packet.known_ids.begin());
+
+        return packet;
     }
 
 private:
     known_ids_type known_ids_;
+
+    uint16_t seq_{};
 };
 
 class BaseKnowledgeServer
@@ -288,7 +366,8 @@ private:
                 const auto neighbour = *it;
                 ESP_LOGD(TAG, "Received neighbour: " ROBOT_ID_TYPE_FMT " (%s:%hu) at distance %f", neighbour.robot_id,
                          neighbour.host.data(), neighbour.port, neighbour.dist);
-                this->InsertKnownIds({neighbour.robot_id});
+                // RobotSizeSet<robot_id_type> new_ids({neighbour.robot_id});
+                // this->InsertKnownIds(new_ids.cbegin(), new_ids.cend());
             }
 
             // Connect to new robots that are listed in the response if they have a lower ID
@@ -387,7 +466,8 @@ private:
                     if (bytes_received > offsetof(EpuckKnowledgePacket, N))
                     {
                         expected_bytes =
-                            offsetof(EpuckKnowledgePacket, known_ids) + data[offsetof(EpuckKnowledgePacket, N)];
+                            offsetof(EpuckKnowledgePacket, known_ids)
+                            + data[offsetof(EpuckKnowledgePacket, N)] * sizeof(EpuckKnowledgePacket::known_ids[0]);
                     }
                 }
 
@@ -412,20 +492,16 @@ private:
                                  const std::array<uint8_t, sizeof(EpuckKnowledgePacket)> &data)
     {
         auto request = EpuckKnowledgePacket::unpack(data.data());
+        (void)request;
 
         ESP_LOGD(TAG, "Received knowledge request from %s:%hu", client.address().to_string().c_str(), client.port());
 
-        auto known_ids = this->GetKnownIds();
-
-        auto knowledge     = EpuckKnowledgePacket();
-        knowledge.robot_id = this->robot_id;
-        knowledge.N        = std::distance(known_ids.begin(), known_ids.end());
-        std::copy(known_ids.begin(), known_ids.end(), knowledge.known_ids.begin());
+        auto knowledge = this->CreateKnowledgePacket();
 
         this->knowledge_request_socket_->send_to(asio::buffer(knowledge.pack(), sizeof(EpuckKnowledgePacket)), client);
 
         ESP_LOGD(TAG, "Sent knowledge to %s:%hu - %s", client.address().to_string().c_str(), client.port(),
-                 known_ids_list_to_string(knowledge.known_ids, knowledge.N).data());
+                 known_ids_to_string(knowledge.known_ids.cbegin(), knowledge.known_ids.cbegin() + knowledge.N).data());
     }
 
     asio::io_context io_context_;

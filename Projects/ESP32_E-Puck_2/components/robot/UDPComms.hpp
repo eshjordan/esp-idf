@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <numeric>
 #include <sstream>
 #include <sys/select.h>
 #include <thread>
@@ -205,38 +206,35 @@ private:
     {
         auto request = EpuckKnowledgePacket::unpack(data.data());
 
-        auto known_ids_before = this->robot_model->GetKnownIds();
+        ESP_LOGD(TAG, "Received knowledge from " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", request.robot_id,
+                 client.address().to_string().c_str(), client.port(),
+                 known_ids_to_string(request.known_ids.cbegin(), request.known_ids.cend()).data());
+
+        auto known_ids_before = RobotSizeSet<BaseRobotCommsModel::known_id_record_type>(
+            this->robot_model->KnownIdsBegin(), this->robot_model->KnownIdsEnd());
 
         auto num_inserted =
-            this->robot_model->InsertKnownIds({request.known_ids.begin(), request.known_ids.begin() + request.N});
-
-        auto known_ids_after = this->robot_model->GetKnownIds();
+            this->robot_model->InsertKnownIds(request.known_ids.cbegin(), request.known_ids.cbegin() + request.N);
 
         if (num_inserted > 0)
         {
-            RobotSizeSet<robot_id_type> new_ids;
-            std::set_difference(request.known_ids.begin(), request.known_ids.begin() + request.N,
-                                known_ids_before.begin(), known_ids_before.end(),
-                                std::inserter(new_ids, new_ids.begin()));
+            RobotSizeSet<BaseRobotCommsModel::known_id_record_type> new_ids;
+            std::set_difference(this->robot_model->KnownIdsBegin(), this->robot_model->KnownIdsEnd(),
+                                known_ids_before.cbegin(), known_ids_before.cend(),
+                                std::inserter(new_ids, new_ids.end()));
 
             ESP_LOGI(TAG, "Received new IDs from " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", request.robot_id,
-                     client.address().to_string().c_str(), client.port(), known_ids_set_to_string(new_ids).data());
+                     client.address().to_string().c_str(), client.port(),
+                     known_ids_to_string(new_ids.cbegin(), new_ids.cend()).data());
         }
 
-        ESP_LOGD(TAG, "Received knowledge from " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", request.robot_id,
-                 client.address().to_string().c_str(), client.port(),
-                 known_ids_list_to_string(request.known_ids, request.N).data());
-
-        auto knowledge     = EpuckKnowledgePacket();
-        knowledge.robot_id = this->robot_model->robot_id;
-        knowledge.N        = std::distance(known_ids_after.begin(), known_ids_after.end());
-        std::copy(known_ids_after.begin(), known_ids_after.end(), knowledge.known_ids.begin());
+        auto knowledge = this->robot_model->CreateKnowledgePacket();
 
         socket_->send_to(asio::buffer(knowledge.pack(), sizeof(EpuckKnowledgePacket)), client);
 
         ESP_LOGD(TAG, "Sent knowledge to " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", request.robot_id,
                  client.address().to_string().c_str(), client.port(),
-                 known_ids_list_to_string(knowledge.known_ids, knowledge.N).data());
+                 known_ids_to_string(knowledge.known_ids.cbegin(), knowledge.known_ids.cend()).data());
     }
 };
 
@@ -375,17 +373,13 @@ private:
 
         while (this->running() && !this->stopping_ && this->client_ && this->client_->is_open())
         {
-            auto knowledge     = EpuckKnowledgePacket();
-            knowledge.robot_id = this->robot_model->robot_id;
-            auto known_ids     = this->robot_model->GetKnownIds();
-            std::copy(known_ids.begin(), known_ids.end(), knowledge.known_ids.begin());
-            knowledge.N = known_ids.size();
+            auto knowledge = this->robot_model->CreateKnowledgePacket();
 
             client_->send_to(asio::buffer(knowledge.pack(), sizeof(EpuckKnowledgePacket)), server);
 
             ESP_LOGD(TAG, "Sent knowledge to " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", this->neighbour.robot_id,
                      this->neighbour.host.data(), this->neighbour.port,
-                     known_ids_list_to_string(knowledge.known_ids, knowledge.N).data());
+                     known_ids_to_string(knowledge.known_ids.cbegin(), knowledge.known_ids.cend()).data());
 
             struct pollfd pfd = {this->client_->native_handle(), POLLIN, 0};
             int retval        = poll(&pfd, 1, 1000);
@@ -420,33 +414,34 @@ private:
                 if (bytes_received > offsetof(EpuckKnowledgePacket, N))
                 {
                     expected_bytes =
-                        offsetof(EpuckKnowledgePacket, known_ids) + data[offsetof(EpuckKnowledgePacket, N)];
+                        offsetof(EpuckKnowledgePacket, known_ids)
+                        + data[offsetof(EpuckKnowledgePacket, N)] * sizeof(EpuckKnowledgePacket::known_ids[0]);
                 }
             }
 
             auto response = EpuckKnowledgePacket::unpack(data.data());
 
-            const auto known_ids_before =
-                RobotSizeVector<robot_id_type>(knowledge.known_ids.begin(), knowledge.known_ids.begin() + knowledge.N);
+            ESP_LOGD(TAG, "Received knowledge from " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", response.robot_id,
+                     this->neighbour.host.data(), this->neighbour.port,
+                     known_ids_to_string(response.known_ids.cbegin(), response.known_ids.cend()).data());
 
-            const auto known_ids_after =
-                RobotSizeVector<robot_id_type>(response.known_ids.begin(), response.known_ids.begin() + response.N);
+            auto known_ids_before = RobotSizeSet<BaseRobotCommsModel::known_id_record_type>(
+                this->robot_model->KnownIdsBegin(), this->robot_model->KnownIdsEnd());
 
-            auto num_inserted = this->robot_model->InsertKnownIds(known_ids_after);
+            auto num_inserted = this->robot_model->InsertKnownIds(response.known_ids.cbegin(),
+                                                                  response.known_ids.cbegin() + response.N);
 
             if (num_inserted > 0)
             {
-                RobotSizeSet<robot_id_type> new_ids;
-                std::set_difference(known_ids_after.begin(), known_ids_after.end(), known_ids_before.begin(),
-                                    known_ids_before.end(), std::inserter(new_ids, new_ids.begin()));
+                RobotSizeSet<BaseRobotCommsModel::known_id_record_type> new_ids;
+                std::set_difference(this->robot_model->KnownIdsBegin(), this->robot_model->KnownIdsEnd(),
+                                    known_ids_before.cbegin(), known_ids_before.cend(),
+                                    std::inserter(new_ids, new_ids.begin()));
 
                 ESP_LOGI(TAG, "Received new IDs from " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", response.robot_id,
-                         this->neighbour.host.data(), this->neighbour.port, known_ids_set_to_string(new_ids).data());
+                         this->neighbour.host.data(), this->neighbour.port,
+                         known_ids_to_string(new_ids.cbegin(), new_ids.cend()).data());
             }
-
-            ESP_LOGD(TAG, "Received knowledge from " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", response.robot_id,
-                     this->neighbour.host.data(), this->neighbour.port,
-                     known_ids_list_to_string(response.known_ids, response.N).data());
 
             vTaskDelay(1000 / portTICK_PERIOD_MS);
         }

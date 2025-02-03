@@ -67,16 +67,11 @@ template <class T, class U> enable_if_both_types_are_size_n_return_t<T, U, 4> bu
 }
 } // namespace impl
 
-class PACKED EpuckHeartbeatPacket
-{
-public:
-    PACKED uint8_t id                                    = 0x20;
-    PACKED robot_id_type robot_id                        = 0;
-    PACKED std::array<char, MAX_HOST_LEN + 1> robot_host = {0};
-    PACKED uint16_t robot_port                           = 0;
-
-    EpuckHeartbeatPacket() = default;
-    [[nodiscard]] explicit EpuckHeartbeatPacket(const void *const buffer) { *this = unpack(buffer); }
+struct PACKED EpuckHeartbeatPacket {
+    uint8_t id                                    = 0x20;
+    robot_id_type robot_id                        = 0;
+    std::array<char, MAX_HOST_LEN + 1> robot_host = {0};
+    uint16_t robot_port                           = 0;
 
     [[nodiscard]] auto pack() const
     {
@@ -116,23 +111,11 @@ public:
     }
 };
 
-class PACKED EpuckNeighbourPacket
-{
-public:
-    PACKED robot_id_type robot_id                  = 0;
-    PACKED std::array<char, MAX_HOST_LEN + 1> host = {0};
-    PACKED uint16_t port                           = 0;
-    PACKED float dist                              = 0;
-
-    EpuckNeighbourPacket() = default;
-    [[nodiscard]] explicit EpuckNeighbourPacket(const void *const buffer) { *this = unpack(buffer); }
-
-    bool operator==(const EpuckNeighbourPacket &other) const
-    {
-        return robot_id == other.robot_id && host == other.host && port == other.port && dist == other.dist;
-    }
-
-    bool operator<(const EpuckNeighbourPacket &other) const { return robot_id < other.robot_id; }
+struct PACKED EpuckNeighbourPacket {
+    robot_id_type robot_id;
+    std::array<char, MAX_HOST_LEN + 1> host;
+    uint16_t port;
+    float dist;
 
     [[nodiscard]] auto pack() const
     {
@@ -173,15 +156,10 @@ public:
     }
 };
 
-class PACKED EpuckHeartbeatResponsePacket
-{
-public:
-    PACKED uint8_t id                                              = 0x21;
-    PACKED uint8_t num_neighbours                                  = 0;
-    PACKED std::array<EpuckNeighbourPacket, MAX_ROBOTS> neighbours = {};
-
-    EpuckHeartbeatResponsePacket() = default;
-    [[nodiscard]] explicit EpuckHeartbeatResponsePacket(const void *const buffer) { *this = unpack(buffer); }
+struct PACKED EpuckHeartbeatResponsePacket {
+    uint8_t id                                              = 0x21;
+    uint8_t num_neighbours                                  = 0;
+    std::array<EpuckNeighbourPacket, MAX_ROBOTS> neighbours = {};
 
     [[nodiscard]] auto pack() const
     {
@@ -208,6 +186,10 @@ public:
 
     [[nodiscard]] static EpuckHeartbeatResponsePacket unpack(const void *const buffer)
     {
+        static_assert(std::is_pod_v<EpuckNeighbourPacket>);
+        static_assert(std::is_standard_layout_v<EpuckNeighbourPacket>);
+        static_assert(std::is_trivial<EpuckNeighbourPacket>::value);
+
         EpuckHeartbeatResponsePacket packet;
 
         const auto *id_ptr = &static_cast<const uint8_t *>(buffer)[offsetof(EpuckHeartbeatResponsePacket, id)];
@@ -228,33 +210,72 @@ public:
     }
 };
 
-class PACKED EpuckKnowledgePacket
-{
-public:
-    PACKED uint8_t id                                      = 0x22;
-    PACKED robot_id_type robot_id                          = 0;
-    PACKED uint8_t N                                       = 0;
-    PACKED std::array<robot_id_type, MAX_ROBOTS> known_ids = {0};
+struct PACKED EpuckKnowledgeRecord {
+    robot_id_type robot_id;
+    uint16_t seq;
 
-    EpuckKnowledgePacket() = default;
-    [[nodiscard]] explicit EpuckKnowledgePacket(const void *const buffer) { *this = unpack(buffer); }
+    [[nodiscard]] auto pack() const
+    {
+        std::array<uint8_t, sizeof(EpuckKnowledgeRecord)> buffer = {0};
+
+        auto *robot_id_ptr = reinterpret_cast<robot_id_type *>(&buffer[offsetof(EpuckKnowledgeRecord, robot_id)]);
+        auto *seq_ptr      = reinterpret_cast<uint16_t *>(&buffer[offsetof(EpuckKnowledgeRecord, seq)]);
+
+        impl::value_to_buffer(robot_id_ptr, robot_id);
+        impl::value_to_buffer(seq_ptr, seq);
+
+        return buffer;
+    }
+
+    [[nodiscard]] static EpuckKnowledgeRecord unpack(const void *const buffer)
+    {
+        EpuckKnowledgeRecord record;
+
+        const auto *robot_id_ptr = reinterpret_cast<const robot_id_type *>(
+            &static_cast<const uint8_t *>(buffer)[offsetof(EpuckKnowledgeRecord, robot_id)]);
+        const auto *seq_ptr = reinterpret_cast<const uint16_t *>(
+            &static_cast<const uint8_t *>(buffer)[offsetof(EpuckKnowledgeRecord, seq)]);
+
+        record.robot_id = impl::buffer_to_value<decltype(record.robot_id)>(robot_id_ptr);
+        record.seq      = impl::buffer_to_value<decltype(record.seq)>(seq_ptr);
+
+        return record;
+    }
+
+    bool operator<(const EpuckKnowledgeRecord &other) const
+    {
+        return (robot_id < other.robot_id) || (robot_id == other.robot_id && seq < other.seq);
+    }
+
+    bool operator==(const EpuckKnowledgeRecord &other) const { return robot_id == other.robot_id && seq == other.seq; }
+};
+
+struct PACKED EpuckKnowledgePacket {
+    uint8_t id                                             = 0x22;
+    robot_id_type robot_id                                 = 0;
+    uint16_t seq                                           = 0;
+    uint8_t N                                              = 0;
+    std::array<EpuckKnowledgeRecord, MAX_ROBOTS> known_ids = {};
 
     [[nodiscard]] auto pack() const
     {
         std::array<uint8_t, sizeof(EpuckKnowledgePacket)> buffer = {0};
 
-        auto *id_ptr        = static_cast<uint8_t *>(&buffer[offsetof(EpuckKnowledgePacket, id)]);
-        auto *robot_id_ptr  = reinterpret_cast<robot_id_type *>(&buffer[offsetof(EpuckKnowledgePacket, robot_id)]);
-        auto *N_ptr         = static_cast<uint8_t *>(&buffer[offsetof(EpuckKnowledgePacket, N)]);
-        auto *known_ids_ptr = reinterpret_cast<robot_id_type *>(&buffer[offsetof(EpuckKnowledgePacket, known_ids)]);
+        auto *id_ptr       = static_cast<uint8_t *>(&buffer[offsetof(EpuckKnowledgePacket, id)]);
+        auto *robot_id_ptr = reinterpret_cast<robot_id_type *>(&buffer[offsetof(EpuckKnowledgePacket, robot_id)]);
+        auto *seq_ptr      = reinterpret_cast<uint16_t *>(&buffer[offsetof(EpuckKnowledgePacket, seq)]);
+        auto *N_ptr        = static_cast<uint8_t *>(&buffer[offsetof(EpuckKnowledgePacket, N)]);
+        auto *known_ids_ptr =
+            reinterpret_cast<EpuckKnowledgeRecord *>(&buffer[offsetof(EpuckKnowledgePacket, known_ids)]);
 
         impl::value_to_buffer(id_ptr, id);
         impl::value_to_buffer(robot_id_ptr, robot_id);
+        impl::value_to_buffer(seq_ptr, seq);
         impl::value_to_buffer(N_ptr, N);
 
         for (int i = 0; i < N; i++)
         {
-            impl::value_to_buffer(&known_ids_ptr[i], known_ids.at(i));
+            memcpy(&known_ids_ptr[i], known_ids.at(i).pack().data(), sizeof(known_ids[0]));
         }
 
         return buffer;
@@ -267,83 +288,20 @@ public:
         const auto *id_ptr       = &static_cast<const uint8_t *>(buffer)[offsetof(EpuckKnowledgePacket, id)];
         const auto *robot_id_ptr = reinterpret_cast<const robot_id_type *>(
             &static_cast<const uint8_t *>(buffer)[offsetof(EpuckKnowledgePacket, robot_id)]);
+        const auto *seq_ptr = reinterpret_cast<const uint16_t *>(
+            &static_cast<const uint8_t *>(buffer)[offsetof(EpuckKnowledgePacket, seq)]);
         const auto *N_ptr         = &static_cast<const uint8_t *>(buffer)[offsetof(EpuckKnowledgePacket, N)];
-        const auto *known_ids_ptr = reinterpret_cast<const robot_id_type *>(
+        const auto *known_ids_ptr = reinterpret_cast<const EpuckKnowledgeRecord *>(
             &static_cast<const uint8_t *>(buffer)[offsetof(EpuckKnowledgePacket, known_ids)]);
 
         packet.id       = impl::buffer_to_value<decltype(packet.id)>(id_ptr);
         packet.robot_id = impl::buffer_to_value<decltype(packet.robot_id)>(robot_id_ptr);
+        packet.seq      = impl::buffer_to_value<decltype(packet.seq)>(seq_ptr);
         packet.N        = impl::buffer_to_value<decltype(packet.N)>(N_ptr);
 
         for (int i = 0; i < packet.N; i++)
         {
-            packet.known_ids.at(i) =
-                impl::buffer_to_value<std::remove_reference_t<decltype(packet.known_ids.at(i))>>(&known_ids_ptr[i]);
-        }
-
-        return packet;
-    }
-};
-
-class PACKED EpuckAddressKnowledgePacket
-{
-public:
-    PACKED uint8_t id                                      = 0x23;
-    PACKED robot_id_type robot_id                          = 0;
-    PACKED uint8_t N                                       = 0;
-    PACKED std::array<char, MAX_HOST_LEN + 1> address      = {0};
-    PACKED std::array<robot_id_type, MAX_ROBOTS> known_ids = {0};
-
-    EpuckAddressKnowledgePacket() = default;
-    [[nodiscard]] explicit EpuckAddressKnowledgePacket(const void *const buffer) { *this = unpack(buffer); }
-
-    [[nodiscard]] auto pack() const
-    {
-        std::array<uint8_t, sizeof(EpuckAddressKnowledgePacket)> buffer = {0};
-
-        auto *id_ptr = static_cast<uint8_t *>(&buffer[offsetof(EpuckAddressKnowledgePacket, id)]);
-        auto *robot_id_ptr =
-            reinterpret_cast<robot_id_type *>(&buffer[offsetof(EpuckAddressKnowledgePacket, robot_id)]);
-        auto *N_ptr       = static_cast<uint8_t *>(&buffer[offsetof(EpuckAddressKnowledgePacket, N)]);
-        auto *address_ptr = reinterpret_cast<char *>(&buffer[offsetof(EpuckAddressKnowledgePacket, address)]);
-        auto *known_ids_ptr =
-            reinterpret_cast<robot_id_type *>(&buffer[offsetof(EpuckAddressKnowledgePacket, known_ids)]);
-
-        impl::value_to_buffer(id_ptr, id);
-        impl::value_to_buffer(robot_id_ptr, robot_id);
-        impl::value_to_buffer(N_ptr, N);
-        strncpy(address_ptr, address.data(), MAX_HOST_LEN);
-
-        for (int i = 0; i < N; i++)
-        {
-            impl::value_to_buffer(&known_ids_ptr[i], known_ids.at(i));
-        }
-
-        return buffer;
-    }
-
-    [[nodiscard]] static EpuckAddressKnowledgePacket unpack(const void *const buffer)
-    {
-        EpuckAddressKnowledgePacket packet;
-
-        const auto *id_ptr       = &static_cast<const uint8_t *>(buffer)[offsetof(EpuckAddressKnowledgePacket, id)];
-        const auto *robot_id_ptr = reinterpret_cast<const robot_id_type *>(
-            &static_cast<const uint8_t *>(buffer)[offsetof(EpuckAddressKnowledgePacket, robot_id)]);
-        const auto *N_ptr       = &static_cast<const uint8_t *>(buffer)[offsetof(EpuckAddressKnowledgePacket, N)];
-        const auto *address_ptr = reinterpret_cast<const char *>(
-            &static_cast<const uint8_t *>(buffer)[offsetof(EpuckAddressKnowledgePacket, address)]);
-        const auto *known_ids_ptr = reinterpret_cast<const robot_id_type *>(
-            &static_cast<const uint8_t *>(buffer)[offsetof(EpuckAddressKnowledgePacket, known_ids)]);
-
-        packet.id       = impl::buffer_to_value<decltype(packet.id)>(id_ptr);
-        packet.robot_id = impl::buffer_to_value<decltype(packet.robot_id)>(robot_id_ptr);
-        packet.N        = impl::buffer_to_value<decltype(packet.N)>(N_ptr);
-        strncpy(packet.address.data(), address_ptr, MAX_HOST_LEN);
-
-        for (int i = 0; i < packet.N; i++)
-        {
-            packet.known_ids.at(i) =
-                impl::buffer_to_value<std::remove_reference_t<decltype(packet.known_ids.at(i))>>(&known_ids_ptr[i]);
+            packet.known_ids.at(i) = EpuckKnowledgeRecord::unpack(&known_ids_ptr[i]);
         }
 
         return packet;
