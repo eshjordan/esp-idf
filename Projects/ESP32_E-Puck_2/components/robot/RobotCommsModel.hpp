@@ -147,8 +147,14 @@ public:
 
         auto size_before = this->KnownIdsSize();
         // std::copy(begin, end, std::inserter(this->known_ids_, this->known_ids_.end()));
-        std::transform(begin, end, std::inserter(this->known_ids_, this->known_ids_.end()),
-                       [](const known_id_record_type &record) { return std::make_pair(record.robot_id, record); });
+        for (auto record = begin; record != end; record++)
+        {
+            if ((this->known_ids_.find(record->robot_id) == this->known_ids_.end())
+                || this->known_ids_[record->robot_id].seq < record->seq)
+            {
+                this->known_ids_.insert_or_assign(record->robot_id, *record);
+            }
+        }
         return this->KnownIdsSize() - size_before;
     }
 
@@ -243,7 +249,7 @@ public:
         this->knowledge_request_socket_->open(asio::ip::udp::v4());
         auto address         = asio::ip::make_address_v4(this->robot_host.c_str());
         auto client_endpoint = asio::ip::udp::endpoint(address, this->robot_knowledge_request_port);
-        ESP_LOGI(TAG, "UDPKnowledgeServer - (%s:%hu)", client_endpoint.address().to_string().c_str(),
+        ESP_LOGI(TAG, "RobotCommsModel knowledge requests - (%s:%hu)", client_endpoint.address().to_string().c_str(),
                  client_endpoint.port());
         this->knowledge_request_socket_->bind(client_endpoint);
 
