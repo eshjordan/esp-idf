@@ -62,7 +62,8 @@ void inter_robot_comms_task(void *pvParameter)
         const HostSizeString manager_host = "192.168.0.2";
         constexpr uint16_t manager_port   = 50000;
         // HostSizeString robot_host         = "192.168.0.2";
-        constexpr uint16_t robot_port = 1001;
+        constexpr uint16_t robot_comms_request_port      = 1001;
+        constexpr uint16_t robot_knowledge_exchange_port = 1002;
 
         std::array<uint8_t, sizeof(RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>)> robot_model_buffer = {0};
         std::shared_ptr<RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>> robot_model = nullptr;
@@ -102,13 +103,15 @@ void inter_robot_comms_task(void *pvParameter)
 
                 tcpip_adapter_ip_info_t ip_info;
                 tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip_info);
-                const auto robot_host = HostSizeString(ip4addr_ntoa(&ip_info.ip));
+                const auto robot_comms_host     = HostSizeString(ip4addr_ntoa(&ip_info.ip));
+                const auto robot_knowledge_host = HostSizeString(ip4addr_ntoa(&ip_info.ip));
 
-                ESP_LOGI(TAG, "Local IP: %s", robot_host.c_str());
+                ESP_LOGI(TAG, "Local IP: %s", robot_comms_host.c_str());
 
                 robot_model = std::shared_ptr<RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>>(
                     new (robot_model_buffer.data()) RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>(
-                        robot_id, manager_host, manager_port, robot_host, robot_port));
+                        robot_id, manager_host, manager_port, robot_comms_host, robot_comms_request_port,
+                        robot_knowledge_host, robot_knowledge_exchange_port));
 
                 robot_model->Start();
                 conn_state = 2;

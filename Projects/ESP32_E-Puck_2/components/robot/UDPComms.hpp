@@ -101,7 +101,7 @@ public:
         this->running_ = true;
         this->socket_  = std::make_shared<asio::ip::udp::socket>(io_context_);
         this->socket_->open(asio::ip::udp::v4());
-        auto address         = asio::ip::make_address_v4(this->robot_model->robot_host.c_str());
+        auto address         = asio::ip::make_address_v4(this->robot_model->robot_knowledge_host.c_str());
         auto client_endpoint = asio::ip::udp::endpoint(address, this->robot_model->robot_knowledge_exchange_port);
         ESP_LOGI(TAG, "UDPKnowledgeServer - (%s:%hu)", client_endpoint.address().to_string().c_str(),
                  client_endpoint.port());
@@ -147,7 +147,7 @@ private:
 
     void StartReceive()
     {
-        ESP_LOGI(TAG, "Starting knowledge connection on %s:%hu", this->robot_model->robot_host.c_str(),
+        ESP_LOGI(TAG, "Starting knowledge connection on %s:%hu", this->robot_model->robot_knowledge_host.c_str(),
                  this->robot_model->robot_knowledge_exchange_port);
         while (this->running_)
         {
