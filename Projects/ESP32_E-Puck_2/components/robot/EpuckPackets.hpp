@@ -1,36 +1,43 @@
 #pragma once
 
+// NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+
 #include "types.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <endian.h>
-#include <string.h>
 #include <type_traits>
 
 #define PACKED __attribute__((packed, aligned(1)))
 
 using robot_id_type = uint16_t;
-#define ROBOT_ID_TYPE_FMT "%d"
+#define ROBOT_ID_TYPE_FMT "%d" // NOLINT(cppcoreguidelines-macro-usage)
 
 namespace impl {
 
-template <class T, class U, std::size_t N> using enable_if_both_types_are_size_n = std::enable_if_t<std::conjunction_v<
+template <class T, class U, std::size_t N>
+using enable_if_both_types_are_size_n = std::enable_if_t<std::conjunction_v<
     std::is_same<std::integral_constant<std::size_t, sizeof(T)>, std::integral_constant<std::size_t, N>>,
     std::is_same<std::integral_constant<std::size_t, sizeof(U)>, std::integral_constant<std::size_t, N>>>>;
 
-template <class T, class U, std::size_t N> using enable_if_both_types_are_size_n_return_t = std::enable_if_t<
+template <class T, class U, std::size_t N>
+using enable_if_both_types_are_size_n_return_t = std::enable_if_t<
     std::conjunction_v<
         std::is_same<std::integral_constant<std::size_t, sizeof(T)>, std::integral_constant<std::size_t, N>>,
         std::is_same<std::integral_constant<std::size_t, sizeof(U)>, std::integral_constant<std::size_t, N>>>,
     T>;
 
-template <class T, class U> enable_if_both_types_are_size_n<T, U, 1> value_to_buffer(U *buffer, T value)
+template <class T, class U>
+enable_if_both_types_are_size_n<T, U, 1> value_to_buffer(U *buffer, T value)
 {
     memcpy(buffer, &value, 1);
 }
 
-template <class T, class U> enable_if_both_types_are_size_n_return_t<T, U, 1> buffer_to_value(const U *buffer)
+template <class T, class U>
+enable_if_both_types_are_size_n_return_t<T, U, 1> buffer_to_value(const U *buffer)
 {
     auto val_u8 = *reinterpret_cast<const uint8_t *>(buffer);
     T result;
@@ -38,13 +45,15 @@ template <class T, class U> enable_if_both_types_are_size_n_return_t<T, U, 1> bu
     return result;
 }
 
-template <class T, class U> enable_if_both_types_are_size_n<T, U, 2> value_to_buffer(U *buffer, T value)
+template <class T, class U>
+enable_if_both_types_are_size_n<T, U, 2> value_to_buffer(U *buffer, T value)
 {
     memcpy(buffer, &value, 2);
     *buffer = htole16(*buffer);
 }
 
-template <class T, class U> enable_if_both_types_are_size_n_return_t<T, U, 2> buffer_to_value(const U *buffer)
+template <class T, class U>
+enable_if_both_types_are_size_n_return_t<T, U, 2> buffer_to_value(const U *buffer)
 {
     uint16_t val_u16 = le16toh(*buffer);
     T result;
@@ -52,13 +61,15 @@ template <class T, class U> enable_if_both_types_are_size_n_return_t<T, U, 2> bu
     return result;
 }
 
-template <class T, class U> enable_if_both_types_are_size_n<T, U, 4> value_to_buffer(U *buffer, T value)
+template <class T, class U>
+enable_if_both_types_are_size_n<T, U, 4> value_to_buffer(U *buffer, T value)
 {
     memcpy(buffer, &value, 4);
     *buffer = htole32(*buffer);
 }
 
-template <class T, class U> enable_if_both_types_are_size_n_return_t<T, U, 4> buffer_to_value(const U *buffer)
+template <class T, class U>
+enable_if_both_types_are_size_n_return_t<T, U, 4> buffer_to_value(const U *buffer)
 {
     uint32_t val_u32 = le32toh(*buffer);
     T result;
@@ -154,7 +165,7 @@ struct PACKED EpuckNeighbourPacket {
 
     [[nodiscard]] static EpuckNeighbourPacket unpack(const void *const buffer)
     {
-        EpuckNeighbourPacket packet;
+        EpuckNeighbourPacket packet{};
 
         const auto *robot_id_ptr = reinterpret_cast<const robot_id_type *>(
             &static_cast<const uint8_t *>(buffer)[offsetof(EpuckNeighbourPacket, robot_id)]);
@@ -250,7 +261,7 @@ struct PACKED Centroid {
 
     [[nodiscard]] static Centroid unpack(const void *const buffer)
     {
-        Centroid centroid;
+        Centroid centroid{};
 
         const auto *x_ptr =
             reinterpret_cast<const uint32_t *>(&static_cast<const uint8_t *>(buffer)[offsetof(Centroid, x)]);
@@ -265,6 +276,8 @@ struct PACKED Centroid {
 
         return centroid;
     }
+
+    bool operator==(const Centroid &other) const { return x == other.x && y == other.y && z == other.z; }
 };
 
 struct PACKED Boundary {
@@ -300,7 +313,7 @@ struct PACKED Boundary {
 
     [[nodiscard]] static Boundary unpack(const void *const buffer)
     {
-        Boundary boundary;
+        Boundary boundary{};
 
         const auto *x_points_ptr =
             reinterpret_cast<const uint32_t *>(&static_cast<const uint8_t *>(buffer)[offsetof(Boundary, x_points)]);
@@ -309,6 +322,7 @@ struct PACKED Boundary {
         const auto *z_points_ptr =
             reinterpret_cast<const uint32_t *>(&static_cast<const uint8_t *>(buffer)[offsetof(Boundary, z_points)]);
 
+        // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
         for (int i = 0; i < MAX_BOUNDARY_X_POINTS; i++)
         {
             boundary.x_points.at(i) =
@@ -326,8 +340,14 @@ struct PACKED Boundary {
             boundary.z_points.at(i) =
                 impl::buffer_to_value<std::remove_reference_t<decltype(boundary.z_points[0])>>(&z_points_ptr[i]);
         }
+        // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
 
         return boundary;
+    }
+
+    bool operator==(const Boundary &other) const
+    {
+        return x_points == other.x_points && y_points == other.y_points && z_points == other.z_points;
     }
 };
 
@@ -356,7 +376,7 @@ struct PACKED EpuckKnowledgeRecord {
 
     [[nodiscard]] static EpuckKnowledgeRecord unpack(const void *const buffer)
     {
-        EpuckKnowledgeRecord record;
+        EpuckKnowledgeRecord record{};
 
         const auto *robot_id_ptr = reinterpret_cast<const robot_id_type *>(
             &static_cast<const uint8_t *>(buffer)[offsetof(EpuckKnowledgeRecord, robot_id)]);
@@ -387,7 +407,7 @@ struct PACKED EpuckKnowledgePacket {
     uint8_t id                                             = 0x22;
     robot_id_type robot_id                                 = 0;
     uint16_t seq                                           = 0;
-    uint8_t N                                              = 0;
+    uint8_t N                                              = 0; // NOLINT(readability-identifier-naming)
     std::array<EpuckKnowledgeRecord, MAX_ROBOTS> known_ids = {};
 
     [[nodiscard]] auto pack() const
@@ -397,7 +417,9 @@ struct PACKED EpuckKnowledgePacket {
         auto *id_ptr       = static_cast<uint8_t *>(&buffer[offsetof(EpuckKnowledgePacket, id)]);
         auto *robot_id_ptr = reinterpret_cast<robot_id_type *>(&buffer[offsetof(EpuckKnowledgePacket, robot_id)]);
         auto *seq_ptr      = reinterpret_cast<uint16_t *>(&buffer[offsetof(EpuckKnowledgePacket, seq)]);
-        auto *N_ptr        = static_cast<uint8_t *>(&buffer[offsetof(EpuckKnowledgePacket, N)]);
+
+        // NOLINTNEXTLINE(readability-identifier-naming)
+        auto *N_ptr = static_cast<uint8_t *>(&buffer[offsetof(EpuckKnowledgePacket, N)]);
         auto *known_ids_ptr =
             reinterpret_cast<EpuckKnowledgeRecord *>(&buffer[offsetof(EpuckKnowledgePacket, known_ids)]);
 
@@ -423,6 +445,8 @@ struct PACKED EpuckKnowledgePacket {
             &static_cast<const uint8_t *>(buffer)[offsetof(EpuckKnowledgePacket, robot_id)]);
         const auto *seq_ptr = reinterpret_cast<const uint16_t *>(
             &static_cast<const uint8_t *>(buffer)[offsetof(EpuckKnowledgePacket, seq)]);
+
+        // NOLINTNEXTLINE(readability-identifier-naming)
         const auto *N_ptr         = &static_cast<const uint8_t *>(buffer)[offsetof(EpuckKnowledgePacket, N)];
         const auto *known_ids_ptr = reinterpret_cast<const EpuckKnowledgeRecord *>(
             &static_cast<const uint8_t *>(buffer)[offsetof(EpuckKnowledgePacket, known_ids)]);
@@ -440,3 +464,6 @@ struct PACKED EpuckKnowledgePacket {
         return packet;
     }
 };
+
+// NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+// NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
