@@ -19,6 +19,9 @@
 #include <utility>
 #include <vector>
 
+#define KNOWN_IDS_STRING_EXAMPLE "id: 65535 (x: 123.456, y: 123.456, z: 123.456, seq: 65535)"
+#define KNOWN_IDS_STRING_FMT "id: %hu (x: %3.3f, y: %3.3f, z: %3.3f, seq: %hu)"
+
 static inline auto known_ids_set_to_string(const RobotSizeSet<robot_id_type> &known_ids)
 {
     std::array<char, ((sizeof("65535") - 1) * MAX_ROBOTS) + ((sizeof(", ") - 1) * (MAX_ROBOTS - 1)) + sizeof("")>
@@ -41,8 +44,8 @@ static inline auto known_ids_set_to_string(const RobotSizeSet<robot_id_type> &kn
 
 template <typename IterRecord> static inline auto known_ids_to_string(IterRecord begin, IterRecord end)
 {
-    std::array<char,
-               ((sizeof("65535 (seq: 65535)") - 1) * MAX_ROBOTS) + ((sizeof(", ") - 1) * (MAX_ROBOTS - 1)) + sizeof("")>
+    static std::array<char, ((sizeof(KNOWN_IDS_STRING_EXAMPLE) - 1) * MAX_ROBOTS)
+                                + ((sizeof(", ") - 1) * (MAX_ROBOTS - 1)) + sizeof("")>
         output = {0};
     if (begin == end)
     {
@@ -50,12 +53,14 @@ template <typename IterRecord> static inline auto known_ids_to_string(IterRecord
         return output;
     }
 
-    snprintf(output.data(), sizeof(output), ROBOT_ID_TYPE_FMT " (seq: %hu)", (*begin).robot_id, (*begin).seq);
+    snprintf(output.data(), sizeof(output), KNOWN_IDS_STRING_FMT, (*begin).robot_id, (*begin).centroid.x,
+             (*begin).centroid.y, (*begin).centroid.z, (*begin).seq);
     begin++;
     for (; begin != end; begin++)
     {
-        std::array<char, sizeof(", 65535 (seq: 65535)")> buf = {0};
-        snprintf(buf.data(), sizeof(buf), ", " ROBOT_ID_TYPE_FMT " (seq: %hu)", (*begin).robot_id, (*begin).seq);
+        std::array<char, sizeof(", " KNOWN_IDS_STRING_EXAMPLE)> buf = {0};
+        snprintf(buf.data(), sizeof(buf), ", " KNOWN_IDS_STRING_FMT, (*begin).robot_id, (*begin).centroid.x,
+                 (*begin).centroid.y, (*begin).centroid.z, (*begin).seq);
         strncat(output.data(), buf.data(), sizeof(buf));
     }
     return output;
@@ -125,7 +130,10 @@ public:
           robot_knowledge_exchange_port(robot_knowledge_exchange_port)
 
     {
-        this->known_ids_.emplace(robot_id, EpuckKnowledgeRecord{robot_id, this->GetSeq()});
+        this->centroid_ = Centroid();
+        this->boundary_ = Boundary();
+        this->known_ids_.emplace(robot_id,
+                                 EpuckKnowledgeRecord{robot_id, this->centroid_, this->boundary_, this->GetSeq()});
     }
 
     virtual void Start() = 0;
@@ -161,13 +169,22 @@ public:
         return this->KnownIdsSize() - size_before;
     }
 
+    void SetCentroid(const Centroid &centroid) { this->centroid_ = centroid; }
+
+    void SetBoundary(const Boundary &boundary) { this->boundary_ = boundary; }
+
+    [[nodiscard]] const Centroid &GetCentroid() const { return this->centroid_; }
+
+    [[nodiscard]] const Boundary &GetBoundary() const { return this->boundary_; }
+
     [[nodiscard]] uint16_t GetSeq() { return ++this->seq_; }
 
     [[nodiscard]] EpuckKnowledgePacket CreateKnowledgePacket()
     {
         // Update the sequence number of the internal record for this robot, so it matches the one in the response
         auto seq                                       = this->GetSeq();
-        std::array<EpuckKnowledgeRecord, 1> new_record = {EpuckKnowledgeRecord{this->robot_id, seq}};
+        std::array<EpuckKnowledgeRecord, 1> new_record = {
+            EpuckKnowledgeRecord{this->robot_id, this->centroid_, this->boundary_, seq}};
         this->InsertKnownIds(new_record.cbegin(), new_record.cend());
 
         auto packet     = EpuckKnowledgePacket();
@@ -181,6 +198,8 @@ public:
 
 private:
     known_ids_type known_ids_;
+    Centroid centroid_;
+    Boundary boundary_;
 
     uint16_t seq_{};
 };
@@ -193,7 +212,7 @@ protected:
 public:
     BaseKnowledgeServer() = default;
     explicit BaseKnowledgeServer(std::shared_ptr<BaseRobotCommsModel> robot_model)
-        : robot_model(std::move(robot_model)){};
+        : robot_model(std::move(robot_model)) {};
     virtual void Start() = 0;
     virtual void Stop()  = 0;
 };
@@ -209,7 +228,7 @@ public:
     BaseKnowledgeClient() = default;
     BaseKnowledgeClient(EpuckNeighbourPacket neighbour, std::function<bool()> running,
                         std::shared_ptr<BaseRobotCommsModel> robot_model)
-        : neighbour(std::move(neighbour)), running(running), robot_model(std::move(robot_model)){};
+        : neighbour(std::move(neighbour)), running(running), robot_model(std::move(robot_model)) {};
     virtual void Start() = 0;
     virtual void Stop()  = 0;
 };

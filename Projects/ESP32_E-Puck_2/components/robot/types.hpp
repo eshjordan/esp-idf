@@ -22,7 +22,7 @@ extern "C" {
 }
 #endif
 #elif defined(ROS2)
-#include "rclcpp/logging.hpp"
+#include <rclcpp/logging.hpp>
 #define ESP_LOGE(tag, format, ...) RCLCPP_ERROR(rclcpp::get_logger(tag), format, ##__VA_ARGS__)
 #define ESP_LOGW(tag, format, ...) RCLCPP_WARN(rclcpp::get_logger(tag), format, ##__VA_ARGS__)
 #define ESP_LOGI(tag, format, ...) RCLCPP_INFO(rclcpp::get_logger(tag), format, ##__VA_ARGS__)
@@ -67,6 +67,9 @@ static inline void vTaskDelay(size_t delay) { std::this_thread::sleep_for(std::c
 
 #define MAX_ROBOTS 10
 #define MAX_HOST_LEN 18
+#define MAX_BOUNDARY_X_POINTS 2
+#define MAX_BOUNDARY_Y_POINTS 0
+#define MAX_BOUNDARY_Z_POINTS 0
 
 template <class T, std::size_t Size> struct static_allocator {
     using value_type = T;

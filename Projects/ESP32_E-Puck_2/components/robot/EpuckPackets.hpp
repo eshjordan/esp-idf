@@ -228,8 +228,113 @@ struct PACKED EpuckHeartbeatResponsePacket {
     }
 };
 
+struct PACKED Centroid {
+    float x;
+    float y;
+    float z;
+
+    [[nodiscard]] auto pack() const
+    {
+        std::array<uint8_t, sizeof(Centroid)> buffer = {0};
+
+        auto *x_ptr = reinterpret_cast<uint32_t *>(&buffer[offsetof(Centroid, x)]);
+        auto *y_ptr = reinterpret_cast<uint32_t *>(&buffer[offsetof(Centroid, y)]);
+        auto *z_ptr = reinterpret_cast<uint32_t *>(&buffer[offsetof(Centroid, z)]);
+
+        impl::value_to_buffer(x_ptr, x);
+        impl::value_to_buffer(y_ptr, y);
+        impl::value_to_buffer(z_ptr, z);
+
+        return buffer;
+    }
+
+    [[nodiscard]] static Centroid unpack(const void *const buffer)
+    {
+        Centroid centroid;
+
+        const auto *x_ptr =
+            reinterpret_cast<const uint32_t *>(&static_cast<const uint8_t *>(buffer)[offsetof(Centroid, x)]);
+        const auto *y_ptr =
+            reinterpret_cast<const uint32_t *>(&static_cast<const uint8_t *>(buffer)[offsetof(Centroid, y)]);
+        const auto *z_ptr =
+            reinterpret_cast<const uint32_t *>(&static_cast<const uint8_t *>(buffer)[offsetof(Centroid, z)]);
+
+        centroid.x = impl::buffer_to_value<decltype(centroid.x)>(x_ptr);
+        centroid.y = impl::buffer_to_value<decltype(centroid.y)>(y_ptr);
+        centroid.z = impl::buffer_to_value<decltype(centroid.z)>(z_ptr);
+
+        return centroid;
+    }
+};
+
+struct PACKED Boundary {
+    std::array<float, MAX_BOUNDARY_X_POINTS> x_points;
+    std::array<float, MAX_BOUNDARY_Y_POINTS> y_points;
+    std::array<float, MAX_BOUNDARY_Z_POINTS> z_points;
+
+    [[nodiscard]] auto pack() const
+    {
+        std::array<uint8_t, sizeof(Boundary)> buffer = {0};
+
+        auto *x_points_ptr = reinterpret_cast<uint32_t *>(&buffer[offsetof(Boundary, x_points)]);
+        auto *y_points_ptr = reinterpret_cast<uint32_t *>(&buffer[offsetof(Boundary, y_points)]);
+        auto *z_points_ptr = reinterpret_cast<uint32_t *>(&buffer[offsetof(Boundary, z_points)]);
+
+        for (int i = 0; i < MAX_BOUNDARY_X_POINTS; i++)
+        {
+            impl::value_to_buffer(&x_points_ptr[i], x_points.at(i));
+        }
+
+        for (int i = 0; i < MAX_BOUNDARY_Y_POINTS; i++)
+        {
+            impl::value_to_buffer(&y_points_ptr[i], y_points.at(i));
+        }
+
+        for (int i = 0; i < MAX_BOUNDARY_Z_POINTS; i++)
+        {
+            impl::value_to_buffer(&z_points_ptr[i], z_points.at(i));
+        }
+
+        return buffer;
+    }
+
+    [[nodiscard]] static Boundary unpack(const void *const buffer)
+    {
+        Boundary boundary;
+
+        const auto *x_points_ptr =
+            reinterpret_cast<const uint32_t *>(&static_cast<const uint8_t *>(buffer)[offsetof(Boundary, x_points)]);
+        const auto *y_points_ptr =
+            reinterpret_cast<const uint32_t *>(&static_cast<const uint8_t *>(buffer)[offsetof(Boundary, y_points)]);
+        const auto *z_points_ptr =
+            reinterpret_cast<const uint32_t *>(&static_cast<const uint8_t *>(buffer)[offsetof(Boundary, z_points)]);
+
+        for (int i = 0; i < MAX_BOUNDARY_X_POINTS; i++)
+        {
+            boundary.x_points.at(i) =
+                impl::buffer_to_value<std::remove_reference_t<decltype(boundary.x_points[0])>>(&x_points_ptr[i]);
+        }
+
+        for (int i = 0; i < MAX_BOUNDARY_Y_POINTS; i++)
+        {
+            boundary.y_points.at(i) =
+                impl::buffer_to_value<std::remove_reference_t<decltype(boundary.y_points[0])>>(&y_points_ptr[i]);
+        }
+
+        for (int i = 0; i < MAX_BOUNDARY_Z_POINTS; i++)
+        {
+            boundary.z_points.at(i) =
+                impl::buffer_to_value<std::remove_reference_t<decltype(boundary.z_points[0])>>(&z_points_ptr[i]);
+        }
+
+        return boundary;
+    }
+};
+
 struct PACKED EpuckKnowledgeRecord {
     robot_id_type robot_id;
+    Centroid centroid;
+    Boundary boundary;
     uint16_t seq;
 
     [[nodiscard]] auto pack() const
@@ -237,9 +342,13 @@ struct PACKED EpuckKnowledgeRecord {
         std::array<uint8_t, sizeof(EpuckKnowledgeRecord)> buffer = {0};
 
         auto *robot_id_ptr = reinterpret_cast<robot_id_type *>(&buffer[offsetof(EpuckKnowledgeRecord, robot_id)]);
+        auto *centroid_ptr = reinterpret_cast<Centroid *>(&buffer[offsetof(EpuckKnowledgeRecord, centroid)]);
+        auto *boundary_ptr = reinterpret_cast<Boundary *>(&buffer[offsetof(EpuckKnowledgeRecord, boundary)]);
         auto *seq_ptr      = reinterpret_cast<uint16_t *>(&buffer[offsetof(EpuckKnowledgeRecord, seq)]);
 
         impl::value_to_buffer(robot_id_ptr, robot_id);
+        memcpy(centroid_ptr, centroid.pack().data(), sizeof(centroid));
+        memcpy(boundary_ptr, boundary.pack().data(), sizeof(boundary));
         impl::value_to_buffer(seq_ptr, seq);
 
         return buffer;
@@ -251,10 +360,16 @@ struct PACKED EpuckKnowledgeRecord {
 
         const auto *robot_id_ptr = reinterpret_cast<const robot_id_type *>(
             &static_cast<const uint8_t *>(buffer)[offsetof(EpuckKnowledgeRecord, robot_id)]);
+        const auto *centroid_ptr = reinterpret_cast<const Centroid *>(
+            &static_cast<const uint8_t *>(buffer)[offsetof(EpuckKnowledgeRecord, centroid)]);
+        const auto *boundary_ptr = reinterpret_cast<const Boundary *>(
+            &static_cast<const uint8_t *>(buffer)[offsetof(EpuckKnowledgeRecord, boundary)]);
         const auto *seq_ptr = reinterpret_cast<const uint16_t *>(
             &static_cast<const uint8_t *>(buffer)[offsetof(EpuckKnowledgeRecord, seq)]);
 
         record.robot_id = impl::buffer_to_value<decltype(record.robot_id)>(robot_id_ptr);
+        record.centroid = Centroid::unpack(centroid_ptr);
+        record.boundary = Boundary::unpack(boundary_ptr);
         record.seq      = impl::buffer_to_value<decltype(record.seq)>(seq_ptr);
 
         return record;

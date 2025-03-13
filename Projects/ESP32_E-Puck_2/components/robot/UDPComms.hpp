@@ -244,7 +244,7 @@ public:
     UDPKnowledgeClient() = default;
     UDPKnowledgeClient(EpuckNeighbourPacket neighbour, std::function<bool()> running,
                        std::shared_ptr<BaseRobotCommsModel> robot_model)
-        : BaseKnowledgeClient(std::move(neighbour), std::move(running), std::move(robot_model)){};
+        : BaseKnowledgeClient(std::move(neighbour), std::move(running), std::move(robot_model)) {};
 
     // Move constructor
     UDPKnowledgeClient(UDPKnowledgeClient &&other) noexcept : stopping_(other.stopping_)
