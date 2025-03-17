@@ -1,4 +1,6 @@
-#include <boost/asio.hpp>
+#pragma once
+
+#include <asio.hpp>
 #include <memory>
 
 // Forward declarations
@@ -12,26 +14,94 @@ class ITimer;
 class IIoContext
 {
 public:
-    virtual ~IIoContext()                               = default;
-    virtual void run()                                  = 0;
-    virtual void stop()                                 = 0;
-    virtual boost::asio::io_context &getNativeContext() = 0;
+    virtual ~IIoContext()                          = default;
+    virtual void run()                             = 0;
+    virtual void stop()                            = 0;
+    virtual asio::io_context &get_native_context() = 0;
 };
 
 // Real implementation of IoContext
 class IoContext : public IIoContext
 {
 public:
-    IoContext() : context_() {}
+    IoContext() = default;
 
-    void run() override { context_.run(); }
+    void run() override { _context.run(); }
 
-    void stop() override { context_.stop(); }
+    void stop() override { _context.stop(); }
 
-    boost::asio::io_context &getNativeContext() override { return context_; }
+    asio::io_context &get_native_context() override { return _context; }
 
 private:
-    boost::asio::io_context context_;
+    asio::io_context _context;
+};
+
+// Interface for TCP endpoint
+class ITCPEndpoint
+{
+public:
+    virtual ~ITCPEndpoint() = default;
+
+    virtual asio::ip::tcp::endpoint &get_native_endpoint() = 0;
+
+    virtual asio::ip::address address() = 0;
+
+    virtual uint16_t port() = 0;
+};
+
+// Real implementation of TCP endpoint
+class TCPEndpoint : public ITCPEndpoint
+{
+public:
+    TCPEndpoint() = default;
+
+    explicit TCPEndpoint(const asio::ip::address_v4 &addr, uint16_t port)
+        : _endpoint(asio::ip::tcp::endpoint(addr, port))
+    {
+    }
+
+    asio::ip::tcp::endpoint &get_native_endpoint() override { return _endpoint; }
+
+    asio::ip::address address() override { return _endpoint.address(); }
+
+    uint16_t port() override { return _endpoint.port(); }
+
+private:
+    asio::ip::tcp::endpoint _endpoint;
+};
+
+// Interface for UDP endpoint
+class IUDPEndpoint
+{
+public:
+    virtual ~IUDPEndpoint() = default;
+
+    virtual asio::ip::udp::endpoint &get_native_endpoint() = 0;
+
+    virtual asio::ip::address address() = 0;
+
+    virtual uint16_t port() = 0;
+};
+
+// Real implementation of UDP endpoint
+class UDPEndpoint : public IUDPEndpoint
+{
+public:
+    UDPEndpoint() = default;
+
+    explicit UDPEndpoint(const asio::ip::address_v4 &addr, uint16_t port)
+        : _endpoint(asio::ip::udp::endpoint(addr, port))
+    {
+    }
+
+    asio::ip::udp::endpoint &get_native_endpoint() override { return _endpoint; }
+
+    asio::ip::address address() override { return _endpoint.address(); }
+
+    uint16_t port() override { return _endpoint.port(); }
+
+private:
+    asio::ip::udp::endpoint _endpoint;
 };
 
 // Interface for TCP socket
@@ -40,58 +110,39 @@ class ITcpSocket
 public:
     virtual ~ITcpSocket() = default;
 
-    virtual void connect(const boost::asio::ip::tcp::endpoint &endpoint)                      = 0;
-    virtual void asyncConnect(const boost::asio::ip::tcp::endpoint &endpoint,
-                              std::function<void(const boost::system::error_code &)> handler) = 0;
+    virtual void connect(const asio::ip::tcp::endpoint &endpoint) = 0;
 
-    virtual size_t send(const boost::asio::const_buffer &buffer)                                        = 0;
-    virtual void asyncSend(const boost::asio::const_buffer &buffer,
-                           std::function<void(const boost::system::error_code &, std::size_t)> handler) = 0;
+    virtual size_t send(const asio::const_buffer &buffer) = 0;
 
-    virtual size_t receive(const boost::asio::mutable_buffer &buffer)                                      = 0;
-    virtual void asyncReceive(const boost::asio::mutable_buffer &buffer,
-                              std::function<void(const boost::system::error_code &, std::size_t)> handler) = 0;
+    virtual size_t receive(const asio::mutable_buffer &buffer) = 0;
 
-    virtual void close()                                    = 0;
-    virtual boost::asio::ip::tcp::socket &getNativeSocket() = 0;
+    virtual void close() = 0;
+
+    virtual bool is_open() = 0;
+
+    virtual asio::ip::tcp::socket &get_native_socket() = 0;
 };
 
 // Real implementation of TCP socket
 class TcpSocket : public ITcpSocket
 {
 public:
-    TcpSocket(IIoContext &ioContext) : socket_(ioContext.getNativeContext()) {}
+    explicit TcpSocket(IIoContext &io_context) : _socket(io_context.get_native_context()) {}
 
-    void connect(const boost::asio::ip::tcp::endpoint &endpoint) override { socket_.connect(endpoint); }
+    void connect(const asio::ip::tcp::endpoint &endpoint) override { _socket.connect(endpoint); }
 
-    void asyncConnect(const boost::asio::ip::tcp::endpoint &endpoint,
-                      std::function<void(const boost::system::error_code &)> handler) override
-    {
-        socket_.async_connect(endpoint, handler);
-    }
+    size_t send(const asio::const_buffer &buffer) override { return _socket.send(buffer); }
 
-    size_t send(const boost::asio::const_buffer &buffer) override { return socket_.send(buffer); }
+    size_t receive(const asio::mutable_buffer &buffer) override { return _socket.receive(buffer); }
 
-    void asyncSend(const boost::asio::const_buffer &buffer,
-                   std::function<void(const boost::system::error_code &, std::size_t)> handler) override
-    {
-        socket_.async_send(buffer, handler);
-    }
+    void close() override { _socket.close(); }
 
-    size_t receive(const boost::asio::mutable_buffer &buffer) override { return socket_.receive(buffer); }
+    bool is_open() override { return _socket.is_open(); }
 
-    void asyncReceive(const boost::asio::mutable_buffer &buffer,
-                      std::function<void(const boost::system::error_code &, std::size_t)> handler) override
-    {
-        socket_.async_receive(buffer, handler);
-    }
-
-    void close() override { socket_.close(); }
-
-    boost::asio::ip::tcp::socket &getNativeSocket() override { return socket_; }
+    asio::ip::tcp::socket &get_native_socket() override { return _socket; }
 
 private:
-    boost::asio::ip::tcp::socket socket_;
+    asio::ip::tcp::socket _socket;
 };
 
 // Interface for UDP socket
@@ -100,60 +151,49 @@ class IUdpSocket
 public:
     virtual ~IUdpSocket() = default;
 
-    virtual void open()                                               = 0;
-    virtual void bind(const boost::asio::ip::udp::endpoint &endpoint) = 0;
+    virtual void open() = 0;
 
-    virtual size_t sendTo(const boost::asio::const_buffer &buffer,
-                          const boost::asio::ip::udp::endpoint &destination)                              = 0;
-    virtual void asyncSendTo(const boost::asio::const_buffer &buffer, const boost::asio::ip::udp::endpoint &destination,
-                             std::function<void(const boost::system::error_code &, std::size_t)> handler) = 0;
+    virtual void bind(IUDPEndpoint &endpoint) = 0;
 
-    virtual size_t receiveFrom(const boost::asio::mutable_buffer &buffer, boost::asio::ip::udp::endpoint &sender) = 0;
-    virtual void asyncReceiveFrom(const boost::asio::mutable_buffer &buffer, boost::asio::ip::udp::endpoint &sender,
-                                  std::function<void(const boost::system::error_code &, std::size_t)> handler)    = 0;
+    virtual size_t send_to(const asio::const_buffer &buffer, IUDPEndpoint &destination) = 0;
 
-    virtual void close()                                    = 0;
-    virtual boost::asio::ip::udp::socket &getNativeSocket() = 0;
+    virtual size_t receive_from(const asio::mutable_buffer &buffer, IUDPEndpoint &sender) = 0;
+
+    virtual void close() = 0;
+
+    virtual bool is_open() = 0;
+
+    virtual asio::ip::udp::socket &get_native_socket() = 0;
 };
 
 // Real implementation of UDP socket
 class UdpSocket : public IUdpSocket
 {
 public:
-    UdpSocket(IIoContext &ioContext) : socket_(ioContext.getNativeContext()) {}
+    explicit UdpSocket(IIoContext &io_context) : _socket(io_context.get_native_context()) {}
 
-    void open() override { socket_.open(boost::asio::ip::udp::v4()); }
+    void open() override { _socket.open(asio::ip::udp::v4()); }
 
-    void bind(const boost::asio::ip::udp::endpoint &endpoint) override { socket_.bind(endpoint); }
+    void bind(IUDPEndpoint &endpoint) override { _socket.bind(endpoint.get_native_endpoint()); }
 
-    size_t sendTo(const boost::asio::const_buffer &buffer, const boost::asio::ip::udp::endpoint &destination) override
+    size_t send_to(const asio::const_buffer &buffer, IUDPEndpoint &destination) override
     {
-        return socket_.send_to(buffer, destination);
+        return _socket.send_to(buffer, destination.get_native_endpoint());
     }
 
-    void asyncSendTo(const boost::asio::const_buffer &buffer, const boost::asio::ip::udp::endpoint &destination,
-                     std::function<void(const boost::system::error_code &, std::size_t)> handler) override
+    size_t receive_from(const asio::mutable_buffer &buffer, IUDPEndpoint &sender) override
     {
-        socket_.async_send_to(buffer, destination, handler);
+        return _socket.receive_from(buffer, sender.get_native_endpoint());
     }
 
-    size_t receiveFrom(const boost::asio::mutable_buffer &buffer, boost::asio::ip::udp::endpoint &sender) override
-    {
-        return socket_.receive_from(buffer, sender);
-    }
+    void close() override { _socket.close(); }
 
-    void asyncReceiveFrom(const boost::asio::mutable_buffer &buffer, boost::asio::ip::udp::endpoint &sender,
-                          std::function<void(const boost::system::error_code &, std::size_t)> handler) override
-    {
-        socket_.async_receive_from(buffer, sender, handler);
-    }
+    bool is_open() override { return _socket.is_open(); }
 
-    void close() override { socket_.close(); }
-
-    boost::asio::ip::udp::socket &getNativeSocket() override { return socket_; }
+    asio::ip::udp::socket &get_native_socket() override { return _socket; }
 
 private:
-    boost::asio::ip::udp::socket socket_;
+    asio::ip::udp::socket _socket;
 };
 
 // Interface for resolver
@@ -162,63 +202,33 @@ class IResolver
 public:
     virtual ~IResolver() = default;
 
-    virtual boost::asio::ip::tcp::resolver::results_type resolveTcp(const std::string &host,
-                                                                    const std::string &service) = 0;
+    virtual asio::ip::tcp::resolver::results_type resolve_tcp(const std::string &host, const std::string &service) = 0;
 
-    virtual void asyncResolveTcp(
-        const std::string &host, const std::string &service,
-        std::function<void(const boost::system::error_code &, const boost::asio::ip::tcp::resolver::results_type &)>
-            handler) = 0;
-
-    virtual boost::asio::ip::udp::resolver::results_type resolveUdp(const std::string &host,
-                                                                    const std::string &service) = 0;
-
-    virtual void asyncResolveUdp(
-        const std::string &host, const std::string &service,
-        std::function<void(const boost::system::error_code &, const boost::asio::ip::udp::resolver::results_type &)>
-            handler) = 0;
+    virtual asio::ip::udp::resolver::results_type resolve_udp(const std::string &host, const std::string &service) = 0;
 };
 
 // Real implementation of resolver
 class Resolver : public IResolver
 {
 public:
-    Resolver(IIoContext &ioContext)
-        : tcpResolver_(ioContext.getNativeContext()), udpResolver_(ioContext.getNativeContext())
+    explicit Resolver(IIoContext &io_context)
+        : _tcp_resolver(io_context.get_native_context()), _udp_resolver(io_context.get_native_context())
     {
     }
 
-    boost::asio::ip::tcp::resolver::results_type resolveTcp(const std::string &host,
-                                                            const std::string &service) override
+    asio::ip::tcp::resolver::results_type resolve_tcp(const std::string &host, const std::string &service) override
     {
-        return tcpResolver_.resolve(host, service);
+        return _tcp_resolver.resolve(host, service);
     }
 
-    void asyncResolveTcp(
-        const std::string &host, const std::string &service,
-        std::function<void(const boost::system::error_code &, const boost::asio::ip::tcp::resolver::results_type &)>
-            handler) override
+    asio::ip::udp::resolver::results_type resolve_udp(const std::string &host, const std::string &service) override
     {
-        tcpResolver_.async_resolve(host, service, handler);
-    }
-
-    boost::asio::ip::udp::resolver::results_type resolveUdp(const std::string &host,
-                                                            const std::string &service) override
-    {
-        return udpResolver_.resolve(host, service);
-    }
-
-    void asyncResolveUdp(
-        const std::string &host, const std::string &service,
-        std::function<void(const boost::system::error_code &, const boost::asio::ip::udp::resolver::results_type &)>
-            handler) override
-    {
-        udpResolver_.async_resolve(host, service, handler);
+        return _udp_resolver.resolve(host, service);
     }
 
 private:
-    boost::asio::ip::tcp::resolver tcpResolver_;
-    boost::asio::ip::udp::resolver udpResolver_;
+    asio::ip::tcp::resolver _tcp_resolver;
+    asio::ip::udp::resolver _udp_resolver;
 };
 
 // Interface for timer
@@ -227,11 +237,10 @@ class ITimer
 public:
     virtual ~ITimer() = default;
 
-    virtual void expires_after(const boost::asio::steady_timer::duration &expiry_time) = 0;
-    virtual void expires_at(const boost::asio::steady_timer::time_point &expiry_time)  = 0;
+    virtual void expires_after(const asio::steady_timer::duration &expiry_time) = 0;
+    virtual void expires_at(const asio::steady_timer::time_point &expiry_time)  = 0;
 
-    virtual void wait()                                                                    = 0;
-    virtual void asyncWait(std::function<void(const boost::system::error_code &)> handler) = 0;
+    virtual void wait() = 0;
 
     virtual void cancel() = 0;
 };
@@ -240,29 +249,18 @@ public:
 class Timer : public ITimer
 {
 public:
-    Timer(IIoContext &ioContext) : timer_(ioContext.getNativeContext()) {}
+    explicit Timer(IIoContext &io_context) : _timer(io_context.get_native_context()) {}
 
-    void expires_after(const boost::asio::steady_timer::duration &expiry_time) override
-    {
-        timer_.expires_after(expiry_time);
-    }
+    void expires_after(const asio::steady_timer::duration &expiry_time) override { _timer.expires_after(expiry_time); }
 
-    void expires_at(const boost::asio::steady_timer::time_point &expiry_time) override
-    {
-        timer_.expires_at(expiry_time);
-    }
+    void expires_at(const asio::steady_timer::time_point &expiry_time) override { _timer.expires_at(expiry_time); }
 
-    void wait() override { timer_.wait(); }
+    void wait() override { _timer.wait(); }
 
-    void asyncWait(std::function<void(const boost::system::error_code &)> handler) override
-    {
-        timer_.async_wait(handler);
-    }
-
-    void cancel() override { timer_.cancel(); }
+    void cancel() override { _timer.cancel(); }
 
 private:
-    boost::asio::steady_timer timer_;
+    asio::steady_timer _timer;
 };
 
 // The factory interface
@@ -271,33 +269,54 @@ class INetworkFactory
 public:
     virtual ~INetworkFactory() = default;
 
-    virtual std::unique_ptr<IIoContext> createIoContext()                      = 0;
-    virtual std::unique_ptr<ITcpSocket> createTcpSocket(IIoContext &ioContext) = 0;
-    virtual std::unique_ptr<IUdpSocket> createUdpSocket(IIoContext &ioContext) = 0;
-    virtual std::unique_ptr<IResolver> createResolver(IIoContext &ioContext)   = 0;
-    virtual std::unique_ptr<ITimer> createTimer(IIoContext &ioContext)         = 0;
+    virtual std::shared_ptr<IIoContext> create_io_context()                                             = 0;
+    virtual std::shared_ptr<ITcpSocket> create_tcp_socket(IIoContext &io_context)                       = 0;
+    virtual std::shared_ptr<IUdpSocket> create_udp_socket(IIoContext &io_context)                       = 0;
+    virtual std::shared_ptr<IResolver> create_resolver(IIoContext &io_context)                          = 0;
+    virtual std::shared_ptr<ITimer> create_timer(IIoContext &io_context)                                = 0;
+    virtual std::shared_ptr<ITCPEndpoint> create_tcp_endpoint()                                         = 0;
+    virtual std::shared_ptr<ITCPEndpoint> create_tcp_endpoint(asio::ip::address_v4 addr, uint16_t port) = 0;
+    virtual std::shared_ptr<IUDPEndpoint> create_udp_endpoint()                                         = 0;
+    virtual std::shared_ptr<IUDPEndpoint> create_udp_endpoint(asio::ip::address_v4 addr, uint16_t port) = 0;
 };
 
 // Real implementation of the factory
 class NetworkFactory : public INetworkFactory
 {
 public:
-    std::unique_ptr<IIoContext> createIoContext() override { return std::make_unique<IoContext>(); }
+    std::shared_ptr<IIoContext> create_io_context() override { return std::make_shared<IoContext>(); }
 
-    std::unique_ptr<ITcpSocket> createTcpSocket(IIoContext &ioContext) override
+    std::shared_ptr<ITcpSocket> create_tcp_socket(IIoContext &io_context) override
     {
-        return std::make_unique<TcpSocket>(ioContext);
+        return std::make_shared<TcpSocket>(io_context);
     }
 
-    std::unique_ptr<IUdpSocket> createUdpSocket(IIoContext &ioContext) override
+    std::shared_ptr<IUdpSocket> create_udp_socket(IIoContext &io_context) override
     {
-        return std::make_unique<UdpSocket>(ioContext);
+        return std::make_shared<UdpSocket>(io_context);
     }
 
-    std::unique_ptr<IResolver> createResolver(IIoContext &ioContext) override
+    std::shared_ptr<IResolver> create_resolver(IIoContext &io_context) override
     {
-        return std::make_unique<Resolver>(ioContext);
+        return std::make_shared<Resolver>(io_context);
     }
 
-    std::unique_ptr<ITimer> createTimer(IIoContext &ioContext) override { return std::make_unique<Timer>(ioContext); }
+    std::shared_ptr<ITimer> create_timer(IIoContext &io_context) override
+    {
+        return std::make_shared<Timer>(io_context);
+    }
+
+    std::shared_ptr<ITCPEndpoint> create_tcp_endpoint() override { return std::make_shared<TCPEndpoint>(); }
+
+    std::shared_ptr<ITCPEndpoint> create_tcp_endpoint(asio::ip::address_v4 addr, uint16_t port) override
+    {
+        return std::make_shared<TCPEndpoint>(addr, port);
+    }
+
+    std::shared_ptr<IUDPEndpoint> create_udp_endpoint() override { return std::make_shared<UDPEndpoint>(); }
+
+    std::shared_ptr<IUDPEndpoint> create_udp_endpoint(asio::ip::address_v4 addr, uint16_t port) override
+    {
+        return std::make_shared<UDPEndpoint>(addr, port);
+    }
 };

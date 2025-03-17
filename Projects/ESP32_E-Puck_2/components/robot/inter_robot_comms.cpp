@@ -65,6 +65,10 @@ void inter_robot_comms_task(void *pvParameter)
         constexpr uint16_t robot_comms_request_port      = 1001;
         constexpr uint16_t robot_knowledge_exchange_port = 1002;
 
+        std::array<uint8_t, sizeof(NetworkFactory)> network_factory_buffer = {0};
+        std::shared_ptr<NetworkFactory> network_factory =
+            std::shared_ptr<NetworkFactory>(new (network_factory_buffer.data()) NetworkFactory());
+
         std::array<uint8_t, sizeof(RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>)> robot_model_buffer = {0};
         std::shared_ptr<RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>> robot_model = nullptr;
 
@@ -75,7 +79,7 @@ void inter_robot_comms_task(void *pvParameter)
             {
                 if (robot_model)
                 {
-                    robot_model->Stop();
+                    robot_model->stop();
                     robot_model.reset();
                 }
                 conn_state = 0;
@@ -111,7 +115,7 @@ void inter_robot_comms_task(void *pvParameter)
                 robot_model = std::shared_ptr<RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>>(
                     new (robot_model_buffer.data()) RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>(
                         robot_id, manager_host, manager_port, robot_comms_host, robot_comms_request_port,
-                        robot_knowledge_host, robot_knowledge_exchange_port));
+                        robot_knowledge_host, robot_knowledge_exchange_port, network_factory));
 
                 robot_model->start();
                 conn_state = 2;

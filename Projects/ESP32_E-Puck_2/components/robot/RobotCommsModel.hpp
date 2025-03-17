@@ -4,6 +4,7 @@
 #include <asio.hpp>
 
 #include "EpuckPackets.hpp"
+#include "NetworkFactory.hpp"
 #include "types.hpp"
 #include <cstddef>
 #include <cstdint>
@@ -213,11 +214,13 @@ class BaseKnowledgeServer
 {
 protected:
     std::shared_ptr<BaseRobotCommsModel> _robot_model;
+    std::shared_ptr<INetworkFactory> _network_factory;
 
 public:
     BaseKnowledgeServer() = default;
-    explicit BaseKnowledgeServer(std::shared_ptr<BaseRobotCommsModel> robot_model)
-        : _robot_model(std::move(robot_model)){};
+    BaseKnowledgeServer(std::shared_ptr<BaseRobotCommsModel> robot_model,
+                        std::shared_ptr<INetworkFactory> network_factory)
+        : _robot_model(std::move(robot_model)), _network_factory(std::move(network_factory)){};
     virtual void start()         = 0;
     virtual void stop() noexcept = 0;
 };
@@ -228,18 +231,21 @@ protected:
     EpuckNeighbourPacket _neighbour{};
     std::function<bool()> _running;
     std::shared_ptr<BaseRobotCommsModel> _robot_model;
+    std::shared_ptr<INetworkFactory> _network_factory;
 
 public:
     BaseKnowledgeClient() = default;
     BaseKnowledgeClient(EpuckNeighbourPacket neighbour, std::function<bool()> running,
-                        std::shared_ptr<BaseRobotCommsModel> robot_model)
-        : _neighbour(neighbour), _running(std::move(running)), _robot_model(std::move(robot_model)){};
+                        std::shared_ptr<BaseRobotCommsModel> robot_model,
+                        std::shared_ptr<INetworkFactory> network_factory)
+        : _neighbour(neighbour), _running(std::move(running)), _robot_model(std::move(robot_model)),
+          _network_factory(std::move(network_factory)){};
     virtual void start()         = 0;
     virtual void stop() noexcept = 0;
 };
 
 template <typename T, typename U>
-class RobotCommsModel : public std::enable_shared_from_this<RobotCommsModel<T, U>>, BaseRobotCommsModel
+class RobotCommsModel : public std::enable_shared_from_this<RobotCommsModel<T, U>>, public BaseRobotCommsModel
 {
     static_assert(std::is_base_of_v<BaseKnowledgeServer, T>, "T must inherit from BaseKnowledgeServer");
     static_assert(std::is_base_of_v<BaseKnowledgeClient, U>, "U must inherit from BaseKnowledgeClient");
@@ -247,10 +253,13 @@ class RobotCommsModel : public std::enable_shared_from_this<RobotCommsModel<T, U
 public:
     RobotCommsModel(const robot_id_type &robot_id, host_size_string manager_host, const uint16_t &manager_port,
                     host_size_string robot_comms_host, const uint16_t &robot_comms_request_port,
-                    host_size_string robot_knowledge_host, const uint16_t &robot_knowledge_exchange_port)
+                    host_size_string robot_knowledge_host, const uint16_t &robot_knowledge_exchange_port,
+                    std::shared_ptr<INetworkFactory> network_factory)
         : BaseRobotCommsModel(robot_id, std::move(manager_host), manager_port, std::move(robot_comms_host),
-                              robot_comms_request_port, std::move(robot_knowledge_host), robot_knowledge_exchange_port)
+                              robot_comms_request_port, std::move(robot_knowledge_host), robot_knowledge_exchange_port),
+          _network_factory(std::move(network_factory))
     {
+        this->_io_context = _network_factory->create_io_context();
     }
 
     ~RobotCommsModel() { this->stop(); }
@@ -258,7 +267,7 @@ public:
     void start() override
     {
         this->_knowledge_server = new (this->_knowledge_server_buffer.data()) // NOLINT(cppcoreguidelines-owning-memory)
-            T(std::reinterpret_pointer_cast<BaseRobotCommsModel>(this->shared_from_this()));
+            T(std::reinterpret_pointer_cast<BaseRobotCommsModel>(this->shared_from_this()), this->_network_factory);
         this->_knowledge_server->start();
 
         this->_knowledge_clients.clear();
@@ -272,13 +281,13 @@ public:
         ESP_ERROR_CHECK(esp_pthread_set_cfg(&cfg));
         this->_comms_heartbeat_thread = std::thread(&RobotCommsModel::launch_exchange_heartbeats, this);
 
-        this->_comms_request_socket = std::make_shared<asio::ip::udp::socket>(_io_context);
-        this->_comms_request_socket->open(asio::ip::udp::v4());
+        this->_comms_request_socket = _network_factory->create_udp_socket(*this->_io_context);
+        this->_comms_request_socket->open();
         auto address         = asio::ip::make_address_v4(this->robot_comms_host.c_str());
-        auto client_endpoint = asio::ip::udp::endpoint(address, this->robot_comms_request_port);
-        ESP_LOGI(TAG, "RobotCommsModel comms requests - (%s:%hu)", client_endpoint.address().to_string().c_str(),
-                 client_endpoint.port());
-        this->_comms_request_socket->bind(client_endpoint);
+        auto client_endpoint = _network_factory->create_udp_endpoint(address, this->robot_comms_request_port);
+        ESP_LOGI(TAG, "RobotCommsModel comms requests - (%s:%hu)", client_endpoint->address().to_string().c_str(),
+                 client_endpoint->port());
+        this->_comms_request_socket->bind(*client_endpoint);
 
         cfg             = esp_pthread_get_default_config();
         cfg.pin_to_core = CORE_1;
@@ -331,12 +340,12 @@ private:
      */
     void exchange_heartbeats()
     {
-        auto heartbeat_client = asio::ip::udp::socket(_io_context);
-        heartbeat_client.open(asio::ip::udp::v4());
+        auto heartbeat_client = this->_network_factory->create_udp_socket(*this->_io_context);
+        heartbeat_client->open();
 
         auto address = asio::ip::make_address_v4(this->manager_host.c_str());
 
-        auto manager_endpoint = asio::ip::udp::endpoint(address, this->manager_port);
+        auto manager_endpoint = this->_network_factory->create_udp_endpoint(address, this->manager_port);
 
         while (this->_running)
         {
@@ -350,11 +359,11 @@ private:
             strncpy(packet.robot_knowledge_host.data(), this->robot_knowledge_host.c_str(), MAX_HOST_LEN);
             packet.robot_knowledge_exchange_port = this->robot_knowledge_exchange_port;
 
-            ESP_LOGI(TAG, "(%s:%hu)", manager_endpoint.address().to_string().c_str(), manager_endpoint.port());
+            ESP_LOGI(TAG, "(%s:%hu)", manager_endpoint->address().to_string().c_str(), manager_endpoint->port());
             std::array<uint8_t, sizeof(EpuckHeartbeatPacket)> packed_packet = packet.pack();
-            heartbeat_client.send_to(asio::buffer(packed_packet, sizeof(EpuckHeartbeatPacket)), manager_endpoint);
+            heartbeat_client->send_to(asio::buffer(packed_packet, sizeof(EpuckHeartbeatPacket)), *manager_endpoint);
 
-            struct pollfd pfd = {heartbeat_client.native_handle(), POLLIN, 0};
+            struct pollfd pfd = {heartbeat_client->get_native_socket().native_handle(), POLLIN, 0};
             int retval        = poll(&pfd, 1, 1000);
             if (retval == 0)
             { // timeout
@@ -379,9 +388,9 @@ private:
             while (bytes_received < expected_bytes)
             {
                 bytes_received +=
-                    heartbeat_client.receive_from(asio::buffer(response_buffer.data() + bytes_received,
-                                                               sizeof(EpuckHeartbeatResponsePacket) - bytes_received),
-                                                  manager_endpoint);
+                    heartbeat_client->receive_from(asio::buffer(response_buffer.data() + bytes_received,
+                                                                sizeof(EpuckHeartbeatResponsePacket) - bytes_received),
+                                                   *manager_endpoint);
 
                 if (bytes_received > offsetof(EpuckHeartbeatResponsePacket, num_neighbours))
                 {
@@ -426,7 +435,8 @@ private:
                     [this, neighbour]() {
                         return this->_knowledge_clients.find(neighbour.robot_id) != this->_knowledge_clients.end();
                     },
-                    std::reinterpret_pointer_cast<BaseRobotCommsModel>(this->shared_from_this()));
+                    std::reinterpret_pointer_cast<BaseRobotCommsModel>(this->shared_from_this()),
+                    this->_network_factory);
                 this->_knowledge_clients.insert(std::make_pair(neighbour.robot_id, client));
                 this->_knowledge_clients[neighbour.robot_id].start();
             }
@@ -466,9 +476,9 @@ private:
                 struct timeval tv = {1, 0};
                 fd_set readfds;
                 FD_ZERO(&readfds);
-                FD_SET(this->_comms_request_socket->native_handle(), &readfds);
-                int fds_ready =
-                    select(this->_comms_request_socket->native_handle() + 1, &readfds, nullptr, nullptr, &tv);
+                FD_SET(this->_comms_request_socket->get_native_socket().native_handle(), &readfds);
+                int fds_ready = select(this->_comms_request_socket->get_native_socket().native_handle() + 1, &readfds,
+                                       nullptr, nullptr, &tv);
                 if (fds_ready == 0)
                 { // timeout
                     ESP_LOGD(TAG, "Knowledge Request server timeout, no data received%s", "");
@@ -482,7 +492,7 @@ private:
                     continue;
                 }
 
-                asio::ip::udp::endpoint client;
+                auto client = this->_network_factory->create_udp_endpoint();
                 std::array<uint8_t, sizeof(EpuckKnowledgePacket)> data{};
 
                 size_t bytes_received = 0;
@@ -491,11 +501,11 @@ private:
                 {
                     auto received = this->_comms_request_socket->receive_from(
                         asio::buffer(data.data() + bytes_received, sizeof(EpuckKnowledgePacket) - bytes_received),
-                        client);
+                        *client);
                     if (received < 1)
                     {
                         ESP_LOGW(TAG, "Knowledge request client (%s:%hu) disconnected",
-                                 client.address().to_string().c_str(), client.port());
+                                 client->address().to_string().c_str(), client->port());
                         break;
                     }
                     bytes_received += received;
@@ -524,23 +534,22 @@ private:
 #endif
     }
 
-    void handle_knowledge_requests(const asio::ip::udp::endpoint &client,
+    void handle_knowledge_requests(const std::shared_ptr<IUDPEndpoint> &client,
                                    const std::array<uint8_t, sizeof(EpuckKnowledgePacket)> &data)
     {
         auto request = EpuckKnowledgePacket::unpack(data.data());
         (void)request;
 
-        ESP_LOGD(TAG, "Received knowledge request from %s:%hu", client.address().to_string().c_str(), client.port());
+        ESP_LOGD(TAG, "Received knowledge request from %s:%hu", client->address().to_string().c_str(), client->port());
 
         auto knowledge = this->create_knowledge_packet();
 
-        this->_comms_request_socket->send_to(asio::buffer(knowledge.pack(), sizeof(EpuckKnowledgePacket)), client);
+        this->_comms_request_socket->send_to(asio::buffer(knowledge.pack(), sizeof(EpuckKnowledgePacket)), *client);
 
-        ESP_LOGD(TAG, "Sent knowledge to %s:%hu - %s", client.address().to_string().c_str(), client.port(),
+        ESP_LOGD(TAG, "Sent knowledge to %s:%hu - %s", client->address().to_string().c_str(), client->port(),
                  known_ids_to_string(knowledge.known_ids.cbegin(), knowledge.known_ids.cbegin() + knowledge.N).data());
     }
 
-    asio::io_context _io_context;
     alignas(T) std::array<uint8_t, sizeof(T)> _knowledge_server_buffer = {0};
     T *_knowledge_server;
     robot_size_map<robot_id_type, U> _knowledge_clients;
@@ -549,7 +558,9 @@ private:
 
     std::thread _comms_heartbeat_thread;
 
-    std::shared_ptr<asio::ip::udp::socket> _comms_request_socket = nullptr;
+    std::shared_ptr<INetworkFactory> _network_factory;
+    std::shared_ptr<IIoContext> _io_context;
+    std::shared_ptr<IUdpSocket> _comms_request_socket = nullptr;
     std::thread _comms_request_thread;
 
     static constexpr const char *const TAG = "RobotCommsModel";
