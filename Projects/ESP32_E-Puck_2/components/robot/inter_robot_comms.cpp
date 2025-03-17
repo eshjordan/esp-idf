@@ -75,7 +75,7 @@ void inter_robot_comms_task(void *pvParameter)
             {
                 if (robot_model)
                 {
-                    robot_model->Stop();
+                    robot_model->stop();
                     robot_model.reset();
                 }
                 conn_state = 0;
