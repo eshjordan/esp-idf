@@ -1,13 +1,13 @@
 #pragma once
 
+#include <cstdint>
 #include <map>
 #include <set>
-#include <stdint.h>
 #include <string>
 #include <thread>
 #include <vector>
 
-#define ENABLE_TRY_CATCH 0
+#define ENABLE_TRY_CATCH 0 // NOLINT(cppcoreguidelines-macro-usage)
 #define ROS2
 
 #ifdef INTER_ROBOT_COMMS_ESP32
@@ -22,12 +22,14 @@ extern "C" {
 }
 #endif
 #elif defined(ROS2)
-#include "rclcpp/logging.hpp"
+#include <rclcpp/logging.hpp>
+// NOLINTBEGIN(cppcoreguidelines-macro-usage)
 #define ESP_LOGE(tag, format, ...) RCLCPP_ERROR(rclcpp::get_logger(tag), format, ##__VA_ARGS__)
 #define ESP_LOGW(tag, format, ...) RCLCPP_WARN(rclcpp::get_logger(tag), format, ##__VA_ARGS__)
 #define ESP_LOGI(tag, format, ...) RCLCPP_INFO(rclcpp::get_logger(tag), format, ##__VA_ARGS__)
 #define ESP_LOGD(tag, format, ...) RCLCPP_DEBUG(rclcpp::get_logger(tag), format, ##__VA_ARGS__)
 #define ESP_LOGV(tag, format, ...) RCLCPP_DEBUG(rclcpp::get_logger(tag), format, ##__VA_ARGS__)
+// NOLINTEND(cppcoreguidelines-macro-usage)
 #else
 #include <stdarg.h>
 #include <stdio.h>
@@ -47,53 +49,63 @@ inline void log_write(const char *format, ...)
 #endif
 
 #ifndef INTER_ROBOT_COMMS_ESP32
-typedef struct {
+using esp_pthread_cfg_t = struct {
     size_t stack_size;
     size_t prio;
     bool inherit_cfg;
     const char *thread_name;
     int pin_to_core;
-} esp_pthread_cfg_t;
-#define CORE_0 0
-#define CORE_1 1
+};
+constexpr int CORE_0 = 0;
+constexpr int CORE_1 = 1;
 static inline esp_pthread_cfg_t esp_pthread_get_default_config() { return esp_pthread_cfg_t{}; }
-static inline void ESP_ERROR_CHECK(int) {}
-static inline int esp_pthread_set_cfg(esp_pthread_cfg_t *) { return 0; }
+static inline void ESP_ERROR_CHECK(int /*unused*/) {} // NOLINT(readability-identifier-naming)
+static inline int esp_pthread_set_cfg(esp_pthread_cfg_t * /*unused*/) { return 0; }
 static inline void esp_core_dump_to_uart() { throw std::runtime_error("Core dump"); }
-#define portMAX_DELAY 0xFFFFFFFF
-#define portTICK_PERIOD_MS 1
+constexpr size_t portMAX_DELAY      = 0xFFFFFFFF; // NOLINT(readability-identifier-naming)
+constexpr size_t portTICK_PERIOD_MS = 1;          // NOLINT(readability-identifier-naming)
+// NOLINTNEXTLINE(readability-identifier-naming)
 static inline void vTaskDelay(size_t delay) { std::this_thread::sleep_for(std::chrono::milliseconds(delay)); }
 #endif
 
+// NOLINTBEGIN(cppcoreguidelines-macro-usage)
+// NOLINTBEGIN(cppcoreguidelines-macro-to-enum)
 #define MAX_ROBOTS 10
 #define MAX_HOST_LEN 18
+#define MAX_BOUNDARY_X_POINTS 2
+#define MAX_BOUNDARY_Y_POINTS 0
+#define MAX_BOUNDARY_Z_POINTS 0
+// NOLINTEND(cppcoreguidelines-macro-to-enum)
+// NOLINTEND(cppcoreguidelines-macro-usage)
 
-template <class T, std::size_t Size> struct static_allocator {
+template <class T, std::size_t SIZE>
+struct StaticAllocator {
     using value_type = T;
 #if __cplusplus < 202002L
-    template <class U> struct rebind {
-        using other = static_allocator<U, Size>;
+    template <class U>
+    struct rebind { // NOLINT(readability-identifier-naming)
+        using other = StaticAllocator<U, SIZE>;
     };
 #endif
 
-    static_allocator() = default;
-    template <class U, std::size_t Size2>
-    constexpr explicit static_allocator(const static_allocator<U, Size2> &) noexcept
+    StaticAllocator() = default;
+    template <class U, std::size_t SIZE2>
+    constexpr explicit StaticAllocator(const StaticAllocator<U, SIZE2> & /*unused*/) noexcept
     {
     }
 
-    alignas(T) static std::array<uint8_t, (Size) * sizeof(T)> buffer_;
-    static std::size_t offset_;
-    static std::array<uint8_t, 1 + ((Size) / 8)> mask;
+    alignas(T) static std::array<uint8_t, (SIZE) * sizeof(T)> buffer;
+    static std::size_t offset;
+    static std::array<uint8_t, 1 + ((SIZE) / 8)> mask;
 
     static auto allocate() -> T *
     { /* Find the first bit in the mask that is 0. */
         std::size_t idx_byte = 0;
-        while (idx_byte <= ((Size) / 8) && mask.at(idx_byte) == 0xFF)
+        while (idx_byte <= ((SIZE) / 8) && mask.at(idx_byte) == 0xFF)
         {
             idx_byte++;
         }
-        if (idx_byte > ((Size) / 8)) { throw std::bad_alloc{}; }
+        if (idx_byte > ((SIZE) / 8)) { throw std::bad_alloc{}; }
 
         /* Find the first bit in the byte that is 0. */
         std::size_t idx_bit = 0;
@@ -107,10 +119,10 @@ template <class T, std::size_t Size> struct static_allocator {
 
         /* Calculate the offset. */
         const auto new_offset = (idx_byte * 8) + idx_bit;
-        auto place            = buffer_.data() + (new_offset * sizeof(T));
-        offset_               = new_offset;
+        auto place            = buffer.data() + (new_offset * sizeof(T));
+        offset                = new_offset;
 
-        return static_cast<T *>(static_cast<void *>(place));
+        return static_cast<T *>(static_cast<void *>(place)); // NOLINT(bugprone-casting-through-void)
     }
 
     static auto allocate(std::size_t n) -> T *
@@ -125,7 +137,8 @@ template <class T, std::size_t Size> struct static_allocator {
 
     static void deallocate(T *ptr) noexcept
     { /* Calculate the offset. */
-        const auto new_offset = (static_cast<uint8_t *>(static_cast<void *>(ptr)) - buffer_.data()) / sizeof(T);
+        // NOLINTNEXTLINE(bugprone-casting-through-void)
+        const auto new_offset = (static_cast<uint8_t *>(static_cast<void *>(ptr)) - buffer.data()) / sizeof(T);
 
         /* Find the byte and bit. */
         const std::size_t idx_byte = new_offset / 8U;
@@ -139,44 +152,55 @@ template <class T, std::size_t Size> struct static_allocator {
     {
         for (std::size_t idx = 0; idx < n; idx++)
         {
-            deallocate(ptr + idx);
+            deallocate(ptr + idx); // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
         }
     }
 };
 
-template <class T, class U, std::size_t Size1, std::size_t Size2>
-constexpr bool operator==(const static_allocator<T, Size1> &, const static_allocator<U, Size2> &) noexcept
+template <class T, class U, std::size_t SIZE1, std::size_t SIZE2>
+constexpr bool operator==(const StaticAllocator<T, SIZE1> & /*unused*/,
+                          const StaticAllocator<U, SIZE2> & /*unused*/) noexcept
 {
     return true;
 }
 
-template <class T, class U, std::size_t Size1, std::size_t Size2>
-constexpr bool operator!=(const static_allocator<T, Size1> &, const static_allocator<U, Size2> &) noexcept
+template <class T, class U, std::size_t SIZE1, std::size_t SIZE2>
+constexpr bool operator!=(const StaticAllocator<T, SIZE1> & /*unused*/,
+                          const StaticAllocator<U, SIZE2> & /*unused*/) noexcept
 {
     return false;
 }
 
-template <class T, std::size_t Size> std::size_t static_allocator<T, Size>::offset_ = 0;
-template <class T, std::size_t Size>
-alignas(T) std::array<uint8_t, (Size) * sizeof(T)> static_allocator<T, Size>::buffer_                      = {0};
-template <class T, std::size_t Size> std::array<uint8_t, 1 + ((Size) / 8)> static_allocator<T, Size>::mask = {0};
+template <class T, std::size_t SIZE>
+std::size_t StaticAllocator<T, SIZE>::offset = 0;
+template <class T, std::size_t SIZE>
+alignas(T) std::array<uint8_t, (SIZE) * sizeof(T)> StaticAllocator<T, SIZE>::buffer = {0};
+template <class T, std::size_t SIZE>
+std::array<uint8_t, 1 + ((SIZE) / 8)> StaticAllocator<T, SIZE>::mask = {0};
 
 #if __cplusplus < 202002L
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define REBIND(static_allocator)                                                                                       \
-    template <class U> struct rebind {                                                                                 \
-        using other = static_allocator<U>;                                                                             \
+    template <class U>                                                                                                 \
+    struct rebind {                                                                                                    \
+        using other = (static_allocator)<U>;                                                                           \
     };
 #else
 #define REBIND(static_allocator)
 #endif
 
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define DECLARE_STATIC_ALLOCATOR(static_allocator, Size)                                                               \
-    template <class T> struct static_allocator {                                                                       \
+    template <class T>                                                                                                 \
+    struct static_allocator {                                                                                          \
         using value_type = T;                                                                                          \
         REBIND(static_allocator)                                                                                       \
                                                                                                                        \
         static_allocator() = default;                                                                                  \
-        template <class U> constexpr explicit static_allocator(const static_allocator<U> &) noexcept {}                \
+        template <class U>                                                                                             \
+        constexpr explicit static_allocator(const static_allocator<U> &) noexcept                                      \
+        {                                                                                                              \
+        }                                                                                                              \
                                                                                                                        \
         alignas(T) static std::array<uint8_t, (Size) * sizeof(T)> buffer_;                                             \
         static std::size_t offset_;                                                                                    \
@@ -252,23 +276,32 @@ template <class T, std::size_t Size> std::array<uint8_t, 1 + ((Size) / 8)> stati
         return false;                                                                                                  \
     }                                                                                                                  \
                                                                                                                        \
-    template <class T> std::size_t static_allocator<T>::offset_                                        = 0;            \
-    template <class T> alignas(T) std::array<uint8_t, (Size) * sizeof(T)> static_allocator<T>::buffer_ = {0};          \
-    template <class T> std::array<uint8_t, 1 + ((Size) / 8)> static_allocator<T>::mask                 = {0};
+    template <class T>                                                                                                 \
+    std::size_t static_allocator<T>::offset_ = 0;                                                                      \
+    template <class T>                                                                                                 \
+    alignas(T) std::array<uint8_t, (Size) * sizeof(T)>(static_allocator)<T>::buffer_ = {0};                            \
+    template <class T>                                                                                                 \
+    std::array<uint8_t, 1 + ((Size) / 8)>(static_allocator)<T>::mask = {0};
 
 /* Common allocators and container types */
-template <class T> using RobotSizeAllocator = static_allocator<T, MAX_ROBOTS>;
-template <class T> using HostSizeAllocator  = static_allocator<T, MAX_HOST_LEN>;
+template <class T>
+using robot_size_allocator = StaticAllocator<T, MAX_ROBOTS>;
+template <class T>
+using host_size_allocator = StaticAllocator<T, MAX_HOST_LEN>;
 
-template <class T> using RobotSizeArray = std::array<T, MAX_ROBOTS>;
+template <class T>
+using robot_size_array = std::array<T, MAX_ROBOTS>;
 
 // template <class T> using RobotSizeVector = std::vector<T, RobotSizeAllocator<T>>;
 // template <class T> using RobotSizeSet    = std::set<T, std::less<T>, RobotSizeAllocator<T>>;
 // template <class T, class U> using RobotSizeMap =
 //     std::map<const T, U, std::less<T>, RobotSizeAllocator<std::pair<const T, U>>>;
 
-template <class T> using RobotSizeVector       = std::vector<T>;
-template <class T> using RobotSizeSet          = std::set<T>;
-template <class T, class U> using RobotSizeMap = std::map<const T, U>;
+template <class T>
+using robot_size_vector = std::vector<T>;
+template <class T>
+using robot_size_set = std::set<T>;
+template <class T, class U>
+using robot_size_map = std::map<const T, U>;
 
-using HostSizeString = std::basic_string<char, std::char_traits<char>, HostSizeAllocator<char>>;
+using host_size_string = std::basic_string<char, std::char_traits<char>, host_size_allocator<char>>;

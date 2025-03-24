@@ -1,28 +1,28 @@
 #pragma once
 
 #include "EpuckPackets.hpp"
+#include "NetworkFactory.hpp"
 #include "RobotCommsModel.hpp"
 #include "types.hpp"
 #include <algorithm>
 #include <array>
 #include <asio/io_context.hpp>
 #include <asio/ip/address_v6.hpp>
-#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <memory>
-#include <numeric>
-#include <sstream>
 #include <sys/select.h>
 #include <thread>
 #include <utility>
-#include <vector>
 
-template <class T> using RobotIdListAllocator =
-    static_allocator<T, ((sizeof("65535") - 1) * MAX_ROBOTS) + ((sizeof(", ") - 1) * (MAX_ROBOTS - 1)) + sizeof("")>;
+template <class T>
+using robot_id_list_allocator =
+    StaticAllocator<T, ((sizeof("65535") - 1) * MAX_ROBOTS) + ((sizeof(", ") - 1) * (MAX_ROBOTS - 1)) + sizeof("")>;
+
 // DECLARE_STATIC_ALLOCATOR(RobotIdListAllocator,
-//                          ((sizeof("255") - 1) * MAX_ROBOTS) + ((sizeof(", ") - 1) * (MAX_ROBOTS - 1)) + sizeof(""));
+//                          ((sizeof("255") - 1) * MAX_ROBOTS) + ((sizeof(", ") - 1) * (MAX_ROBOTS -
+//                          1)) + sizeof(""));
 
 class UDPKnowledgeClient;
 
@@ -30,112 +30,100 @@ class UDPKnowledgeServer : public BaseKnowledgeServer
 {
 public:
     UDPKnowledgeServer() = default;
-    template <class T> explicit UDPKnowledgeServer(std::shared_ptr<T> robot_model) : BaseKnowledgeServer(robot_model) {}
+    template <class T>
+    explicit UDPKnowledgeServer(std::shared_ptr<T> robot_model, std::shared_ptr<INetworkFactory> network_factory)
+        : BaseKnowledgeServer(std::move(robot_model), std::move(network_factory))
+    {
+        _io_context = _network_factory->create_io_context();
+    }
 
     // Move constructor
     UDPKnowledgeServer(UDPKnowledgeServer &&other) noexcept
+        : _socket(std::move(other._socket)), _running(other._running)
     {
-        robot_model = std::move(other.robot_model);
-        if (nullptr != other.socket_)
-        {
-            this->socket_ = other.socket_;
-        } else
-        {
-            this->socket_ = nullptr;
-        }
-        this->thread_.swap(other.thread_);
-        this->running_ = other.running_;
+        _robot_model     = std::move(other._robot_model);
+        _network_factory = std::move(other._network_factory);
+
+        this->_thread.swap(other._thread);
     }
 
     // Move assignment
     UDPKnowledgeServer &operator=(UDPKnowledgeServer &&other) noexcept
     {
-        robot_model = std::move(other.robot_model);
-        if (nullptr != other.socket_)
-        {
-            this->socket_ = other.socket_;
-        } else
-        {
-            this->socket_ = nullptr;
-        }
-        this->thread_.swap(other.thread_);
-        this->running_ = other.running_;
+        _robot_model     = std::move(other._robot_model);
+        _network_factory = std::move(other._network_factory);
+        _socket          = std::move(other._socket);
+
+        this->_thread.swap(other._thread);
+        this->_running = other._running;
         return *this;
     }
 
     // Copy constructor
-    UDPKnowledgeServer(const UDPKnowledgeServer &other) : BaseKnowledgeServer(other.robot_model)
+    UDPKnowledgeServer(const UDPKnowledgeServer &other)
+        : BaseKnowledgeServer(other._robot_model, other._network_factory), _socket(other._socket),
+          _running(other._running)
     {
-        robot_model = other.robot_model;
-        if (nullptr != other.socket_)
-        {
-            this->socket_ = other.socket_;
-        } else
-        {
-            this->socket_ = nullptr;
-        }
+        _robot_model     = other._robot_model;
+        _network_factory = other._network_factory;
+
         // this->thread_.swap(other.thread_);
-        this->running_ = other.running_;
     }
 
     // Copy assignment
     UDPKnowledgeServer &operator=(const UDPKnowledgeServer &other)
     {
-        robot_model = other.robot_model;
-        if (nullptr != other.socket_)
-        {
-            this->socket_ = other.socket_;
-        } else
-        {
-            this->socket_ = nullptr;
-        }
-        this->running_ = other.running_;
+        _robot_model     = other._robot_model;
+        _network_factory = other._network_factory;
+        _socket          = other._socket;
+        _running         = other._running;
         return *this;
     }
 
     // Destructor
-    ~UDPKnowledgeServer() { this->Stop(); }
+    ~UDPKnowledgeServer() { this->stop(); }
 
-    void Start() override
+    void start() override
     {
-        this->running_ = true;
-        this->socket_  = std::make_shared<asio::ip::udp::socket>(io_context_);
-        this->socket_->open(asio::ip::udp::v4());
-        auto address         = asio::ip::make_address_v4(this->robot_model->robot_knowledge_host.c_str());
-        auto client_endpoint = asio::ip::udp::endpoint(address, this->robot_model->robot_knowledge_exchange_port);
-        ESP_LOGI(TAG, "UDPKnowledgeServer - (%s:%hu)", client_endpoint.address().to_string().c_str(),
-                 client_endpoint.port());
-        this->socket_->bind(client_endpoint);
+        this->_running = true;
+        this->_socket  = _network_factory->create_udp_socket(*_io_context);
+        this->_socket->open();
+        auto address = asio::ip::make_address_v4(this->_robot_model->robot_knowledge_host.c_str());
+        auto client_endpoint =
+            _network_factory->create_udp_endpoint(address, this->_robot_model->robot_knowledge_exchange_port);
+        ESP_LOGI(TAG, "UDPKnowledgeServer - (%s:%hu)", client_endpoint->address().to_string().c_str(),
+                 client_endpoint->port());
+        this->_socket->bind(*client_endpoint);
 
         auto cfg        = esp_pthread_get_default_config();
         cfg.pin_to_core = CORE_1;
         cfg.thread_name = "udp_server_start_receive";
         ESP_ERROR_CHECK(esp_pthread_set_cfg(&cfg));
-        this->thread_ = std::thread(&UDPKnowledgeServer::LaunchStartReceive, this);
+        this->_thread = std::thread(&UDPKnowledgeServer::launch_start_receive, this);
     }
 
-    void Stop() override
+    void stop() noexcept override
     {
-        this->running_ = false;
-        if (this->thread_.joinable()) { this->thread_.join(); }
-        if (nullptr != this->socket_) { this->socket_->close(); }
-        this->socket_ = nullptr;
+        this->_running = false;
+        if (this->_thread.joinable()) { this->_thread.join(); }
+        if (nullptr != this->_socket) { this->_socket->close(); }
+        this->_socket = nullptr;
     }
 
 private:
-    asio::io_context io_context_;
-    std::shared_ptr<asio::ip::udp::socket> socket_ = nullptr;
-    std::thread thread_;
-    bool running_               = false;
-    static constexpr char TAG[] = "UDPKnowledgeServer";
+    std::shared_ptr<IIoContext> _io_context;
+    std::shared_ptr<IUdpSocket> _socket = nullptr;
+    std::thread _thread;
+    bool _running                          = false;
+    constexpr static const char *const TAG = "UDPKnowledgeServer"; // NOLINT(cppcoreguidelines-avoid-c-arrays)
 
-    void LaunchStartReceive()
+    void launch_start_receive()
     {
 #if ENABLE_TRY_CATCH
         try
         {
 #endif
-            this->StartReceive();
+            this->start_receive();
 #if ENABLE_TRY_CATCH
         } catch (const std::exception &e)
         {
@@ -145,17 +133,18 @@ private:
 #endif
     }
 
-    void StartReceive()
+    void start_receive()
     {
-        ESP_LOGI(TAG, "Starting knowledge connection on %s:%hu", this->robot_model->robot_knowledge_host.c_str(),
-                 this->robot_model->robot_knowledge_exchange_port);
-        while (this->running_)
+        ESP_LOGI(TAG, "Starting knowledge connection on %s:%hu", this->_robot_model->robot_knowledge_host.c_str(),
+                 this->_robot_model->robot_knowledge_exchange_port);
+        while (this->_running)
         {
             struct timeval tv = {1, 0};
             fd_set readfds;
             FD_ZERO(&readfds);
-            FD_SET(this->socket_->native_handle(), &readfds);
-            int fds_ready = select(this->socket_->native_handle() + 1, &readfds, nullptr, nullptr, &tv);
+            FD_SET(this->_socket->get_native_socket().native_handle(), &readfds);
+            int fds_ready =
+                select(this->_socket->get_native_socket().native_handle() + 1, &readfds, nullptr, nullptr, &tv);
             if (fds_ready == 0)
             { // timeout
                 ESP_LOGD(TAG, "Timeout, no data received%s", "");
@@ -169,18 +158,18 @@ private:
                 continue;
             }
 
-            asio::ip::udp::endpoint client;
+            auto client = _network_factory->create_udp_endpoint();
             std::array<uint8_t, sizeof(EpuckKnowledgePacket)> data{};
 
             size_t bytes_received = 0;
             size_t expected_bytes = sizeof(EpuckKnowledgePacket);
             while (bytes_received < expected_bytes)
             {
-                auto received = this->socket_->receive_from(
-                    asio::buffer(data.data() + bytes_received, sizeof(EpuckKnowledgePacket) - bytes_received), client);
+                auto received = this->_socket->receive_from(
+                    asio::buffer(data.data() + bytes_received, sizeof(EpuckKnowledgePacket) - bytes_received), *client);
                 if (received < 1)
                 {
-                    ESP_LOGW(TAG, "(%s:%hu) disconnected", client.address().to_string().c_str(), client.port());
+                    ESP_LOGW(TAG, "(%s:%hu) disconnected", client->address().to_string().c_str(), client->port());
                     break;
                 }
                 bytes_received += received;
@@ -197,12 +186,11 @@ private:
                 continue;
             }
 
-            HandleReceive(client, data);
+            handle_receive(*client, data);
         }
     }
 
-    void HandleReceive(const asio::ip::udp::endpoint &client,
-                       const std::array<uint8_t, sizeof(EpuckKnowledgePacket)> &data)
+    void handle_receive(IUDPEndpoint &client, const std::array<uint8_t, sizeof(EpuckKnowledgePacket)> &data)
     {
         auto request = EpuckKnowledgePacket::unpack(data.data());
 
@@ -210,16 +198,16 @@ private:
                  client.address().to_string().c_str(), client.port(),
                  known_ids_to_string(request.known_ids.cbegin(), request.known_ids.cend()).data());
 
-        auto known_ids_before = RobotSizeSet<BaseRobotCommsModel::known_id_record_type>(
-            this->robot_model->KnownIdsBegin(), this->robot_model->KnownIdsEnd());
+        auto known_ids_before = robot_size_set<BaseRobotCommsModel::known_id_record_type>(
+            this->_robot_model->known_ids_begin(), this->_robot_model->known_ids_end());
 
         auto num_inserted =
-            this->robot_model->InsertKnownIds(request.known_ids.cbegin(), request.known_ids.cbegin() + request.N);
+            this->_robot_model->insert_known_ids(request.known_ids.cbegin(), request.known_ids.cbegin() + request.N);
 
         if (num_inserted > 0)
         {
-            RobotSizeSet<BaseRobotCommsModel::known_id_record_type> new_ids;
-            std::set_difference(this->robot_model->KnownIdsBegin(), this->robot_model->KnownIdsEnd(),
+            robot_size_set<BaseRobotCommsModel::known_id_record_type> new_ids;
+            std::set_difference(this->_robot_model->known_ids_begin(), this->_robot_model->known_ids_end(),
                                 known_ids_before.cbegin(), known_ids_before.cend(),
                                 std::inserter(new_ids, new_ids.end()));
 
@@ -228,9 +216,9 @@ private:
                      known_ids_to_string(new_ids.cbegin(), new_ids.cend()).data());
         }
 
-        auto knowledge = this->robot_model->CreateKnowledgePacket();
+        auto knowledge = this->_robot_model->create_knowledge_packet();
 
-        socket_->send_to(asio::buffer(knowledge.pack(), sizeof(EpuckKnowledgePacket)), client);
+        _socket->send_to(asio::buffer(knowledge.pack(), sizeof(EpuckKnowledgePacket)), client);
 
         ESP_LOGD(TAG, "Sent knowledge to " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", request.robot_id,
                  client.address().to_string().c_str(), client.port(),
@@ -243,117 +231,106 @@ class UDPKnowledgeClient : public BaseKnowledgeClient
 public:
     UDPKnowledgeClient() = default;
     UDPKnowledgeClient(EpuckNeighbourPacket neighbour, std::function<bool()> running,
-                       std::shared_ptr<BaseRobotCommsModel> robot_model)
-        : BaseKnowledgeClient(std::move(neighbour), std::move(running), std::move(robot_model)){};
+                       std::shared_ptr<BaseRobotCommsModel> robot_model,
+                       std::shared_ptr<INetworkFactory> network_factory)
+        : BaseKnowledgeClient(neighbour, std::move(running), std::move(robot_model), std::move(network_factory))
+    {
+        _io_context = _network_factory->create_io_context();
+    };
 
     // Move constructor
-    UDPKnowledgeClient(UDPKnowledgeClient &&other) noexcept : stopping_(other.stopping_)
+    UDPKnowledgeClient(UDPKnowledgeClient &&other) noexcept
+        : _io_context(std::move(other._io_context)), _client(std::move(other._client)), _stopping(other._stopping)
     {
-        neighbour   = std::move(other.neighbour);
-        running     = std::move(other.running);
-        robot_model = std::move(other.robot_model);
-        if (nullptr != other.client_)
-        {
-            this->client_ = other.client_;
-        } else
-        {
-            this->client_ = nullptr;
-        }
-        this->thread_.swap(other.thread_);
+        _neighbour       = other._neighbour;
+        _running         = std::move(other._running);
+        _robot_model     = std::move(other._robot_model);
+        _network_factory = std::move(other._network_factory);
+
+        this->_thread.swap(other._thread);
     }
 
     // Move assignment
     UDPKnowledgeClient &operator=(UDPKnowledgeClient &&other) noexcept
     {
-        neighbour   = std::move(other.neighbour);
-        running     = std::move(other.running);
-        robot_model = std::move(other.robot_model);
-        if (nullptr != other.client_)
-        {
-            this->client_ = other.client_;
-        } else
-        {
-            this->client_ = nullptr;
-        }
-        this->thread_.swap(other.thread_);
-        this->stopping_ = other.stopping_;
+        _io_context      = std::move(other._io_context);
+        _neighbour       = other._neighbour;
+        _running         = std::move(other._running);
+        _robot_model     = std::move(other._robot_model);
+        _network_factory = std::move(other._network_factory);
+        _client          = std::move(other._client);
+
+        this->_thread.swap(other._thread);
+        _stopping = other._stopping;
 
         return *this;
     }
 
     // Copy constructor
     UDPKnowledgeClient(const UDPKnowledgeClient &other)
-        : BaseKnowledgeClient(other.neighbour, other.running, other.robot_model), stopping_(other.stopping_)
+        : BaseKnowledgeClient(other._neighbour, other._running, other._robot_model, other._network_factory),
+          _io_context(other._io_context), _client(other._client), _stopping(other._stopping)
     {
-        if (nullptr != other.client_)
-        {
-            this->client_ = other.client_;
-        } else
-        {
-            this->client_ = nullptr;
-        }
     }
 
     // Copy assignment
     UDPKnowledgeClient &operator=(const UDPKnowledgeClient &other)
     {
-        neighbour   = other.neighbour;
-        running     = other.running;
-        robot_model = other.robot_model;
-        if (nullptr != other.client_)
-        {
-            this->client_ = other.client_;
-        } else
-        {
-            this->client_ = nullptr;
-        }
-        this->stopping_ = other.stopping_;
+        _io_context      = other._io_context;
+        _neighbour       = other._neighbour;
+        _running         = other._running;
+        _robot_model     = other._robot_model;
+        _network_factory = other._network_factory;
+        _client          = other._client;
+        _stopping        = other._stopping;
 
         return *this;
     }
 
     // Destructor
-    ~UDPKnowledgeClient() { this->Stop(); }
+    ~UDPKnowledgeClient() { this->stop(); }
 
-    void Start() override
+    void start() override
     {
-        this->stopping_ = false;
-        this->client_   = std::make_shared<asio::ip::udp::socket>(io_context_);
-        this->client_->open(asio::ip::udp::v4());
+        this->_stopping = false;
+        this->_client   = _network_factory->create_udp_socket(*_io_context);
+        this->_client->open();
 
-        auto cfg             = esp_pthread_get_default_config();
-        cfg.stack_size       = 8192;
-        cfg.pin_to_core      = CORE_1;
-        char thread_name[64] = {0};
-        snprintf(thread_name, sizeof(thread_name), "udp_client_" ROBOT_ID_TYPE_FMT "_send_knowledge",
-                 this->neighbour.robot_id);
-        cfg.thread_name = thread_name;
+        auto cfg        = esp_pthread_get_default_config();
+        cfg.stack_size  = 8192;
+        cfg.pin_to_core = CORE_1;
+
+        std::array<char, 64> thread_name = {0};
+        snprintf(thread_name.data(), sizeof(thread_name), "udp_client_" ROBOT_ID_TYPE_FMT "_send_knowledge",
+                 this->_neighbour.robot_id);
+        cfg.thread_name = thread_name.data();
+
         ESP_ERROR_CHECK(esp_pthread_set_cfg(&cfg));
-        this->thread_ = std::thread(&UDPKnowledgeClient::LaunchSendKnowledge, this);
+        this->_thread = std::thread(&UDPKnowledgeClient::launch_send_knowledge, this);
     }
 
-    void Stop() override
+    void stop() noexcept override
     {
-        this->stopping_ = true;
-        if (this->thread_.joinable()) { this->thread_.join(); }
-        if (nullptr != this->client_) { this->client_->close(); }
-        this->client_ = nullptr;
+        this->_stopping = true;
+        if (this->_thread.joinable()) { this->_thread.join(); }
+        if (nullptr != this->_client) { this->_client->close(); }
+        this->_client = nullptr;
     }
 
 private:
-    asio::io_context io_context_;
-    std::shared_ptr<asio::ip::udp::socket> client_ = nullptr;
-    std::thread thread_;
-    bool stopping_              = false;
-    static constexpr char TAG[] = "UDPKnowledgeClient";
+    std::shared_ptr<IIoContext> _io_context;
+    std::shared_ptr<IUdpSocket> _client = nullptr;
+    std::thread _thread;
+    bool _stopping                         = false;
+    static constexpr const char *const TAG = "UDPKnowledgeClient";
 
-    void LaunchSendKnowledge()
+    void launch_send_knowledge()
     {
 #if ENABLE_TRY_CATCH
         try
         {
 #endif
-            this->SendKnowledge();
+            this->send_knowledge();
 #if ENABLE_TRY_CATCH
         } catch (const std::exception &e)
         {
@@ -363,30 +340,30 @@ private:
 #endif
     }
 
-    void SendKnowledge()
+    void send_knowledge()
     {
-        ESP_LOGI(TAG, "Starting knowledge connection with " ROBOT_ID_TYPE_FMT " (%s:%hu)", this->neighbour.robot_id,
-                 this->neighbour.host.data(), this->neighbour.port);
+        ESP_LOGI(TAG, "Starting knowledge connection with " ROBOT_ID_TYPE_FMT " (%s:%hu)", this->_neighbour.robot_id,
+                 this->_neighbour.host.data(), this->_neighbour.port);
 
-        auto server =
-            asio::ip::udp::endpoint(asio::ip::make_address_v4(this->neighbour.host.data()), this->neighbour.port);
+        auto server = _network_factory->create_udp_endpoint(asio::ip::make_address_v4(this->_neighbour.host.data()),
+                                                            this->_neighbour.port);
 
-        while (this->running() && !this->stopping_ && this->client_ && this->client_->is_open())
+        while (this->_running() && !this->_stopping && this->_client && this->_client->is_open())
         {
-            auto knowledge = this->robot_model->CreateKnowledgePacket();
+            auto knowledge = this->_robot_model->create_knowledge_packet();
 
-            client_->send_to(asio::buffer(knowledge.pack(), sizeof(EpuckKnowledgePacket)), server);
+            _client->send_to(asio::buffer(knowledge.pack(), sizeof(EpuckKnowledgePacket)), *server);
 
-            ESP_LOGD(TAG, "Sent knowledge to " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", this->neighbour.robot_id,
-                     this->neighbour.host.data(), this->neighbour.port,
+            ESP_LOGD(TAG, "Sent knowledge to " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", this->_neighbour.robot_id,
+                     this->_neighbour.host.data(), this->_neighbour.port,
                      known_ids_to_string(knowledge.known_ids.cbegin(), knowledge.known_ids.cend()).data());
 
-            struct pollfd pfd = {this->client_->native_handle(), POLLIN, 0};
+            struct pollfd pfd = {this->_client->get_native_socket().native_handle(), POLLIN, 0};
             int retval        = poll(&pfd, 1, 1000);
             if (retval == 0)
             { // timeout
                 ESP_LOGW(TAG, "Timeout waiting for response from " ROBOT_ID_TYPE_FMT " (%s:%hu)",
-                         this->neighbour.robot_id, this->neighbour.host.data(), this->neighbour.port);
+                         this->_neighbour.robot_id, this->_neighbour.host.data(), this->_neighbour.port);
                 continue;
             }
             if (retval < 0)
@@ -403,11 +380,11 @@ private:
             size_t expected_bytes = sizeof(EpuckKnowledgePacket);
             while (bytes_received < expected_bytes)
             {
-                auto received = this->client_->receive_from(
-                    asio::buffer(data.data() + bytes_received, sizeof(EpuckKnowledgePacket) - bytes_received), server);
+                auto received = this->_client->receive_from(
+                    asio::buffer(data.data() + bytes_received, sizeof(EpuckKnowledgePacket) - bytes_received), *server);
                 if (received < 1)
                 {
-                    ESP_LOGW(TAG, "(%s:%hu) disconnected", this->neighbour.host.data(), this->neighbour.port);
+                    ESP_LOGW(TAG, "(%s:%hu) disconnected", this->_neighbour.host.data(), this->_neighbour.port);
                     break;
                 }
                 bytes_received += received;
@@ -422,31 +399,31 @@ private:
             auto response = EpuckKnowledgePacket::unpack(data.data());
 
             ESP_LOGD(TAG, "Received knowledge from " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", response.robot_id,
-                     this->neighbour.host.data(), this->neighbour.port,
+                     this->_neighbour.host.data(), this->_neighbour.port,
                      known_ids_to_string(response.known_ids.cbegin(), response.known_ids.cend()).data());
 
-            auto known_ids_before = RobotSizeSet<BaseRobotCommsModel::known_id_record_type>(
-                this->robot_model->KnownIdsBegin(), this->robot_model->KnownIdsEnd());
+            auto known_ids_before = robot_size_set<BaseRobotCommsModel::known_id_record_type>(
+                this->_robot_model->known_ids_begin(), this->_robot_model->known_ids_end());
 
-            auto num_inserted = this->robot_model->InsertKnownIds(response.known_ids.cbegin(),
-                                                                  response.known_ids.cbegin() + response.N);
+            auto num_inserted = this->_robot_model->insert_known_ids(response.known_ids.cbegin(),
+                                                                     response.known_ids.cbegin() + response.N);
 
             if (num_inserted > 0)
             {
-                RobotSizeSet<BaseRobotCommsModel::known_id_record_type> new_ids;
-                std::set_difference(this->robot_model->KnownIdsBegin(), this->robot_model->KnownIdsEnd(),
+                robot_size_set<BaseRobotCommsModel::known_id_record_type> new_ids;
+                std::set_difference(this->_robot_model->known_ids_begin(), this->_robot_model->known_ids_end(),
                                     known_ids_before.cbegin(), known_ids_before.cend(),
                                     std::inserter(new_ids, new_ids.begin()));
 
                 ESP_LOGI(TAG, "Received new IDs from " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", response.robot_id,
-                         this->neighbour.host.data(), this->neighbour.port,
+                         this->_neighbour.host.data(), this->_neighbour.port,
                          known_ids_to_string(new_ids.cbegin(), new_ids.cend()).data());
             }
 
             vTaskDelay(1000 / portTICK_PERIOD_MS);
         }
 
-        ESP_LOGI(TAG, "Stopping knowledge connection with " ROBOT_ID_TYPE_FMT " (%s:%hu)", this->neighbour.robot_id,
-                 this->neighbour.host.data(), this->neighbour.port);
+        ESP_LOGI(TAG, "Stopping knowledge connection with " ROBOT_ID_TYPE_FMT " (%s:%hu)", this->_neighbour.robot_id,
+                 this->_neighbour.host.data(), this->_neighbour.port);
     }
 };
