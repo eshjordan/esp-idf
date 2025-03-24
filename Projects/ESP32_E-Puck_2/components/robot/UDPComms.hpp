@@ -1,8 +1,8 @@
 #pragma once
 
 #include "EpuckPackets.hpp"
+#include "NetworkFactory.hpp"
 #include "RobotCommsModel.hpp"
-#include "cpp_epuck/NetworkFactory.hpp"
 #include "types.hpp"
 #include <algorithm>
 #include <array>
