@@ -18,8 +18,8 @@
 #include <utility>
 
 // NOLINTBEGIN(cppcoreguidelines-macro-usage)
-#define KNOWN_IDS_STRING_EXAMPLE "id: 65535 (x: 123.456, y: 123.456, z: 123.456, seq: 65535)"
-#define KNOWN_IDS_STRING_FMT "id: %hu (x: %3.3f, y: %3.3f, z: %3.3f, seq: %hu)"
+#define KNOWN_IDS_STRING_EXAMPLE "id: 65535 (seq: 65535)"
+#define KNOWN_IDS_STRING_FMT "id: %hu (seq: %hu)"
 // NOLINTEND(cppcoreguidelines-macro-usage)
 
 static inline auto known_ids_set_to_string(const robot_size_set<robot_id_type> &known_ids)
@@ -54,14 +54,27 @@ static inline auto known_ids_to_string(IterRecord begin, IterRecord end)
         return output;
     }
 
-    snprintf(output.data(), sizeof(output), KNOWN_IDS_STRING_FMT, (*begin).robot_id, (*begin).centroid.x,
-             (*begin).centroid.y, (*begin).centroid.z, (*begin).seq);
+    // auto integer_cx  = static_cast<uint8_t>((*begin).centroid.x);
+    // auto fraction_cx = static_cast<uint8_t>(1000.0 * ((*begin).centroid.x - integer_cx));
+    // auto integer_cy  = static_cast<uint8_t>((*begin).centroid.y);
+    // auto fraction_cy = static_cast<uint8_t>(1000.0 * ((*begin).centroid.y - integer_cy));
+    // auto integer_cz  = static_cast<uint8_t>((*begin).centroid.z);
+    // auto fraction_cz = static_cast<uint8_t>(1000.0 * ((*begin).centroid.z - integer_cz));
+
+    snprintf(output.data(), sizeof(output), KNOWN_IDS_STRING_FMT, (*begin).robot_id, (*begin).seq);
     begin++;
     for (; begin != end; begin++)
     {
         std::array<char, sizeof(", " KNOWN_IDS_STRING_EXAMPLE)> buf = {0};
-        snprintf(buf.data(), sizeof(buf), ", " KNOWN_IDS_STRING_FMT, (*begin).robot_id, (*begin).centroid.x,
-                 (*begin).centroid.y, (*begin).centroid.z, (*begin).seq);
+
+        // integer_cx  = static_cast<uint8_t>((*begin).centroid.x);
+        // fraction_cx = static_cast<uint8_t>(1000.0 * ((*begin).centroid.x - integer_cx));
+        // integer_cy  = static_cast<uint8_t>((*begin).centroid.y);
+        // fraction_cy = static_cast<uint8_t>(1000.0 * ((*begin).centroid.y - integer_cy));
+        // integer_cz  = static_cast<uint8_t>((*begin).centroid.z);
+        // fraction_cz = static_cast<uint8_t>(1000.0 * ((*begin).centroid.z - integer_cz));
+
+        snprintf(buf.data(), sizeof(buf), ", " KNOWN_IDS_STRING_FMT, (*begin).robot_id, (*begin).seq);
         strncat(output.data(), buf.data(), sizeof(buf));
     }
     return output;

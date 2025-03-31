@@ -97,6 +97,7 @@ public:
 
         auto cfg        = esp_pthread_get_default_config();
         cfg.pin_to_core = CORE_1;
+        cfg.stack_size  = 8192;
         cfg.thread_name = "udp_server_start_receive";
         ESP_ERROR_CHECK(esp_pthread_set_cfg(&cfg));
         this->_thread = std::thread(&UDPKnowledgeServer::launch_start_receive, this);
@@ -173,11 +174,12 @@ private:
                     break;
                 }
                 bytes_received += received;
-                if (bytes_received > offsetof(EpuckKnowledgePacket, N))
-                {
-                    expected_bytes =
-                        offsetof(EpuckKnowledgePacket, known_ids) + data[offsetof(EpuckKnowledgePacket, N)];
-                }
+                // if (bytes_received >= offsetof(EpuckKnowledgePacket, N) + sizeof(EpuckKnowledgePacket::N))
+                // {
+                //     const auto n =
+                //         *static_cast<decltype(EpuckKnowledgePacket::N) *>(&data[offsetof(EpuckKnowledgePacket, N)]);
+                //     expected_bytes = offsetof(EpuckKnowledgePacket, known_ids) + (n * sizeof(EpuckKnowledgeRecord));
+                // }
             }
 
             if (bytes_received != expected_bytes)
@@ -196,7 +198,7 @@ private:
 
         ESP_LOGD(TAG, "Received knowledge from " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", request.robot_id,
                  client.address().to_string().c_str(), client.port(),
-                 known_ids_to_string(request.known_ids.cbegin(), request.known_ids.cend()).data());
+                 known_ids_to_string(request.known_ids.cbegin(), request.known_ids.cbegin() + request.N).data());
 
         auto known_ids_before = robot_size_set<BaseRobotCommsModel::known_id_record_type>(
             this->_robot_model->known_ids_begin(), this->_robot_model->known_ids_end());
@@ -400,7 +402,7 @@ private:
 
             ESP_LOGD(TAG, "Received knowledge from " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", response.robot_id,
                      this->_neighbour.host.data(), this->_neighbour.port,
-                     known_ids_to_string(response.known_ids.cbegin(), response.known_ids.cend()).data());
+                     known_ids_to_string(response.known_ids.cbegin(), response.known_ids.cbegin() + response.N).data());
 
             auto known_ids_before = robot_size_set<BaseRobotCommsModel::known_id_record_type>(
                 this->_robot_model->known_ids_begin(), this->_robot_model->known_ids_end());
