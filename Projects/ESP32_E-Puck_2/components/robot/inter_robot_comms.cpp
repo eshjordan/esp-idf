@@ -59,7 +59,7 @@ void inter_robot_comms_task(void *pvParameter)
         EventBits_t evg_bits;
 
         const uint16_t robot_id             = robot_get_id();
-        const host_size_string manager_host = "192.168.0.2";
+        const host_size_string manager_host = "192.168.11.5";
         constexpr uint16_t manager_port     = 50000;
         // host_size_string robot_host         = "192.168.0.2";
         constexpr uint16_t robot_comms_request_port      = 1001;

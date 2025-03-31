@@ -505,7 +505,12 @@ private:
                     continue;
                 }
 
+                ESP_LOGI(TAG, "Knowledge Request server received data%s", "");
+
                 auto client = this->_network_factory->create_udp_endpoint();
+
+                ESP_LOGI(TAG, "Knowledge Request server client created%s", "");
+
                 std::array<uint8_t, sizeof(EpuckKnowledgePacket)> data{};
 
                 size_t bytes_received = 0;
@@ -515,6 +520,7 @@ private:
                     auto received = this->_comms_request_socket->receive_from(
                         asio::buffer(data.data() + bytes_received, sizeof(EpuckKnowledgePacket) - bytes_received),
                         *client);
+                    ESP_LOGI(TAG, "Knowledge Request server received %zu bytes", received);
                     if (received < 1)
                     {
                         ESP_LOGW(TAG, "Knowledge request client (%s:%hu) disconnected",
@@ -522,13 +528,15 @@ private:
                         break;
                     }
                     bytes_received += received;
-                    if (bytes_received > offsetof(EpuckKnowledgePacket, N))
-                    {
-                        expected_bytes =
-                            offsetof(EpuckKnowledgePacket, known_ids)
-                            + data[offsetof(EpuckKnowledgePacket, N)] * sizeof(EpuckKnowledgePacket::known_ids[0]);
-                    }
+                    // if (bytes_received > offsetof(EpuckKnowledgePacket, N))
+                    // {
+                    //     expected_bytes =
+                    //         offsetof(EpuckKnowledgePacket, known_ids)
+                    //         + data[offsetof(EpuckKnowledgePacket, N)] * sizeof(EpuckKnowledgePacket::known_ids[0]);
+                    // }
                 }
+
+                ESP_LOGI(TAG, "Received knowledge request expected bytes%s", "");
 
                 if (bytes_received != expected_bytes)
                 {

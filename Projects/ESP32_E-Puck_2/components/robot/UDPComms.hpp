@@ -224,7 +224,7 @@ private:
 
         ESP_LOGD(TAG, "Sent knowledge to " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", request.robot_id,
                  client.address().to_string().c_str(), client.port(),
-                 known_ids_to_string(knowledge.known_ids.cbegin(), knowledge.known_ids.cend()).data());
+                 known_ids_to_string(knowledge.known_ids.cbegin(), knowledge.known_ids.cbegin() + knowledge.N).data());
     }
 };
 
@@ -356,9 +356,10 @@ private:
 
             _client->send_to(asio::buffer(knowledge.pack(), sizeof(EpuckKnowledgePacket)), *server);
 
-            ESP_LOGD(TAG, "Sent knowledge to " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", this->_neighbour.robot_id,
-                     this->_neighbour.host.data(), this->_neighbour.port,
-                     known_ids_to_string(knowledge.known_ids.cbegin(), knowledge.known_ids.cend()).data());
+            ESP_LOGD(
+                TAG, "Sent knowledge to " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", this->_neighbour.robot_id,
+                this->_neighbour.host.data(), this->_neighbour.port,
+                known_ids_to_string(knowledge.known_ids.cbegin(), knowledge.known_ids.cbegin() + knowledge.N).data());
 
             struct pollfd pfd = {this->_client->get_native_socket().native_handle(), POLLIN, 0};
             int retval        = poll(&pfd, 1, 1000);
