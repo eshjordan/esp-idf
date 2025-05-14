@@ -171,24 +171,40 @@ public:
         // std::copy(begin, end, std::inserter(this->known_ids_, this->known_ids_.end()));
         for (auto record = begin; record != end; record++)
         {
-            if ((this->_known_ids.find(record->robot_id) == this->_known_ids.end())
-                || this->_known_ids[record->robot_id].seq < record->seq)
+            auto not_found     = this->_known_ids.find(record->robot_id) == this->_known_ids.end();
+            auto is_this_robot = record->robot_id == this->robot_id;
+            auto is_larger_seq = !not_found && this->_known_ids[record->robot_id].seq < record->seq;
+
+            if (is_this_robot && is_larger_seq)
             {
-                this->_known_ids.insert_or_assign(record->robot_id, *record);
+                set_centroid(record->centroid);
+                set_boundary(record->boundary);
+                update_record();
+                continue;
             }
+
+            if (not_found || is_larger_seq) { this->_known_ids.insert_or_assign(record->robot_id, *record); }
         }
         return this->known_ids_size() - size_before;
     }
 
-    void set_centroid(const Centroid &centroid) { this->_centroid = centroid; }
+    void set_centroid(const Centroid &centroid)
+    {
+        this->_centroid = centroid;
+        update_record();
+    }
 
-    void set_boundary(const Boundary &boundary) { this->_boundary = boundary; }
+    void set_boundary(const Boundary &boundary)
+    {
+        this->_boundary = boundary;
+        update_record();
+    }
 
     [[nodiscard]] const Centroid &get_centroid() const { return this->_centroid; }
 
     [[nodiscard]] const Boundary &get_boundary() const { return this->_boundary; }
 
-    [[nodiscard]] uint16_t get_seq() { return ++this->_seq; }
+    [[nodiscard]] uint16_t get_seq() { return update_record().seq; }
 
     [[nodiscard]] EpuckKnowledgePacket create_knowledge_packet()
     {
@@ -207,12 +223,11 @@ public:
 private:
     const EpuckKnowledgeRecord &update_record()
     {
-        std::array<EpuckKnowledgeRecord, 1> new_record = {
-            EpuckKnowledgeRecord{this->robot_id, this->_centroid, this->_boundary, this->get_seq()}};
+        EpuckKnowledgeRecord new_record = {this->robot_id, this->_centroid, this->_boundary, ++this->_seq};
 
         // Update the sequence number of the internal record for this robot, so it matches the one
         // in the response
-        this->insert_known_ids(new_record.cbegin(), new_record.cend());
+        this->_known_ids.insert_or_assign(new_record.robot_id, new_record);
         return this->_known_ids[this->robot_id];
     }
 
@@ -307,7 +322,7 @@ public:
         cfg.stack_size  = 8192;
         cfg.thread_name = "robot_comms_request_knowledge";
         ESP_ERROR_CHECK(esp_pthread_set_cfg(&cfg));
-        this->_comms_request_thread = std::thread(&RobotCommsModel::launch_handle_knowledge_requests, this);
+        this->_comms_request_thread = std::thread(&RobotCommsModel::launch_handle_commands, this);
     }
 
     void stop() noexcept override
@@ -475,13 +490,13 @@ private:
         }
     }
 
-    void launch_handle_knowledge_requests()
+    void launch_handle_commands()
     {
 #if ENABLE_TRY_CATCH
         try
         {
 #endif
-            ESP_LOGI(TAG, "Starting knowledge request connection on %s:%hu", this->robot_comms_host.c_str(),
+            ESP_LOGI(TAG, "Starting command connection on %s:%hu", this->robot_comms_host.c_str(),
                      this->robot_comms_request_port);
             while (this->_running)
             {
@@ -494,7 +509,7 @@ private:
                                        nullptr, nullptr, &tv);
                 if (fds_ready == 0)
                 { // timeout
-                    ESP_LOGD(TAG, "Knowledge Request server timeout, no data received%s", "");
+                    ESP_LOGD(TAG, "Command server timeout, no data received%s", "");
                     continue;
                 }
                 if (fds_ready < 0)
@@ -505,38 +520,32 @@ private:
                     continue;
                 }
 
-                ESP_LOGI(TAG, "Knowledge Request server received data%s", "");
+                ESP_LOGI(TAG, "Command server received data%s", "");
 
                 auto client = this->_network_factory->create_udp_endpoint();
 
-                ESP_LOGI(TAG, "Knowledge Request server client created%s", "");
+                ESP_LOGI(TAG, "Command server client created%s", "");
 
-                std::array<uint8_t, sizeof(EpuckKnowledgePacket)> data{};
+                std::array<uint8_t, sizeof(EpuckCommandPacket)> data{};
 
                 size_t bytes_received = 0;
-                size_t expected_bytes = sizeof(EpuckKnowledgePacket);
+                size_t expected_bytes = sizeof(EpuckCommandPacket);
                 while (bytes_received < expected_bytes)
                 {
                     auto received = this->_comms_request_socket->receive_from(
-                        asio::buffer(data.data() + bytes_received, sizeof(EpuckKnowledgePacket) - bytes_received),
+                        asio::buffer(data.data() + bytes_received, sizeof(EpuckCommandPacket) - bytes_received),
                         *client);
-                    ESP_LOGI(TAG, "Knowledge Request server received %zu bytes", received);
+                    ESP_LOGI(TAG, "Command server received %zu bytes", received);
                     if (received < 1)
                     {
-                        ESP_LOGW(TAG, "Knowledge request client (%s:%hu) disconnected",
-                                 client->address().to_string().c_str(), client->port());
+                        ESP_LOGW(TAG, "Command client (%s:%hu) disconnected", client->address().to_string().c_str(),
+                                 client->port());
                         break;
                     }
                     bytes_received += received;
-                    // if (bytes_received > offsetof(EpuckKnowledgePacket, N))
-                    // {
-                    //     expected_bytes =
-                    //         offsetof(EpuckKnowledgePacket, known_ids)
-                    //         + data[offsetof(EpuckKnowledgePacket, N)] * sizeof(EpuckKnowledgePacket::known_ids[0]);
-                    // }
                 }
 
-                ESP_LOGI(TAG, "Received knowledge request expected bytes%s", "");
+                ESP_LOGI(TAG, "Received command expected bytes%s", "");
 
                 if (bytes_received != expected_bytes)
                 {
@@ -544,7 +553,7 @@ private:
                     continue;
                 }
 
-                this->handle_knowledge_requests(client, data);
+                this->handle_commands(client, data);
             }
 #if ENABLE_TRY_CATCH
         } catch (const std::exception &e)
@@ -555,20 +564,83 @@ private:
 #endif
     }
 
-    void handle_knowledge_requests(const std::shared_ptr<IUDPEndpoint> &client,
-                                   const std::array<uint8_t, sizeof(EpuckKnowledgePacket)> &data)
+    void handle_commands(const std::shared_ptr<IUDPEndpoint> &client,
+                         const std::array<uint8_t, sizeof(EpuckCommandPacket)> &data)
     {
-        auto request = EpuckKnowledgePacket::unpack(data.data());
-        (void)request;
+        auto request = EpuckCommandPacket::unpack(data.data());
 
-        ESP_LOGD(TAG, "Received knowledge request from %s:%hu", client->address().to_string().c_str(), client->port());
+        ESP_LOGD(TAG, "Received command from %s:%hu", client->address().to_string().c_str(), client->port());
 
-        auto knowledge = this->create_knowledge_packet();
+        switch (request.command)
+        {
+        case EpuckCommandPacket::EPUCK_COMMAND_REQUEST_KNOWLEDGE: {
+            auto knowledge = this->create_knowledge_packet();
 
-        this->_comms_request_socket->send_to(asio::buffer(knowledge.pack(), sizeof(EpuckKnowledgePacket)), *client);
+            this->_comms_request_socket->send_to(asio::buffer(knowledge.pack(), sizeof(EpuckKnowledgePacket)), *client);
 
-        ESP_LOGD(TAG, "Sent knowledge to %s:%hu - %s", client->address().to_string().c_str(), client->port(),
-                 known_ids_to_string(knowledge.known_ids.cbegin(), knowledge.known_ids.cbegin() + knowledge.N).data());
+            ESP_LOGD(
+                TAG, "Sent knowledge to %s:%hu - %s", client->address().to_string().c_str(), client->port(),
+                known_ids_to_string(knowledge.known_ids.cbegin(), knowledge.known_ids.cbegin() + knowledge.N).data());
+
+            break;
+        }
+        case EpuckCommandPacket::EPUCK_COMMAND_SET_KNOWLEDGE: {
+            ESP_LOGD(TAG, "Received command to set knowledge");
+
+            std::array<uint8_t, sizeof(EpuckKnowledgePacket)> data{};
+
+            size_t bytes_received = 0;
+            size_t expected_bytes = sizeof(EpuckKnowledgePacket);
+            while (bytes_received < expected_bytes)
+            {
+                auto received = this->_comms_request_socket->receive_from(
+                    asio::buffer(data.data() + bytes_received, sizeof(EpuckKnowledgePacket) - bytes_received), *client);
+                ESP_LOGI(TAG, "Command server received %zu bytes", received);
+                if (received < 1)
+                {
+                    ESP_LOGW(TAG, "Command client (%s:%hu) disconnected", client->address().to_string().c_str(),
+                             client->port());
+                    break;
+                }
+                bytes_received += received;
+            }
+
+            if (bytes_received != expected_bytes)
+            {
+                ESP_LOGW(TAG, "Received %zu bytes, expected %zu bytes", bytes_received, expected_bytes);
+                return;
+            }
+
+            auto knowledge = EpuckKnowledgePacket::unpack(data.data());
+            ESP_LOGD(
+                TAG, "Received knowledge from %s:%hu - %s", client->address().to_string().c_str(), client->port(),
+                known_ids_to_string(knowledge.known_ids.cbegin(), knowledge.known_ids.cbegin() + knowledge.N).data());
+
+            // Update the knowledge of the robot
+            auto this_robot = std::find_if(knowledge.known_ids.begin(), knowledge.known_ids.begin() + knowledge.N,
+                                           [this](const auto &record) { return record.robot_id == this->robot_id; });
+
+            if (this_robot == knowledge.known_ids.end())
+            {
+                ESP_LOGW(TAG, "Missing knowledge for this robot! - " ROBOT_ID_TYPE_FMT, this->robot_id);
+                return;
+            }
+
+            // Set the seq number for the knowledge of this robot to UINT16_MAX to force an update to the rest of the
+            // attributes in the record
+            this_robot->seq = UINT16_MAX;
+            this->insert_known_ids(knowledge.known_ids.cbegin(), knowledge.known_ids.cbegin() + knowledge.N);
+
+            ESP_LOGD(TAG, "Updated knowledge - %s",
+                     known_ids_to_string(this->known_ids_begin(), this->known_ids_end()).data());
+
+            break;
+        }
+        default: {
+            ESP_LOGW(TAG, "Unknown command %u", request.command);
+            break;
+        }
+        }
     }
 
     alignas(T) std::array<uint8_t, sizeof(T)> _knowledge_server_buffer = {0};

@@ -465,5 +465,56 @@ struct PACKED EpuckKnowledgePacket {
     }
 };
 
+struct PACKED EpuckCommandPacket {
+    uint8_t id                  = 0x23;
+    uint8_t command             = 0;
+    std::array<uint8_t, 8> data = {};
+
+    enum {
+        EPUCK_COMMAND_REQUEST_KNOWLEDGE = 0,
+        EPUCK_COMMAND_SET_KNOWLEDGE     = 1,
+    };
+
+    [[nodiscard]] auto pack() const
+    {
+        std::array<uint8_t, sizeof(EpuckCommandPacket)> buffer = {0};
+
+        auto *id_ptr      = static_cast<uint8_t *>(&buffer[offsetof(EpuckCommandPacket, id)]);
+        auto *command_ptr = reinterpret_cast<uint8_t *>(&buffer[offsetof(EpuckCommandPacket, command)]);
+        auto *data_ptr    = reinterpret_cast<uint8_t *>(&buffer[offsetof(EpuckCommandPacket, data)]);
+
+        impl::value_to_buffer(id_ptr, id);
+        impl::value_to_buffer(command_ptr, command);
+
+        for (int i = 0; i < (sizeof(data) / sizeof(data[0])); i++)
+        {
+            memcpy(&data_ptr[i], &data.at(i), sizeof(data[0]));
+        }
+
+        return buffer;
+    }
+
+    [[nodiscard]] static EpuckCommandPacket unpack(const void *const buffer)
+    {
+        EpuckCommandPacket packet;
+
+        const auto *id_ptr      = &static_cast<const uint8_t *>(buffer)[offsetof(EpuckCommandPacket, id)];
+        const auto *command_ptr = reinterpret_cast<const uint8_t *>(
+            &static_cast<const uint8_t *>(buffer)[offsetof(EpuckCommandPacket, command)]);
+        const auto *data_ptr = reinterpret_cast<const uint8_t *>(
+            &static_cast<const uint8_t *>(buffer)[offsetof(EpuckCommandPacket, data)]);
+
+        packet.id      = impl::buffer_to_value<decltype(packet.id)>(id_ptr);
+        packet.command = impl::buffer_to_value<decltype(packet.command)>(command_ptr);
+
+        for (int i = 0; i < (sizeof(packet.data) / sizeof(packet.data[0])); i++)
+        {
+            packet.data.at(i) = *reinterpret_cast<const uint8_t *>(&data_ptr[i]);
+        }
+
+        return packet;
+    }
+};
+
 // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)

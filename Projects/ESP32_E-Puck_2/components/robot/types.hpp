@@ -22,14 +22,19 @@ extern "C" {
 }
 #endif
 #elif defined(ROS2)
+#include <rclcpp/logger.hpp>
 #include <rclcpp/logging.hpp>
-// NOLINTBEGIN(cppcoreguidelines-macro-usage)
-#define ESP_LOGE(tag, format, ...) RCLCPP_ERROR(rclcpp::get_logger(tag), format, ##__VA_ARGS__)
-#define ESP_LOGW(tag, format, ...) RCLCPP_WARN(rclcpp::get_logger(tag), format, ##__VA_ARGS__)
-#define ESP_LOGI(tag, format, ...) RCLCPP_INFO(rclcpp::get_logger(tag), format, ##__VA_ARGS__)
-#define ESP_LOGD(tag, format, ...) RCLCPP_DEBUG(rclcpp::get_logger(tag), format, ##__VA_ARGS__)
-#define ESP_LOGV(tag, format, ...) RCLCPP_DEBUG(rclcpp::get_logger(tag), format, ##__VA_ARGS__)
-// NOLINTEND(cppcoreguidelines-macro-usage)
+#include <rclcpp/node.hpp>
+// NOLINTBEGIN(cppcoreguidelines-macro-usage, cppcoreguidelines-avoid-non-const-global-variables,
+// readability-identifier-naming)
+extern std::shared_ptr<rclcpp::Node> LOGGING_NODE;
+#define ESP_LOGE(tag, format, ...) RCLCPP_ERROR(LOGGING_NODE->get_logger(), "[%s]: " format, tag, ##__VA_ARGS__)
+#define ESP_LOGW(tag, format, ...) RCLCPP_WARN(LOGGING_NODE->get_logger(), "[%s]: " format, tag, ##__VA_ARGS__)
+#define ESP_LOGI(tag, format, ...) RCLCPP_INFO(LOGGING_NODE->get_logger(), "[%s]: " format, tag, ##__VA_ARGS__)
+#define ESP_LOGD(tag, format, ...) RCLCPP_DEBUG(LOGGING_NODE->get_logger(), "[%s]: " format, tag, ##__VA_ARGS__)
+#define ESP_LOGV(tag, format, ...) RCLCPP_DEBUG(LOGGING_NODE->get_logger(), "[%s]: " format, tag, ##__VA_ARGS__)
+// NOLINTEND(cppcoreguidelines-macro-usage, cppcoreguidelines-avoid-non-const-global-variables,
+// readability-identifier-naming)
 #else
 #include <stdarg.h>
 #include <stdio.h>
