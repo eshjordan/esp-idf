@@ -313,8 +313,6 @@ public:
         this->_comms_request_socket->open();
         auto address         = asio::ip::make_address_v4(this->robot_comms_host.c_str());
         auto client_endpoint = _network_factory->create_udp_endpoint(address, this->robot_comms_request_port);
-        ESP_LOGI(TAG, "RobotCommsModel comms requests - (%s:%hu)", client_endpoint->address().to_string().c_str(),
-                 client_endpoint->port());
         this->_comms_request_socket->bind(*client_endpoint);
 
         cfg             = esp_pthread_get_default_config();
@@ -387,7 +385,7 @@ private:
             strncpy(packet.robot_knowledge_host.data(), this->robot_knowledge_host.c_str(), MAX_HOST_LEN);
             packet.robot_knowledge_exchange_port = this->robot_knowledge_exchange_port;
 
-            ESP_LOGI(TAG, "(%s:%hu)", manager_endpoint->address().to_string().c_str(), manager_endpoint->port());
+            ESP_LOGD(TAG, "(%s:%hu)", manager_endpoint->address().to_string().c_str(), manager_endpoint->port());
             std::array<uint8_t, sizeof(EpuckHeartbeatPacket)> packed_packet = packet.pack();
             heartbeat_client->send_to(asio::buffer(packed_packet, sizeof(EpuckHeartbeatPacket)), *manager_endpoint);
 
@@ -409,7 +407,7 @@ private:
 
             auto response_buffer = EpuckHeartbeatResponsePacket().pack();
 
-            ESP_LOGI(TAG, "Receiving heartbeat response%s", "");
+            ESP_LOGD(TAG, "Receiving heartbeat response%s", "");
 
             size_t bytes_received = 0;
             size_t expected_bytes = sizeof(EpuckHeartbeatResponsePacket);
@@ -496,7 +494,7 @@ private:
         try
         {
 #endif
-            ESP_LOGI(TAG, "Starting command connection on %s:%hu", this->robot_comms_host.c_str(),
+            ESP_LOGI(TAG, "Command server starting on %s:%hu", this->robot_comms_host.c_str(),
                      this->robot_comms_request_port);
             while (this->_running)
             {
@@ -514,17 +512,17 @@ private:
                 }
                 if (fds_ready < 0)
                 {
-                    ESP_LOGE(TAG, "Error receiving data - %s", "select");
+                    ESP_LOGE(TAG, "Command server error receiving data - %s", "select");
                     perror("select");
                     vTaskDelay(1000 / portTICK_PERIOD_MS);
                     continue;
                 }
 
-                ESP_LOGI(TAG, "Command server received data%s", "");
+                ESP_LOGD(TAG, "Command server received data%s", "");
 
                 auto client = this->_network_factory->create_udp_endpoint();
 
-                ESP_LOGI(TAG, "Command server client created%s", "");
+                ESP_LOGD(TAG, "Command server client created%s", "");
 
                 std::array<uint8_t, sizeof(EpuckCommandPacket)> data{};
 
@@ -535,7 +533,7 @@ private:
                     auto received = this->_comms_request_socket->receive_from(
                         asio::buffer(data.data() + bytes_received, sizeof(EpuckCommandPacket) - bytes_received),
                         *client);
-                    ESP_LOGI(TAG, "Command server received %zu bytes", received);
+                    ESP_LOGD(TAG, "Command server received %zu bytes", received);
                     if (received < 1)
                     {
                         ESP_LOGW(TAG, "Command client (%s:%hu) disconnected", client->address().to_string().c_str(),
@@ -545,11 +543,11 @@ private:
                     bytes_received += received;
                 }
 
-                ESP_LOGI(TAG, "Received command expected bytes%s", "");
+                ESP_LOGD(TAG, "Command server received expected bytes%s", "");
 
                 if (bytes_received != expected_bytes)
                 {
-                    ESP_LOGW(TAG, "Received %zu bytes, expected %zu bytes", bytes_received, expected_bytes);
+                    ESP_LOGW(TAG, "Command server received %zu bytes, expected %zu bytes", bytes_received, expected_bytes);
                     continue;
                 }
 
@@ -569,23 +567,25 @@ private:
     {
         auto request = EpuckCommandPacket::unpack(data.data());
 
-        ESP_LOGD(TAG, "Received command from %s:%hu", client->address().to_string().c_str(), client->port());
+        ESP_LOGD(TAG, "Command handler received command from %s:%hu", client->address().to_string().c_str(), client->port());
 
         switch (request.command)
         {
         case EpuckCommandPacket::EPUCK_COMMAND_REQUEST_KNOWLEDGE: {
+            ESP_LOGD(TAG, "Command handler received REQUEST_KNOWLEDGE");
+
             auto knowledge = this->create_knowledge_packet();
 
             this->_comms_request_socket->send_to(asio::buffer(knowledge.pack(), sizeof(EpuckKnowledgePacket)), *client);
 
             ESP_LOGD(
-                TAG, "Sent knowledge to %s:%hu - %s", client->address().to_string().c_str(), client->port(),
+                TAG, "Command handler sent knowledge to %s:%hu - %s", client->address().to_string().c_str(), client->port(),
                 known_ids_to_string(knowledge.known_ids.cbegin(), knowledge.known_ids.cbegin() + knowledge.N).data());
 
             break;
         }
         case EpuckCommandPacket::EPUCK_COMMAND_SET_KNOWLEDGE: {
-            ESP_LOGD(TAG, "Received command to set knowledge");
+            ESP_LOGD(TAG, "Command handler received SET_KNOWLEDGE");
 
             std::array<uint8_t, sizeof(EpuckKnowledgePacket)> data{};
 
@@ -595,10 +595,10 @@ private:
             {
                 auto received = this->_comms_request_socket->receive_from(
                     asio::buffer(data.data() + bytes_received, sizeof(EpuckKnowledgePacket) - bytes_received), *client);
-                ESP_LOGI(TAG, "Command server received %zu bytes", received);
+                ESP_LOGD(TAG, "Command handler received %zu bytes", received);
                 if (received < 1)
                 {
-                    ESP_LOGW(TAG, "Command client (%s:%hu) disconnected", client->address().to_string().c_str(),
+                    ESP_LOGW(TAG, "Command handler client (%s:%hu) disconnected", client->address().to_string().c_str(),
                              client->port());
                     break;
                 }
@@ -607,13 +607,13 @@ private:
 
             if (bytes_received != expected_bytes)
             {
-                ESP_LOGW(TAG, "Received %zu bytes, expected %zu bytes", bytes_received, expected_bytes);
+                ESP_LOGW(TAG, "Command handler received %zu bytes, expected %zu bytes", bytes_received, expected_bytes);
                 return;
             }
 
             auto knowledge = EpuckKnowledgePacket::unpack(data.data());
             ESP_LOGD(
-                TAG, "Received knowledge from %s:%hu - %s", client->address().to_string().c_str(), client->port(),
+                TAG, "Command handler received knowledge from %s:%hu - %s", client->address().to_string().c_str(), client->port(),
                 known_ids_to_string(knowledge.known_ids.cbegin(), knowledge.known_ids.cbegin() + knowledge.N).data());
 
             // Update the knowledge of the robot
@@ -622,7 +622,7 @@ private:
 
             if (this_robot == knowledge.known_ids.end())
             {
-                ESP_LOGW(TAG, "Missing knowledge for this robot! - " ROBOT_ID_TYPE_FMT, this->robot_id);
+                ESP_LOGW(TAG, "Command handler missing knowledge for this robot! - " ROBOT_ID_TYPE_FMT, this->robot_id);
                 return;
             }
 
@@ -631,13 +631,13 @@ private:
             this_robot->seq = UINT16_MAX;
             this->insert_known_ids(knowledge.known_ids.cbegin(), knowledge.known_ids.cbegin() + knowledge.N);
 
-            ESP_LOGD(TAG, "Updated knowledge - %s",
+            ESP_LOGI(TAG, "Command handler updated knowledge - %s",
                      known_ids_to_string(this->known_ids_begin(), this->known_ids_end()).data());
 
             break;
         }
         default: {
-            ESP_LOGW(TAG, "Unknown command %u", request.command);
+            ESP_LOGW(TAG, "Command handler unknown command %u", request.command);
             break;
         }
         }

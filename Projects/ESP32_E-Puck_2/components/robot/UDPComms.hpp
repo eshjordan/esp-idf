@@ -91,8 +91,6 @@ public:
         auto address = asio::ip::make_address_v4(this->_robot_model->robot_knowledge_host.c_str());
         auto client_endpoint =
             _network_factory->create_udp_endpoint(address, this->_robot_model->robot_knowledge_exchange_port);
-        ESP_LOGI(TAG, "UDPKnowledgeServer - (%s:%hu)", client_endpoint->address().to_string().c_str(),
-                 client_endpoint->port());
         this->_socket->bind(*client_endpoint);
 
         auto cfg        = esp_pthread_get_default_config();
@@ -136,7 +134,7 @@ private:
 
     void start_receive()
     {
-        ESP_LOGI(TAG, "Starting knowledge connection on %s:%hu", this->_robot_model->robot_knowledge_host.c_str(),
+        ESP_LOGI(TAG, "Starting knowledge server at %s:%hu", this->_robot_model->robot_knowledge_host.c_str(),
                  this->_robot_model->robot_knowledge_exchange_port);
         while (this->_running)
         {
@@ -213,7 +211,7 @@ private:
                                 known_ids_before.cbegin(), known_ids_before.cend(),
                                 std::inserter(new_ids, new_ids.end()));
 
-            ESP_LOGI(TAG, "Received new IDs from " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", request.robot_id,
+            ESP_LOGI(TAG, "Knowledge server received new IDs from " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", request.robot_id,
                      client.address().to_string().c_str(), client.port(),
                      known_ids_to_string(new_ids.cbegin(), new_ids.cend()).data());
         }
@@ -344,7 +342,7 @@ private:
 
     void send_knowledge()
     {
-        ESP_LOGI(TAG, "Starting knowledge connection with " ROBOT_ID_TYPE_FMT " (%s:%hu)", this->_neighbour.robot_id,
+        ESP_LOGI(TAG, "Starting knowledge client to " ROBOT_ID_TYPE_FMT " (%s:%hu)", this->_neighbour.robot_id,
                  this->_neighbour.host.data(), this->_neighbour.port);
 
         auto server = _network_factory->create_udp_endpoint(asio::ip::make_address_v4(this->_neighbour.host.data()),
@@ -418,7 +416,7 @@ private:
                                     known_ids_before.cbegin(), known_ids_before.cend(),
                                     std::inserter(new_ids, new_ids.begin()));
 
-                ESP_LOGI(TAG, "Received new IDs from " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", response.robot_id,
+                ESP_LOGI(TAG, "Knowledge client received new IDs from " ROBOT_ID_TYPE_FMT " (%s:%hu): %s", response.robot_id,
                          this->_neighbour.host.data(), this->_neighbour.port,
                          known_ids_to_string(new_ids.cbegin(), new_ids.cend()).data());
             }
@@ -426,7 +424,7 @@ private:
             vTaskDelay(1000 / portTICK_PERIOD_MS);
         }
 
-        ESP_LOGI(TAG, "Stopping knowledge connection with " ROBOT_ID_TYPE_FMT " (%s:%hu)", this->_neighbour.robot_id,
+        ESP_LOGI(TAG, "Stopping knowledge client to " ROBOT_ID_TYPE_FMT " (%s:%hu)", this->_neighbour.robot_id,
                  this->_neighbour.host.data(), this->_neighbour.port);
     }
 };
