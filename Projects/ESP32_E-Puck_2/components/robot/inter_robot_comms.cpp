@@ -62,7 +62,7 @@ void inter_robot_comms_task(void *pvParameter)
         const host_size_string manager_host = "192.168.11.5";
         constexpr uint16_t manager_port     = 50000;
         // host_size_string robot_host         = "192.168.0.2";
-        constexpr uint16_t robot_comms_request_port      = 1001;
+        constexpr uint16_t robot_command_port            = 1001;
         constexpr uint16_t robot_knowledge_exchange_port = 1002;
 
         std::array<uint8_t, sizeof(NetworkFactory)> network_factory_buffer = {0};
@@ -114,7 +114,7 @@ void inter_robot_comms_task(void *pvParameter)
 
                 robot_model = std::shared_ptr<RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>>(
                     new (robot_model_buffer.data()) RobotCommsModel<UDPKnowledgeServer, UDPKnowledgeClient>(
-                        robot_id, manager_host, manager_port, robot_comms_host, robot_comms_request_port,
+                        robot_id, manager_host, manager_port, robot_comms_host, robot_command_port,
                         robot_knowledge_host, robot_knowledge_exchange_port, network_factory));
 
                 robot_model->start();

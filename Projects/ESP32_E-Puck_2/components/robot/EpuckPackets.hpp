@@ -81,8 +81,8 @@ enable_if_both_types_are_size_n_return_t<T, U, 4> buffer_to_value(const U *buffe
 struct PACKED EpuckHeartbeatPacket {
     uint8_t id                                              = 0x20;
     robot_id_type robot_id                                  = 0;
-    std::array<char, MAX_HOST_LEN + 1> robot_comms_host     = {0};
-    uint16_t robot_comms_request_port                       = 0;
+    std::array<char, MAX_HOST_LEN + 1> robot_command_host   = {0};
+    uint16_t robot_command_port                             = 0;
     std::array<char, MAX_HOST_LEN + 1> robot_knowledge_host = {0};
     uint16_t robot_knowledge_exchange_port                  = 0;
 
@@ -92,10 +92,10 @@ struct PACKED EpuckHeartbeatPacket {
 
         auto *id_ptr       = static_cast<uint8_t *>(&buffer[offsetof(EpuckHeartbeatPacket, id)]);
         auto *robot_id_ptr = reinterpret_cast<robot_id_type *>(&buffer[offsetof(EpuckHeartbeatPacket, robot_id)]);
-        auto *robot_comms_host_ptr =
-            reinterpret_cast<char *>(&buffer[offsetof(EpuckHeartbeatPacket, robot_comms_host)]);
-        auto *robot_comms_request_port_ptr =
-            reinterpret_cast<uint16_t *>(&buffer[offsetof(EpuckHeartbeatPacket, robot_comms_request_port)]);
+        auto *robot_command_host_ptr =
+            reinterpret_cast<char *>(&buffer[offsetof(EpuckHeartbeatPacket, robot_command_host)]);
+        auto *robot_command_port_ptr =
+            reinterpret_cast<uint16_t *>(&buffer[offsetof(EpuckHeartbeatPacket, robot_command_port)]);
         auto *robot_knowledge_host_ptr =
             reinterpret_cast<char *>(&buffer[offsetof(EpuckHeartbeatPacket, robot_knowledge_host)]);
         auto *robot_knowledge_exchange_port_ptr =
@@ -103,8 +103,8 @@ struct PACKED EpuckHeartbeatPacket {
 
         impl::value_to_buffer(id_ptr, id);
         impl::value_to_buffer(robot_id_ptr, robot_id);
-        strncpy(robot_comms_host_ptr, robot_comms_host.data(), MAX_HOST_LEN);
-        impl::value_to_buffer(robot_comms_request_port_ptr, robot_comms_request_port);
+        strncpy(robot_command_host_ptr, robot_command_host.data(), MAX_HOST_LEN);
+        impl::value_to_buffer(robot_command_port_ptr, robot_command_port);
         strncpy(robot_knowledge_host_ptr, robot_knowledge_host.data(), MAX_HOST_LEN);
         impl::value_to_buffer(robot_knowledge_exchange_port_ptr, robot_knowledge_exchange_port);
 
@@ -118,10 +118,10 @@ struct PACKED EpuckHeartbeatPacket {
         const auto *id_ptr       = &static_cast<const uint8_t *>(buffer)[offsetof(EpuckHeartbeatPacket, id)];
         const auto *robot_id_ptr = reinterpret_cast<const robot_id_type *>(
             &static_cast<const uint8_t *>(buffer)[offsetof(EpuckHeartbeatPacket, robot_id)]);
-        const auto *robot_comms_host_ptr = reinterpret_cast<const char *>(
-            &static_cast<const uint8_t *>(buffer)[offsetof(EpuckHeartbeatPacket, robot_comms_host)]);
-        const auto *robot_comms_request_port_ptr = reinterpret_cast<const uint16_t *>(
-            &static_cast<const uint8_t *>(buffer)[offsetof(EpuckHeartbeatPacket, robot_comms_request_port)]);
+        const auto *robot_command_host_ptr = reinterpret_cast<const char *>(
+            &static_cast<const uint8_t *>(buffer)[offsetof(EpuckHeartbeatPacket, robot_command_host)]);
+        const auto *robot_command_port_ptr = reinterpret_cast<const uint16_t *>(
+            &static_cast<const uint8_t *>(buffer)[offsetof(EpuckHeartbeatPacket, robot_command_port)]);
         const auto *robot_knowledge_host_ptr = reinterpret_cast<const char *>(
             &static_cast<const uint8_t *>(buffer)[offsetof(EpuckHeartbeatPacket, robot_knowledge_host)]);
         const auto *robot_knowledge_exchange_port_ptr = reinterpret_cast<const uint16_t *>(
@@ -129,9 +129,8 @@ struct PACKED EpuckHeartbeatPacket {
 
         packet.id       = impl::buffer_to_value<decltype(packet.id)>(id_ptr);
         packet.robot_id = impl::buffer_to_value<decltype(packet.robot_id)>(robot_id_ptr);
-        strncpy(packet.robot_comms_host.data(), robot_comms_host_ptr, MAX_HOST_LEN);
-        packet.robot_comms_request_port =
-            impl::buffer_to_value<decltype(packet.robot_comms_request_port)>(robot_comms_request_port_ptr);
+        strncpy(packet.robot_command_host.data(), robot_command_host_ptr, MAX_HOST_LEN);
+        packet.robot_command_port = impl::buffer_to_value<decltype(packet.robot_command_port)>(robot_command_port_ptr);
         strncpy(packet.robot_knowledge_host.data(), robot_knowledge_host_ptr, MAX_HOST_LEN);
         packet.robot_knowledge_exchange_port =
             impl::buffer_to_value<decltype(packet.robot_knowledge_exchange_port)>(robot_knowledge_exchange_port_ptr);

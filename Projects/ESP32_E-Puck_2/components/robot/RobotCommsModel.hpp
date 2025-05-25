@@ -130,17 +130,17 @@ public:
     const robot_id_type robot_id;
     const host_size_string manager_host;
     const uint16_t manager_port;
-    const host_size_string robot_comms_host;
-    const uint16_t robot_comms_request_port;
+    const host_size_string robot_command_host;
+    const uint16_t robot_command_port;
     const host_size_string robot_knowledge_host;
     const uint16_t robot_knowledge_exchange_port;
 
     explicit BaseRobotCommsModel(const robot_id_type &robot_id, host_size_string manager_host,
-                                 const uint16_t &manager_port, host_size_string robot_comms_host,
-                                 const uint16_t &robot_comms_request_port, host_size_string robot_knowledge_host,
+                                 const uint16_t &manager_port, host_size_string robot_command_host,
+                                 const uint16_t &robot_command_port, host_size_string robot_knowledge_host,
                                  const uint16_t &robot_knowledge_exchange_port)
         : robot_id(robot_id), manager_host(std::move(manager_host)), manager_port(manager_port),
-          robot_comms_host(std::move(robot_comms_host)), robot_comms_request_port(robot_comms_request_port),
+          robot_command_host(std::move(robot_command_host)), robot_command_port(robot_command_port),
           robot_knowledge_host(std::move(robot_knowledge_host)),
           robot_knowledge_exchange_port(robot_knowledge_exchange_port)
     {
@@ -282,11 +282,11 @@ class RobotCommsModel : public std::enable_shared_from_this<RobotCommsModel<T, U
 
 public:
     RobotCommsModel(const robot_id_type &robot_id, host_size_string manager_host, const uint16_t &manager_port,
-                    host_size_string robot_comms_host, const uint16_t &robot_comms_request_port,
+                    host_size_string robot_command_host, const uint16_t &robot_command_port,
                     host_size_string robot_knowledge_host, const uint16_t &robot_knowledge_exchange_port,
                     std::shared_ptr<INetworkFactory> network_factory)
-        : BaseRobotCommsModel(robot_id, std::move(manager_host), manager_port, std::move(robot_comms_host),
-                              robot_comms_request_port, std::move(robot_knowledge_host), robot_knowledge_exchange_port),
+        : BaseRobotCommsModel(robot_id, std::move(manager_host), manager_port, std::move(robot_command_host),
+                              robot_command_port, std::move(robot_knowledge_host), robot_knowledge_exchange_port),
           _network_factory(std::move(network_factory))
     {
         this->_io_context = _network_factory->create_io_context();
@@ -309,27 +309,27 @@ public:
         cfg.stack_size  = 8192;
         cfg.thread_name = "robot_comms_exchange_heartbeats";
         ESP_ERROR_CHECK(esp_pthread_set_cfg(&cfg));
-        this->_comms_heartbeat_thread = std::thread(&RobotCommsModel::launch_exchange_heartbeats, this);
+        this->_exchange_heartbeats_thread = std::thread(&RobotCommsModel::launch_exchange_heartbeats, this);
 
-        this->_comms_request_socket = _network_factory->create_udp_socket(*this->_io_context);
-        this->_comms_request_socket->open();
-        auto address         = asio::ip::make_address_v4(this->robot_comms_host.c_str());
-        auto client_endpoint = _network_factory->create_udp_endpoint(address, this->robot_comms_request_port);
-        this->_comms_request_socket->bind(*client_endpoint);
+        this->_command_request_socket = _network_factory->create_udp_socket(*this->_io_context);
+        this->_command_request_socket->open();
+        auto address         = asio::ip::make_address_v4(this->robot_command_host.c_str());
+        auto client_endpoint = _network_factory->create_udp_endpoint(address, this->robot_command_port);
+        this->_command_request_socket->bind(*client_endpoint);
 
         cfg             = esp_pthread_get_default_config();
         cfg.pin_to_core = CORE_1;
         cfg.stack_size  = 8192;
-        cfg.thread_name = "robot_comms_request_knowledge";
+        cfg.thread_name = "robot_command_handler";
         ESP_ERROR_CHECK(esp_pthread_set_cfg(&cfg));
-        this->_comms_request_thread = std::thread(&RobotCommsModel::launch_handle_commands, this);
+        this->_handle_commands_thread = std::thread(&RobotCommsModel::launch_handle_commands, this);
     }
 
     void stop() noexcept override
     {
         this->_running = false;
-        if (this->_comms_heartbeat_thread.joinable()) { this->_comms_heartbeat_thread.join(); }
-        if (this->_comms_request_thread.joinable()) { this->_comms_request_thread.join(); }
+        if (this->_exchange_heartbeats_thread.joinable()) { this->_exchange_heartbeats_thread.join(); }
+        if (this->_handle_commands_thread.joinable()) { this->_handle_commands_thread.join(); }
         if (this->_knowledge_server)
         {
             this->_knowledge_server->stop();
@@ -382,8 +382,8 @@ private:
 
             auto packet     = EpuckHeartbeatPacket();
             packet.robot_id = this->robot_id;
-            strncpy(packet.robot_comms_host.data(), this->robot_comms_host.c_str(), MAX_HOST_LEN);
-            packet.robot_comms_request_port = this->robot_comms_request_port;
+            strncpy(packet.robot_command_host.data(), this->robot_command_host.c_str(), MAX_HOST_LEN);
+            packet.robot_command_port = this->robot_command_port;
             strncpy(packet.robot_knowledge_host.data(), this->robot_knowledge_host.c_str(), MAX_HOST_LEN);
             packet.robot_knowledge_exchange_port = this->robot_knowledge_exchange_port;
 
@@ -502,16 +502,16 @@ private:
         try
         {
 #endif
-            ESP_LOGI(TAG, "Command server starting on %s:%hu", this->robot_comms_host.c_str(),
-                     this->robot_comms_request_port);
+            ESP_LOGI(TAG, "Command server starting on %s:%hu", this->robot_command_host.c_str(),
+                     this->robot_command_port);
             while (this->_running)
             {
 
                 struct timeval tv = {1, 0};
                 fd_set readfds;
                 FD_ZERO(&readfds);
-                FD_SET(this->_comms_request_socket->get_native_socket().native_handle(), &readfds);
-                int fds_ready = select(this->_comms_request_socket->get_native_socket().native_handle() + 1, &readfds,
+                FD_SET(this->_command_request_socket->get_native_socket().native_handle(), &readfds);
+                int fds_ready = select(this->_command_request_socket->get_native_socket().native_handle() + 1, &readfds,
                                        nullptr, nullptr, &tv);
                 if (fds_ready == 0)
                 { // timeout
@@ -538,7 +538,7 @@ private:
                 size_t expected_bytes = sizeof(EpuckCommandPacket);
                 while (bytes_received < expected_bytes)
                 {
-                    auto received = this->_comms_request_socket->receive_from(
+                    auto received = this->_command_request_socket->receive_from(
                         asio::buffer(data.data() + bytes_received, sizeof(EpuckCommandPacket) - bytes_received),
                         *client);
                     ESP_LOGD(TAG, "Command server received %zu bytes", received);
@@ -586,7 +586,7 @@ private:
 
             auto knowledge = this->create_knowledge_packet();
 
-            this->_comms_request_socket->send_to(asio::buffer(knowledge.pack(), sizeof(EpuckKnowledgePacket)), *client);
+            this->_command_request_socket->send_to(asio::buffer(knowledge.pack(), sizeof(EpuckKnowledgePacket)), *client);
 
             ESP_LOGD(TAG, "Command handler sent knowledge to %s:%hu - %s", client->address().to_string().c_str(),
                      client->port(),
@@ -605,7 +605,7 @@ private:
             size_t expected_bytes = sizeof(EpuckKnowledgePacket);
             while (bytes_received < expected_bytes)
             {
-                auto received = this->_comms_request_socket->receive_from(
+                auto received = this->_command_request_socket->receive_from(
                     asio::buffer(data.data() + bytes_received, sizeof(EpuckKnowledgePacket) - bytes_received), *client);
                 ESP_LOGD(TAG, "Command handler received %zu bytes", received);
                 if (received < 1)
@@ -659,18 +659,17 @@ private:
         }
     }
 
+    bool _running = false;
     alignas(T) std::array<uint8_t, sizeof(T)> _knowledge_server_buffer = {0};
     T *_knowledge_server;
     robot_size_map<robot_id_type, U> _knowledge_clients;
 
-    bool _running = false;
-
-    std::thread _comms_heartbeat_thread;
+    std::thread _exchange_heartbeats_thread;
+    std::thread _handle_commands_thread;
 
     std::shared_ptr<INetworkFactory> _network_factory;
     std::shared_ptr<IIoContext> _io_context;
-    std::shared_ptr<IUdpSocket> _comms_request_socket = nullptr;
-    std::thread _comms_request_thread;
+    std::shared_ptr<IUdpSocket> _command_request_socket = nullptr;
 
     static constexpr const char *const TAG = "RobotCommsModel";
 };
